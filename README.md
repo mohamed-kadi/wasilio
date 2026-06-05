@@ -39,6 +39,7 @@ The system enforces strict determinism. Invalid state transitions throw illegal 
 The easiest way to start the system locally is using Docker Compose:
 
 ```bash
+export JWT_SECRET="$(openssl rand -base64 32)"
 docker-compose up --build
 ```
 - **Frontend Dashboard:** [http://localhost:80](http://localhost:80)
@@ -54,6 +55,7 @@ docker-compose up postgres -d
 2. **Run Backend:**
 ```bash
 cd backend
+export JWT_SECRET="$(openssl rand -base64 32)"
 mvn spring-boot:run
 ```
 
