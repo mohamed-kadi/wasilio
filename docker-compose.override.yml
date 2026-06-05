@@ -1,0 +1,5 @@
+services:
+  backend:
+    environment:
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration,classpath:db/seed
+      JWT_SECRET: ${JWT_SECRET:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}

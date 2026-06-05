@@ -1,0 +1,5 @@
+services:
+  backend:
+    environment:
+      SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set for production compose}

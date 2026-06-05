@@ -39,16 +39,24 @@ The system enforces strict determinism. Invalid state transitions throw illegal 
 The easiest way to start the system locally is using Docker Compose:
 
 ```bash
+cp .env.example .env
 docker-compose up --build
 ```
 - **Frontend Dashboard:** [http://localhost:80](http://localhost:80)
 - **Backend API:** [http://localhost:8080](http://localhost:8080)
 
 **Local Development Bootstrap User:**
-The `docker-compose.yml` configures Flyway to automatically load a development database seed (`db/seed`).
+The default Compose stack loads `docker-compose.yml` plus `docker-compose.override.yml`. The override is local-development only and configures Flyway to load the development database seed (`db/seed`).
 You can log in to the system with the following credentials:
 - **Email:** `admin@example.com`
 - **Password:** `password`
+
+**Production Compose:**
+Use the production override and provide `JWT_SECRET` from deployment secrets. This configuration runs only Flyway migrations (`db/migration`) and excludes the development seed (`db/seed`).
+
+```bash
+JWT_SECRET="<production-secret>" docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+```
 
 ### Running Manually
 
@@ -60,7 +68,7 @@ docker-compose up postgres -d
 2. **Run Backend:**
 ```bash
 cd backend
-export JWT_SECRET="secret"
+export JWT_SECRET="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 export SPRING_FLYWAY_LOCATIONS="classpath:db/migration,classpath:db/seed"
 mvn spring-boot:run
 ```
