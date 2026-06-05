@@ -1,4 +1,39 @@
-export const API_BASE_URL = '/api';
+import { useAuthStore } from '../store/authStore';
+
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+
+export interface FieldError {
+  field: string;
+  message: string;
+}
+
+export interface ProblemResponse {
+  type?: string;
+  title?: string;
+  status?: number;
+  detail?: string;
+  error?: string;
+  timestamp?: string;
+  fieldErrors?: FieldError[];
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly title: string;
+  readonly detail: string;
+  readonly fieldErrors: FieldError[];
+
+  constructor(status: number, problem: ProblemResponse) {
+    const title = problem.title ?? 'Request failed';
+    const detail = problem.detail ?? problem.error ?? `Request failed with status ${status}`;
+    super(detail);
+    this.name = 'ApiError';
+    this.status = status;
+    this.title = title;
+    this.detail = detail;
+    this.fieldErrors = problem.fieldErrors ?? [];
+  }
+}
 
 export interface Customer {
   firstName: string;
@@ -15,10 +50,20 @@ export interface Address {
   country: string;
 }
 
+export type OrderStatus =
+  | 'CREATED'
+  | 'CONFIRMATION_REQUESTED'
+  | 'CONFIRMED'
+  | 'REJECTED'
+  | 'ASSIGNED_TO_COURIER'
+  | 'PICKED_UP'
+  | 'DELIVERED'
+  | 'FAILED';
+
 export interface Order {
   id: string;
   tenantId: string;
-  status: string;
+  status: OrderStatus;
   customer: Customer;
   address: Address;
   amount: number;
@@ -29,18 +74,174 @@ export interface Order {
   version: number;
 }
 
-export const fetchOrders = async (): Promise<Order[]> => {
-  const res = await fetch(`${API_BASE_URL}/orders`);
-  if (!res.ok) throw new Error('Failed to fetch orders');
-  return res.json();
-};
+export interface OrdersPageResponse {
+  content: Order[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
 
-export const createOrder = async (data: { customer: Customer; address: Address; amount: number }) => {
-  const res = await fetch(`${API_BASE_URL}/orders`, {
+export interface OrdersQuery {
+  page?: number;
+  size?: number;
+  status?: OrderStatus | '';
+}
+
+export interface DomainEvent {
+  eventId: string;
+  eventType: string;
+  aggregateSequence: number;
+  eventSchemaVersion: number;
+  timestamp: string;
+  payload: string;
+}
+
+export interface CreateOrderPayload {
+  customer: Customer;
+  address: Address;
+  amount: number;
+}
+
+export interface LoginResponse {
+  token: string;
+}
+
+interface RequestOptions extends RequestInit {
+  auth?: boolean;
+}
+
+export async function login(email: string, password: string): Promise<LoginResponse> {
+  return apiRequest<LoginResponse>('/auth/login', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    auth: false,
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function fetchOrders(query: OrdersQuery = {}): Promise<OrdersPageResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+  if (query.status) {
+    params.set('status', query.status);
+  }
+
+  return apiRequest<OrdersPageResponse>(`/orders?${params.toString()}`);
+}
+
+export async function fetchOrder(id: string): Promise<Order> {
+  return apiRequest<Order>(`/orders/${id}`);
+}
+
+export async function fetchOrderEvents(id: string): Promise<DomainEvent[]> {
+  return apiRequest<DomainEvent[]>(`/orders/${id}/events`);
+}
+
+export async function createOrder(data: CreateOrderPayload): Promise<string> {
+  return apiRequest<string>('/orders', {
+    method: 'POST',
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to create order');
-  return res.json();
-};
+}
+
+export async function requestConfirmation(orderId: string): Promise<void> {
+  await apiRequest<void>(`/orders/${orderId}/request-confirmation`, { method: 'POST' });
+}
+
+export async function confirmOrder(orderId: string): Promise<void> {
+  await apiRequest<void>(`/orders/${orderId}/confirm`, { method: 'POST' });
+}
+
+export async function rejectOrder(orderId: string, reason: string): Promise<void> {
+  await apiRequest<void>(`/orders/${orderId}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function assignCourier(orderId: string, courierId: string): Promise<void> {
+  await apiRequest<void>(`/orders/${orderId}/assign-courier`, {
+    method: 'POST',
+    body: JSON.stringify({ courierId }),
+  });
+}
+
+export async function markPickedUp(orderId: string, courierId: string): Promise<void> {
+  await apiRequest<void>(`/orders/${orderId}/pick-up`, {
+    method: 'POST',
+    body: JSON.stringify({ courierId }),
+  });
+}
+
+export async function markDelivered(orderId: string): Promise<void> {
+  await apiRequest<void>(`/orders/${orderId}/deliver`, { method: 'POST' });
+}
+
+export async function markFailed(orderId: string, reason: string): Promise<void> {
+  await apiRequest<void>(`/orders/${orderId}/fail`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    return `${error.title}: ${error.detail}`;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return 'Unexpected error';
+}
+
+async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { auth = true, headers: optionHeaders, ...requestOptions } = options;
+  const headers = new Headers(optionHeaders);
+
+  if (requestOptions.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  if (auth) {
+    const token = useAuthStore.getState().session?.token;
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...requestOptions,
+    headers,
+  });
+
+  if (response.status === 401) {
+    useAuthStore.getState().clearSession();
+  }
+
+  if (!response.ok) {
+    throw await toApiError(response);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const text = await response.text();
+  return text ? (JSON.parse(text) as T) : (undefined as T);
+}
+
+async function toApiError(response: Response): Promise<ApiError> {
+  const fallback: ProblemResponse = {
+    title: response.statusText || 'Request failed',
+    status: response.status,
+    detail: `Request failed with status ${response.status}`,
+  };
+
+  try {
+    const problem = (await response.json()) as ProblemResponse;
+    return new ApiError(response.status, { ...fallback, ...problem });
+  } catch {
+    return new ApiError(response.status, fallback);
+  }
+}
