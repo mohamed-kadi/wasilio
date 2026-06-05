@@ -50,7 +50,7 @@ public class DomainEvent {
     
     private UUID causationId;
 
-    @Column(nullable = false)
+    @Column(name = "created_at", nullable = false)
     private Instant timestamp;
 
     @JdbcTypeCode(SqlTypes.JSON)
