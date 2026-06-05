@@ -30,3 +30,11 @@ management:
       probes:
         enabled: true
       show-details: never
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} level=%-5level logger=%logger{36} correlationId=%X{correlationId} tenantId=%X{tenantId} message=%msg%n%ex"

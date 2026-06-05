@@ -1,8 +1,10 @@
 package com.nexora.backend.infrastructure.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
 import lombok.RequiredArgsConstructor;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -27,6 +29,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -38,6 +41,9 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final CustomUserDetailsService userDetailsService;
     private final ObjectMapper objectMapper;
+
+    @Value("${app.cors.allowed-origins:}")
+    private String allowedOrigins;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -84,12 +90,20 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("*")); // Adjust in production
+        configuration.setAllowedOrigins(parseAllowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", CorrelationIdContext.HEADER_NAME));
+        configuration.setExposedHeaders(List.of(CorrelationIdContext.HEADER_NAME));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
+    }
+
+    private List<String> parseAllowedOrigins() {
+        return Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isBlank())
+                .toList();
     }
 
     private void writeProblem(HttpServletResponse response, HttpStatus status, String title, String detail) throws IOException {
@@ -97,6 +111,7 @@ public class SecurityConfig {
         problem.setTitle(title);
         problem.setProperty("error", status.getReasonPhrase());
         problem.setProperty("timestamp", Instant.now().toString());
+        problem.setProperty("correlationId", CorrelationIdContext.getRequiredString());
 
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);

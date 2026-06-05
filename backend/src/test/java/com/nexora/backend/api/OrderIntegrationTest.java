@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
+import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,13 +16,16 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -93,6 +97,23 @@ class OrderIntegrationTest {
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].eventType").value("OrderCreated"))
                 .andExpect(jsonPath("$[0].aggregateSequence").value(1));
+    }
+
+    @Test
+    void createOrder_propagatesCorrelationIdToResponseAndDomainEvent() throws Exception {
+        UUID correlationId = UUID.randomUUID();
+        MvcResult result = createOrderResult("Correlated", correlationId);
+        String orderId = extractCreatedOrderId(result);
+
+        assertEquals(
+                correlationId.toString(),
+                result.getResponse().getHeader(CorrelationIdContext.HEADER_NAME)
+        );
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/events")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].correlationId").value(correlationId.toString()));
     }
 
     @Test
@@ -233,11 +254,15 @@ class OrderIntegrationTest {
     @Test
     void missingOrder_returnsNotFound() throws Exception {
         String missingOrderId = UUID.randomUUID().toString();
+        UUID correlationId = UUID.randomUUID();
 
         mockMvc.perform(get("/api/orders/" + missingOrderId)
+                .header(CorrelationIdContext.HEADER_NAME, correlationId.toString())
                 .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.title").value("Resource not found"));
+                .andExpect(header().string(CorrelationIdContext.HEADER_NAME, correlationId.toString()))
+                .andExpect(jsonPath("$.title").value("Resource not found"))
+                .andExpect(jsonPath("$.correlationId").value(correlationId.toString()));
 
         mockMvc.perform(post("/api/orders/" + missingOrderId + "/request-confirmation")
                 .header("Authorization", bearer(jwtToken)))
@@ -310,21 +335,32 @@ class OrderIntegrationTest {
     }
 
     private String createOrder(String firstName) throws Exception {
+        return extractCreatedOrderId(createOrderResult(firstName, null));
+    }
+
+    private MvcResult createOrderResult(String firstName, UUID correlationId) throws Exception {
         OrderController.CreateOrderRequest createRequest = new OrderController.CreateOrderRequest(
                 new OrderController.CustomerRequest(firstName, "User", firstName.toLowerCase() + "@example.com", "0612345678"),
                 new OrderController.AddressRequest("1 Main St", "Casablanca", "Casablanca-Settat", "20000", "Morocco"),
                 new BigDecimal("100.00")
         );
 
-        return mockMvc.perform(post("/api/orders")
+        MockHttpServletRequestBuilder request = post("/api/orders")
                 .header("Authorization", bearer(jwtToken))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(createRequest)))
+                .content(objectMapper.writeValueAsString(createRequest));
+
+        if (correlationId != null) {
+            request.header(CorrelationIdContext.HEADER_NAME, correlationId.toString());
+        }
+
+        return mockMvc.perform(request)
                 .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsString()
-                .replace("\"", "");
+                .andReturn();
+    }
+
+    private String extractCreatedOrderId(MvcResult result) throws Exception {
+        return result.getResponse().getContentAsString().replace("\"", "");
     }
 
     private void requestConfirmation(String orderId) throws Exception {

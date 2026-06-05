@@ -3,3 +3,4 @@ services:
     environment:
       SPRING_FLYWAY_LOCATIONS: classpath:db/migration
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set for production compose}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:?CORS_ALLOWED_ORIGINS must be set for production compose}

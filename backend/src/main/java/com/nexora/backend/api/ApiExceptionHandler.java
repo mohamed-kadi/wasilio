@@ -1,6 +1,7 @@
 package com.nexora.backend.api;
 
 import com.nexora.backend.domain.event.EventConcurrencyException;
+import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -100,6 +101,7 @@ public class ApiExceptionHandler {
         problem.setTitle(title);
         problem.setProperty("error", status.getReasonPhrase());
         problem.setProperty("timestamp", Instant.now().toString());
+        problem.setProperty("correlationId", CorrelationIdContext.getRequiredString());
         return problem;
     }
 }

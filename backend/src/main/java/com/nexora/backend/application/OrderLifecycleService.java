@@ -8,6 +8,7 @@ import com.nexora.backend.domain.event.payload.*;
 import com.nexora.backend.domain.model.Address;
 import com.nexora.backend.domain.model.Customer;
 import com.nexora.backend.domain.model.OrderStatus;
+import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -135,6 +136,7 @@ public class OrderLifecycleService {
                     .eventSchemaVersion(EVENT_SCHEMA_VERSION)
                     .tenantId(tenantId)
                     .aggregateId(aggregateId)
+                    .correlationId(CorrelationIdContext.get().orElse(null))
                     .timestamp(Instant.now())
                     .payload(objectMapper.writeValueAsString(payload))
                     .build();

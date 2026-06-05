@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
+import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
 import com.nexora.backend.infrastructure.security.JwtService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -28,8 +29,11 @@ import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -116,10 +120,53 @@ class AuthSecurityIntegrationTest {
     }
 
     @Test
+    void missingCorrelationId_generatesResponseHeader() throws Exception {
+        MvcResult result = mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(header().exists(CorrelationIdContext.HEADER_NAME))
+                .andReturn();
+
+        assertDoesNotThrow(() -> UUID.fromString(result.getResponse().getHeader(CorrelationIdContext.HEADER_NAME)));
+    }
+
+    @Test
+    void incomingCorrelationId_isReturnedInResponseHeader() throws Exception {
+        UUID correlationId = UUID.randomUUID();
+
+        mockMvc.perform(get("/actuator/health")
+                .header(CorrelationIdContext.HEADER_NAME, correlationId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(header().string(CorrelationIdContext.HEADER_NAME, correlationId.toString()));
+    }
+
+    @Test
     void invalidToken_isUnauthorized() throws Exception {
+        UUID correlationId = UUID.randomUUID();
+
         mockMvc.perform(get("/api/orders")
+                .header(CorrelationIdContext.HEADER_NAME, correlationId.toString())
                 .header("Authorization", "Bearer not-a-jwt"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string(CorrelationIdContext.HEADER_NAME, correlationId.toString()))
+                .andExpect(jsonPath("$.correlationId").value(correlationId.toString()));
+    }
+
+    @Test
+    void corsPreflight_allowsConfiguredOrigin() throws Exception {
+        mockMvc.perform(options("/api/orders")
+                .header("Origin", "http://localhost:5173")
+                .header("Access-Control-Request-Method", "GET")
+                .header("Access-Control-Request-Headers", "Authorization,X-Correlation-ID"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));
+    }
+
+    @Test
+    void corsPreflight_rejectsUnconfiguredOrigin() throws Exception {
+        mockMvc.perform(options("/api/orders")
+                .header("Origin", "https://example.invalid")
+                .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isForbidden());
     }
 
     @Test
