@@ -10,8 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
-
 @Component
 @RequiredArgsConstructor
 public class OrderProjectionListener {
@@ -23,6 +21,10 @@ public class OrderProjectionListener {
     public void on(DomainEvent event) throws Exception {
         switch (event.getEventType()) {
             case "OrderCreated": {
+                if (orderRepository.existsByIdAndTenantIdNot(event.getAggregateId(), event.getTenantId())) {
+                    throw new IllegalStateException("Order projection ID belongs to a different tenant");
+                }
+
                 OrderCreatedEvent payload = objectMapper.readValue(event.getPayload(), OrderCreatedEvent.class);
                 Order order = Order.builder()
                         .id(event.getAggregateId())
@@ -33,7 +35,7 @@ public class OrderProjectionListener {
                         .amount(payload.amount())
                         .createdAt(event.getTimestamp())
                         .updatedAt(event.getTimestamp())
-                        .version(event.getVersion())
+                        .version(event.getAggregateSequence())
                         .build();
                 orderRepository.save(order);
                 break;
@@ -82,7 +84,7 @@ public class OrderProjectionListener {
     }
 
     private Order getOrder(DomainEvent event) {
-        return orderRepository.findById(event.getAggregateId())
+        return orderRepository.findByIdAndTenantId(event.getAggregateId(), event.getTenantId())
                 .orElseThrow(() -> new IllegalStateException("Order not found for projection"));
     }
 
@@ -93,8 +95,11 @@ public class OrderProjectionListener {
     }
 
     private void saveOrder(Order order, DomainEvent event) {
+        if (!order.getTenantId().equals(event.getTenantId())) {
+            throw new IllegalStateException("Order projection tenant mismatch");
+        }
         order.setUpdatedAt(event.getTimestamp());
-        order.setVersion(event.getVersion());
+        order.setVersion(event.getAggregateSequence());
         orderRepository.save(order);
     }
 }

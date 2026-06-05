@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,7 +16,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "domain_events")
+@Table(
+        name = "domain_events",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uq_domain_events_tenant_aggregate_sequence",
+                columnNames = {"tenant_id", "aggregate_id", "aggregate_sequence"}
+        )
+)
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
@@ -27,8 +34,11 @@ public class DomainEvent {
     @Column(nullable = false)
     private String eventType;
 
-    @Column(nullable = false)
-    private int version;
+    @Column(name = "aggregate_sequence", nullable = false)
+    private int aggregateSequence;
+
+    @Column(name = "event_schema_version", nullable = false)
+    private int eventSchemaVersion;
 
     @Column(nullable = false)
     private UUID tenantId;
@@ -46,4 +56,8 @@ public class DomainEvent {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String payload;
+
+    public int getVersion() {
+        return aggregateSequence;
+    }
 }

@@ -1,5 +1,6 @@
 package com.nexora.backend.api;
 
+import com.nexora.backend.domain.event.EventConcurrencyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,14 @@ public class ApiExceptionHandler {
         problem.setTitle("Access denied");
         problem.setDetail("You do not have permission to access this resource");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(problem);
+    }
+
+    @ExceptionHandler(EventConcurrencyException.class)
+    ResponseEntity<ProblemDetail> handleEventConcurrency(EventConcurrencyException ex) {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
+        problem.setTitle("Event sequence conflict");
+        problem.setDetail(ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
