@@ -4,6 +4,7 @@ import { LayoutDashboard, ShoppingCart, PlusCircle } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import OrdersList from './pages/OrdersList';
 import CreateOrder from './pages/CreateOrder';
+import OrderDetails from './pages/OrderDetails';
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/orders" element={<OrdersList />} />
                 <Route path="/orders/new" element={<CreateOrder />} />
+                <Route path="/orders/:id" element={<OrderDetails />} />
               </Routes>
             </div>
           </main>

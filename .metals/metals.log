@@ -1,0 +1,163 @@
+2026.06.05 08:40:11 INFO  Started: Metals version 1.6.7 in folders '/Users/mohamednajibkadi/Desktop/nexora' for client Visual Studio Code 1.121.0.
+2026.06.05 08:40:11 INFO  Memory monitor started
+2026.06.05 08:40:12 WARN  Using H2 2.4.240 which is newer than the version Flyway has been verified with. The latest verified version of H2 is 2.3.232.
+2026.06.05 08:40:12 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderCreatedEvent.java. Using fallback presentation compiler.
+2026.06.05 08:40:13 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderCreatedEvent.java. Using fallback presentation compiler.
+2026.06.05 08:40:17 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderCreatedEvent.java. Using fallback presentation compiler.
+Jun 05, 2026 8:40:18 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 9
+2026.06.05 08:40:17 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderCreatedEvent.java. Using fallback presentation compiler.
+Jun 05, 2026 8:40:22 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 13
+2026.06.05 08:40:22 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderCreatedEvent.java. Using fallback presentation compiler.
+2026.06.05 08:40:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmationRequestedEvent.java. Using fallback presentation compiler.
+2026.06.05 08:40:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmationRequestedEvent.java. Using fallback presentation compiler.
+Jun 05, 2026 8:40:33 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 14
+2026.06.05 08:40:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmationRequestedEvent.java. Using fallback presentation compiler.
+2026.06.05 08:40:38 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmationRequestedEvent.java. Using fallback presentation compiler.
+2026.06.05 08:40:38 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmedEvent.java. Using fallback presentation compiler.
+2026.06.05 08:40:38 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmedEvent.java. Using fallback presentation compiler.
+Jun 05, 2026 8:40:38 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 22
+2026.06.05 08:40:38 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmedEvent.java. Using fallback presentation compiler.
+2026.06.05 08:46:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmedEvent.java. Using fallback presentation compiler.
+2026.06.05 08:46:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+2026.06.05 08:46:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+2026.06.05 08:46:34 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+Jun 05, 2026 8:46:34 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 33
+2026.06.05 08:46:34 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+2026.06.05 08:46:34 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+Jun 05, 2026 8:46:35 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 32
+Jun 05, 2026 8:46:35 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 39
+2026.06.05 08:46:34 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+2026.06.05 08:46:34 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+2026.06.05 08:46:38 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+2026.06.05 08:48:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+Jun 05, 2026 8:49:55 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleNotification
+WARNING: Notification threw an exception: {
+  "jsonrpc": "2.0",
+  "method": "workspace/didChangeWatchedFiles",
+  "params": {
+    "changes": [
+      {
+        "uri": "file:///Users/mohamednajibkadi/Desktop/nexora/frontend/node_modules/fsevents/build",
+        "type": 1
+      }
+    ]
+  }
+}
+java.lang.IllegalStateException: An unexpected exception occurred while executing jsonrpc method public abstract java.util.concurrent.CompletableFuture scala.meta.metals.lsp.WorkspaceService.didChangeWatchedFiles(org.eclipse.lsp4j.DidChangeWatchedFilesParams)
+	at org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint.lambda$recursiveFindRpcMethods$0(GenericEndpoint.java:73)
+	at org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint.notify(GenericEndpoint.java:160)
+	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.handleNotification(RemoteEndpoint.java:225)
+	at org.eclipse.lsp4j.jsonrpc.RemoteEndpoint.consume(RemoteEndpoint.java:192)
+	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.handleMessage(StreamMessageProducer.java:189)
+	at org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer.listen(StreamMessageProducer.java:97)
+	at org.eclipse.lsp4j.jsonrpc.json.ConcurrentMessageProcessor.run(ConcurrentMessageProcessor.java:97)
+	at java.base/java.util.concurrent.Executors$RunnableAdapter.call(Executors.java:577)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+	at java.base/java.lang.Thread.run(Thread.java:1589)
+Caused by: java.nio.file.NoSuchFileException: /Users/mohamednajibkadi/Desktop/nexora/frontend/node_modules/fsevents/build
+	at java.base/sun.nio.fs.UnixException.translateToIOException(UnixException.java:92)
+	at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:106)
+	at java.base/sun.nio.fs.UnixException.rethrowAsIOException(UnixException.java:111)
+	at java.base/sun.nio.fs.UnixFileSystemProvider.newByteChannel(UnixFileSystemProvider.java:218)
+	at java.base/java.nio.file.Files.newByteChannel(Files.java:380)
+	at java.base/java.nio.file.Files.newByteChannel(Files.java:432)
+	at java.base/java.nio.file.Files.readAllBytes(Files.java:3287)
+	at scala.meta.internal.io.PlatformFileIO$.slurp(PlatformFileIO.scala:38)
+	at scala.meta.internal.io.FileIO$.slurp(FileIO.scala:18)
+	at scala.meta.internal.metals.MetalsLspService.$anonfun$onChange$1(MetalsLspService.scala:934)
+	at scala.collection.immutable.List.map(List.scala:236)
+	at scala.collection.immutable.List.map(List.scala:79)
+	at scala.meta.internal.metals.MetalsLspService.onChange(MetalsLspService.scala:933)
+	at scala.meta.internal.metals.ProjectMetalsLspService.onChange(ProjectMetalsLspService.scala:366)
+	at scala.meta.internal.metals.MetalsLspService.didChangeWatchedFiles(MetalsLspService.scala:919)
+	at scala.meta.internal.metals.WorkspaceLspService.$anonfun$didChangeWatchedFiles$3(WorkspaceLspService.scala:705)
+	at scala.collection.StrictOptimizedIterableOps.map(StrictOptimizedIterableOps.scala:100)
+	at scala.collection.StrictOptimizedIterableOps.map$(StrictOptimizedIterableOps.scala:87)
+	at scala.collection.immutable.HashMap.map(HashMap.scala:39)
+	at scala.meta.internal.metals.WorkspaceLspService.didChangeWatchedFiles(WorkspaceLspService.scala:704)
+	at scala.meta.metals.lsp.DelegatingScalaService.didChangeWatchedFiles(DelegatingScalaService.scala:61)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:578)
+	at org.eclipse.lsp4j.jsonrpc.services.GenericEndpoint.lambda$recursiveFindRpcMethods$0(GenericEndpoint.java:65)
+	... 11 more
+
+2026.06.05 08:49:57 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+2026.06.05 08:50:02 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+2026.06.05 08:50:02 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+2026.06.05 09:14:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/application/OrderProjectionListener.java. Using fallback presentation compiler.
+2026.06.05 09:14:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/BackendApplication.java. Using fallback presentation compiler.
+2026.06.05 09:14:34 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/BackendApplication.java. Using fallback presentation compiler.
+Jun 05, 2026 9:14:34 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 59
+2026.06.05 09:14:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/BackendApplication.java. Using fallback presentation compiler.
+2026.06.05 09:14:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/BackendApplication.java. Using fallback presentation compiler.
+2026.06.05 09:14:33 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/BackendApplication.java. Using fallback presentation compiler.
+Jun 05, 2026 9:14:34 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 63
+2026.06.05 09:14:44 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/BackendApplication.java. Using fallback presentation compiler.
+2026.06.05 09:14:44 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/persistence/EventStoreImpl.java. Using fallback presentation compiler.
+2026.06.05 09:14:44 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/persistence/EventStoreImpl.java. Using fallback presentation compiler.
+Jun 05, 2026 9:14:44 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 70
+2026.06.05 09:14:44 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/persistence/EventStoreImpl.java. Using fallback presentation compiler.
+2026.06.05 09:14:45 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/persistence/EventStoreImpl.java. Using fallback presentation compiler.
+2026.06.05 09:14:45 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/BackendApplication.java. Using fallback presentation compiler.
+2026.06.05 09:14:45 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/BackendApplication.java. Using fallback presentation compiler.
+2026.06.05 09:14:45 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/BackendApplication.java. Using fallback presentation compiler.
+2026.06.05 09:14:47 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/BackendApplication.java. Using fallback presentation compiler.
+2026.06.05 09:14:47 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/persistence/EventStoreImpl.java. Using fallback presentation compiler.
+2026.06.05 09:14:47 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/persistence/EventStoreImpl.java. Using fallback presentation compiler.
+2026.06.05 09:14:47 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/persistence/EventStoreImpl.java. Using fallback presentation compiler.
+2026.06.05 09:14:52 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/persistence/EventStoreImpl.java. Using fallback presentation compiler.
+2026.06.05 09:14:52 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderAssignedToCourierEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:52 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderAssignedToCourierEvent.java. Using fallback presentation compiler.
+Jun 05, 2026 9:14:52 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 96
+2026.06.05 09:14:52 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderAssignedToCourierEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:52 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderAssignedToCourierEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:52 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmationRequestedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:53 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmationRequestedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:52 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmationRequestedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:54 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmationRequestedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:54 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:54 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmedEvent.java. Using fallback presentation compiler.
+Jun 05, 2026 9:14:54 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 114
+2026.06.05 09:14:54 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:54 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderConfirmedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:54 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderCreatedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:54 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderCreatedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:54 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderCreatedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:55 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderCreatedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:55 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderDeliveredEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:55 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderDeliveredEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:55 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderDeliveredEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:55 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderDeliveredEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:55 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderDeliveryFailedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:56 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderDeliveryFailedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:55 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderDeliveryFailedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:57 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderDeliveryFailedEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:57 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderPickedUpEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:56 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderPickedUpEvent.java. Using fallback presentation compiler.
+2026.06.05 09:14:57 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderPickedUpEvent.java. Using fallback presentation compiler.
+2026.06.05 09:15:25 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/domain/event/payload/OrderPickedUpEvent.java. Using fallback presentation compiler.
+2026.06.05 09:29:37 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/security/SecurityConfig.java. Using fallback presentation compiler.
+2026.06.05 09:29:38 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/security/SecurityConfig.java. Using fallback presentation compiler.
+Jun 05, 2026 9:29:38 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 159
+2026.06.05 09:29:37 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/security/SecurityConfig.java. Using fallback presentation compiler.
+Jun 05, 2026 9:29:38 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 163
+2026.06.05 09:29:37 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/security/SecurityConfig.java. Using fallback presentation compiler.
+2026.06.05 09:29:37 INFO  no build target found for /Users/mohamednajibkadi/Desktop/nexora/backend/src/main/java/com/nexora/backend/infrastructure/security/SecurityConfig.java. Using fallback presentation compiler.
+Jun 05, 2026 9:29:39 AM org.eclipse.lsp4j.jsonrpc.RemoteEndpoint handleCancellation
+WARNING: Unmatched cancel notification for request id 168
