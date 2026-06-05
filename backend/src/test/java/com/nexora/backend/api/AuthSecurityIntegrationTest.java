@@ -109,6 +109,13 @@ class AuthSecurityIntegrationTest {
     }
 
     @Test
+    void healthEndpoint_isPublic() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
     void invalidToken_isUnauthorized() throws Exception {
         mockMvc.perform(get("/api/orders")
                 .header("Authorization", "Bearer not-a-jwt"))
