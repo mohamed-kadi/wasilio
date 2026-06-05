@@ -12,12 +12,44 @@ Only health endpoints are exposed over HTTP. The application security config per
 
 ## Logging
 
-The backend currently uses Spring Boot's default Logback console logging. Logs include timestamps, logger names, thread names, and levels, but they are not emitted as JSON structured logs yet.
+The backend writes console logs with a consistent key-value Logback pattern. Each line includes:
 
-For production, prefer JSON logs written to stdout with stable fields such as `timestamp`, `level`, `logger`, `message`, `tenantId`, `correlationId`, and `requestId`.
+- timestamp
+- level
+- logger
+- correlationId
+- tenantId when a JWT-authenticated request is available
+- message
+
+JSON logs are still recommended for production ingestion, but the current pattern keeps the fields stable for an MVP stdout log pipeline.
 
 ## Correlation IDs
 
-Domain events persist a `correlation_id` and `causation_id` for event-level traceability.
+The API uses `X-Correlation-ID` for request tracing. Incoming valid UUID correlation IDs are accepted. When the header is missing or invalid, the backend generates a new UUID.
 
-HTTP request correlation ID propagation is not implemented yet: inbound `X-Correlation-ID` is not read, generated when missing, written to MDC, returned in responses, or propagated into created domain events by the web layer. Treat this as a remaining production readiness gap.
+For every request, the backend:
+
+- adds the correlation ID to MDC as `correlationId`
+- returns `X-Correlation-ID` in the response headers
+- includes `correlationId` in API problem/error responses
+- stores the active ID in `domain_events.correlation_id` when a domain event is created
+
+The `domain_events.correlation_id` column is a UUID, so non-UUID inbound values are replaced with a generated UUID rather than being persisted verbatim.
+
+## CORS
+
+Production CORS must be configured with explicit allowed origins. Wildcard origins are not used.
+
+Set `CORS_ALLOWED_ORIGINS` to a comma-separated list, for example:
+
+```text
+CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+```
+
+Local Docker Compose development defaults are defined in `docker-compose.override.yml` and documented in `.env.example`:
+
+```text
+http://localhost,http://127.0.0.1,http://localhost:5173,http://127.0.0.1:5173
+```
+
+Production compose requires `CORS_ALLOWED_ORIGINS` and fails configuration if it is missing.
