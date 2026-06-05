@@ -1,12 +1,9 @@
 package com.nexora.backend.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nexora.backend.domain.model.Address;
-import com.nexora.backend.domain.model.Customer;
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
-import com.nexora.backend.domain.repository.OrderRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -15,6 +12,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,9 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.UUID;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-import org.springframework.test.context.ActiveProfiles;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -44,189 +43,332 @@ class OrderIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private OrderRepository orderRepository;
-
     private String jwtToken;
     private String otherTenantJwtToken;
-    private UUID tenantId;
-    private UUID otherTenantId;
 
     @BeforeEach
     void setup() throws Exception {
-        tenantId = UUID.randomUUID();
-        Tenant tenant = new Tenant(tenantId, "Test Tenant");
-        entityManager.persist(tenant);
+        UUID tenantId = UUID.randomUUID();
+        entityManager.persist(new Tenant(tenantId, "Test Tenant"));
+        entityManager.persist(new User(
+                UUID.randomUUID(),
+                "test@example.com",
+                passwordEncoder.encode("password"),
+                Role.MERCHANT,
+                tenantId
+        ));
 
-        User user = new User(UUID.randomUUID(), "test@example.com", passwordEncoder.encode("password"), Role.MERCHANT, tenantId);
-        entityManager.persist(user);
-
-        otherTenantId = UUID.randomUUID();
-        Tenant otherTenant = new Tenant(otherTenantId, "Other Tenant");
-        entityManager.persist(otherTenant);
-
-        User otherUser = new User(UUID.randomUUID(), "other@example.com", passwordEncoder.encode("password"), Role.MERCHANT, otherTenantId);
-        entityManager.persist(otherUser);
+        UUID otherTenantId = UUID.randomUUID();
+        entityManager.persist(new Tenant(otherTenantId, "Other Tenant"));
+        entityManager.persist(new User(
+                UUID.randomUUID(),
+                "other@example.com",
+                passwordEncoder.encode("password"),
+                Role.MERCHANT,
+                otherTenantId
+        ));
 
         entityManager.flush();
 
-        // Login to get token
-        AuthController.LoginRequest loginRequest = new AuthController.LoginRequest("test@example.com", "password");
+        jwtToken = login("test@example.com", "password");
+        otherTenantJwtToken = login("other@example.com", "password");
+    }
+
+    @Test
+    void createOrder_returnsDetailsAndEventTimeline() throws Exception {
+        String orderId = createOrder("Created");
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(orderId))
+                .andExpect(jsonPath("$.status").value("CREATED"))
+                .andExpect(jsonPath("$.customer.firstName").value("Created"))
+                .andExpect(jsonPath("$.address.city").value("Casablanca"))
+                .andExpect(jsonPath("$.amount").value(100.00));
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/events")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].eventType").value("OrderCreated"))
+                .andExpect(jsonPath("$[0].aggregateSequence").value(1));
+    }
+
+    @Test
+    void requestConfirmationAndRejectOrder_updatesOrderState() throws Exception {
+        String orderId = createOrder("Rejectable");
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/request-confirmation")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMATION_REQUESTED"));
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/reject")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new OrderController.RejectOrderRequest("Inventory unavailable"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"))
+                .andExpect(jsonPath("$.failureReason").value("Inventory unavailable"));
+    }
+
+    @Test
+    void fulfilledLifecycle_succeedsThroughDeliveredAndBlocksFurtherMutation() throws Exception {
+        String orderId = createOrder("Delivered");
+
+        requestConfirmation(orderId);
+        confirmOrder(orderId);
+        assignCourier(orderId, "Courier-1");
+        pickUp(orderId, "Courier-1");
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/deliver")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DELIVERED"))
+                .andExpect(jsonPath("$.courierId").value("Courier-1"));
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/events")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(6))
+                .andExpect(jsonPath("$[5].eventType").value("OrderDelivered"));
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/fail")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new OrderController.FailOrderRequest("Customer unavailable"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid state transition"));
+    }
+
+    @Test
+    void failedLifecycle_marksFailedAndBlocksFurtherMutation() throws Exception {
+        String orderId = createOrder("Failed");
+
+        requestConfirmation(orderId);
+        confirmOrder(orderId);
+        assignCourier(orderId, "Courier-2");
+        pickUp(orderId, "Courier-2");
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/fail")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new OrderController.FailOrderRequest("Customer unavailable"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.failureReason").value("Customer unavailable"));
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/deliver")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid state transition"));
+    }
+
+    @Test
+    void assignCourierBeforeConfirmed_returnsConflict() throws Exception {
+        String orderId = createOrder("TooEarly");
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/assign-courier")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new OrderController.AssignCourierRequest("Courier-1"))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid state transition"));
+    }
+
+    @Test
+    void invalidRequestBodies_returnBadRequest() throws Exception {
+        String orderId = createOrder("Validation");
+
+        OrderController.CreateOrderRequest invalidCreateRequest = new OrderController.CreateOrderRequest(
+                new OrderController.CustomerRequest("", "User", "not-an-email", "123"),
+                new OrderController.AddressRequest("Street", "", "State", "00000", "Country"),
+                new BigDecimal("-1.00")
+        );
+
+        mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(invalidCreateRequest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Validation failed"))
+                .andExpect(jsonPath("$.fieldErrors").isArray());
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/reject")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new OrderController.RejectOrderRequest(""))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/assign-courier")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new OrderController.AssignCourierRequest(""))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/fail")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new OrderController.FailOrderRequest(""))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void missingOrder_returnsNotFound() throws Exception {
+        String missingOrderId = UUID.randomUUID().toString();
+
+        mockMvc.perform(get("/api/orders/" + missingOrderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"));
+
+        mockMvc.perform(post("/api/orders/" + missingOrderId + "/request-confirmation")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"));
+    }
+
+    @Test
+    void listOrders_supportsPaginationStatusFilterAndStableNewestFirstSort() throws Exception {
+        String firstOrderId = createOrder("First");
+        String secondOrderId = createOrder("Second");
+        String thirdOrderId = createOrder("Third");
+
+        requestConfirmation(firstOrderId);
+        confirmOrder(firstOrderId);
+
+        mockMvc.perform(get("/api/orders")
+                .param("page", "0")
+                .param("size", "2")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].id").value(thirdOrderId))
+                .andExpect(jsonPath("$.content[1].id").value(secondOrderId));
+
+        mockMvc.perform(get("/api/orders")
+                .param("status", "CONFIRMED")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(firstOrderId))
+                .andExpect(jsonPath("$.content[0].status").value("CONFIRMED"));
+    }
+
+    @Test
+    void listOrders_rejectsInvalidPaginationAndFilters() throws Exception {
+        mockMvc.perform(get("/api/orders")
+                .param("page", "-1")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad request"));
+
+        mockMvc.perform(get("/api/orders")
+                .param("size", "101")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad request"));
+
+        mockMvc.perform(get("/api/orders")
+                .param("status", "UNKNOWN")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad request"));
+    }
+
+    @Test
+    void crossTenantOrderAccess_returnsNotFound() throws Exception {
+        String orderId = createOrder("TenantScoped");
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(otherTenantJwtToken)))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/events")
+                .header("Authorization", bearer(otherTenantJwtToken)))
+                .andExpect(status().isNotFound());
+    }
+
+    private String createOrder(String firstName) throws Exception {
+        OrderController.CreateOrderRequest createRequest = new OrderController.CreateOrderRequest(
+                new OrderController.CustomerRequest(firstName, "User", firstName.toLowerCase() + "@example.com", "0612345678"),
+                new OrderController.AddressRequest("1 Main St", "Casablanca", "Casablanca-Settat", "20000", "Morocco"),
+                new BigDecimal("100.00")
+        );
+
+        return mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString()
+                .replace("\"", "");
+    }
+
+    private void requestConfirmation(String orderId) throws Exception {
+        mockMvc.perform(post("/api/orders/" + orderId + "/request-confirmation")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+    }
+
+    private void confirmOrder(String orderId) throws Exception {
+        mockMvc.perform(post("/api/orders/" + orderId + "/confirm")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+    }
+
+    private void assignCourier(String orderId, String courierId) throws Exception {
+        mockMvc.perform(post("/api/orders/" + orderId + "/assign-courier")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new OrderController.AssignCourierRequest(courierId))))
+                .andExpect(status().isOk());
+    }
+
+    private void pickUp(String orderId, String courierId) throws Exception {
+        mockMvc.perform(post("/api/orders/" + orderId + "/pick-up")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new OrderController.AssignCourierRequest(courierId))))
+                .andExpect(status().isOk());
+    }
+
+    private String login(String email, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(loginRequest)))
+                .content(objectMapper.writeValueAsString(new AuthController.LoginRequest(email, password))))
                 .andExpect(status().isOk())
                 .andReturn();
 
-        AuthController.LoginResponse response = objectMapper.readValue(result.getResponse().getContentAsString(), AuthController.LoginResponse.class);
-        jwtToken = response.token();
-
-        // Login other user
-        AuthController.LoginRequest loginOther = new AuthController.LoginRequest("other@example.com", "password");
-        MvcResult resultOther = mockMvc.perform(post("/api/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(loginOther)))
-                .andExpect(status().isOk())
-                .andReturn();
-        otherTenantJwtToken = objectMapper.readValue(resultOther.getResponse().getContentAsString(), AuthController.LoginResponse.class).token();
+        return objectMapper.readValue(
+                result.getResponse().getContentAsString(),
+                AuthController.LoginResponse.class
+        ).token();
     }
 
-    @Test
-    void testFullOrderLifecycle() throws Exception {
-        // 1. Create Order
-        OrderController.CreateOrderRequest createReq = new OrderController.CreateOrderRequest(
-                new Customer("Test", "User", "test@test.com", "123"),
-                new Address("Street", "City", "State", "00000", "Country"),
-                new BigDecimal("100.00")
-        );
-
-        MvcResult createResult = mockMvc.perform(post("/api/orders")
-                .header("Authorization", "Bearer " + jwtToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(createReq)))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        String orderId = createResult.getResponse().getContentAsString().replace("\"", "");
-
-        // 2. Request Confirmation
-        mockMvc.perform(post("/api/orders/" + orderId + "/request-confirmation")
-                .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk());
-
-        // 3. Confirm Order
-        mockMvc.perform(post("/api/orders/" + orderId + "/confirm")
-                .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk());
-
-        // 4. Assign Courier
-        OrderController.AssignCourierRequest assignReq = new OrderController.AssignCourierRequest("Courier-1");
-        mockMvc.perform(post("/api/orders/" + orderId + "/assign-courier")
-                .header("Authorization", "Bearer " + jwtToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(assignReq)))
-                .andExpect(status().isOk());
-
-        // 5. Pick Up
-        mockMvc.perform(post("/api/orders/" + orderId + "/pick-up")
-                .header("Authorization", "Bearer " + jwtToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(assignReq)))
-                .andExpect(status().isOk());
-
-        // 6. Deliver
-        mockMvc.perform(post("/api/orders/" + orderId + "/deliver")
-                .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk());
-
-        // Verify Details
-        mockMvc.perform(get("/api/orders/" + orderId)
-                .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("DELIVERED"));
-
-        // Verify Events
-        mockMvc.perform(get("/api/orders/" + orderId + "/events")
-                .header("Authorization", "Bearer " + jwtToken))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(6));
-    }
-
-    @Test
-    void testNegative_assignCourierBeforeConfirmed() throws Exception {
-        OrderController.CreateOrderRequest createReq = new OrderController.CreateOrderRequest(
-                new Customer("Test", "User", "test@test.com", "123"),
-                new Address("Street", "City", "State", "00000", "Country"),
-                new BigDecimal("100.00")
-        );
-
-        MvcResult createResult = mockMvc.perform(post("/api/orders")
-                .header("Authorization", "Bearer " + jwtToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(createReq)))
-                .andReturn();
-
-        String orderId = createResult.getResponse().getContentAsString().replace("\"", "");
-
-        OrderController.AssignCourierRequest assignReq = new OrderController.AssignCourierRequest("Courier-1");
-
-        mockMvc.perform(post("/api/orders/" + orderId + "/assign-courier")
-                .header("Authorization", "Bearer " + jwtToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(assignReq)))
-                .andExpect(status().isConflict());
-    }
-
-    @Test
-    void testNegative_crossTenantAccessIsBlocked() throws Exception {
-        OrderController.CreateOrderRequest createReq = new OrderController.CreateOrderRequest(
-                new Customer("Test", "User", "test@test.com", "123"),
-                new Address("Street", "City", "State", "00000", "Country"),
-                new BigDecimal("100.00")
-        );
-
-        MvcResult createResult = mockMvc.perform(post("/api/orders")
-                .header("Authorization", "Bearer " + jwtToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(createReq)))
-                .andReturn();
-
-        String orderId = createResult.getResponse().getContentAsString().replace("\"", "");
-
-        // Other tenant tries to fetch the order
-        mockMvc.perform(get("/api/orders/" + orderId)
-                .header("Authorization", "Bearer " + otherTenantJwtToken))
-                .andExpect(status().isNotFound()); // Our repo uses findByIdAndTenantId
-    }
-
-    @Test
-    void testNegative_mutateDeliveredOrder() throws Exception {
-        OrderController.CreateOrderRequest createReq = new OrderController.CreateOrderRequest(
-                new Customer("Test", "User", "test@test.com", "123"),
-                new Address("Street", "City", "State", "00000", "Country"),
-                new BigDecimal("100.00")
-        );
-
-        String orderId = mockMvc.perform(post("/api/orders")
-                .header("Authorization", "Bearer " + jwtToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(createReq)))
-                .andReturn().getResponse().getContentAsString().replace("\"", "");
-
-        mockMvc.perform(post("/api/orders/" + orderId + "/request-confirmation").header("Authorization", "Bearer " + jwtToken));
-        mockMvc.perform(post("/api/orders/" + orderId + "/confirm").header("Authorization", "Bearer " + jwtToken));
-        mockMvc.perform(post("/api/orders/" + orderId + "/assign-courier")
-                .header("Authorization", "Bearer " + jwtToken).contentType(MediaType.APPLICATION_JSON).content("{\"courierId\":\"1\"}"));
-        mockMvc.perform(post("/api/orders/" + orderId + "/pick-up")
-                .header("Authorization", "Bearer " + jwtToken).contentType(MediaType.APPLICATION_JSON).content("{\"courierId\":\"1\"}"));
-        mockMvc.perform(post("/api/orders/" + orderId + "/deliver").header("Authorization", "Bearer " + jwtToken));
-
-        // Now try to fail it
-        OrderController.FailOrderRequest failReq = new OrderController.FailOrderRequest("Test");
-        mockMvc.perform(post("/api/orders/" + orderId + "/fail")
-                .header("Authorization", "Bearer " + jwtToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(failReq)))
-                .andExpect(status().isConflict());
+    private String bearer(String token) {
+        return "Bearer " + token;
     }
 }

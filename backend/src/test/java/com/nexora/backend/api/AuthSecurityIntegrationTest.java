@@ -1,8 +1,6 @@
 package com.nexora.backend.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nexora.backend.domain.model.Address;
-import com.nexora.backend.domain.model.Customer;
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
@@ -176,8 +174,8 @@ class AuthSecurityIntegrationTest {
 
     private String createOrder(String token) throws Exception {
         OrderController.CreateOrderRequest createRequest = new OrderController.CreateOrderRequest(
-                new Customer("Amina", "Merchant", "amina@example.com", "0612345678"),
-                new Address("1 Main St", "Casablanca", "Casablanca-Settat", "20000", "Morocco"),
+                new OrderController.CustomerRequest("Amina", "Merchant", "amina@example.com", "0612345678"),
+                new OrderController.AddressRequest("1 Main St", "Casablanca", "Casablanca-Settat", "20000", "Morocco"),
                 new BigDecimal("199.00")
         );
 
