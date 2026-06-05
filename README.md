@@ -52,10 +52,14 @@ You can log in to the system with the following credentials:
 - **Password:** `password`
 
 **Production Compose:**
-Use the production override and provide `JWT_SECRET` from deployment secrets. This configuration runs only Flyway migrations (`db/migration`) and excludes the development seed (`db/seed`).
+Use the production override and provide `JWT_SECRET`, database credentials, and CORS origins from deployment secrets/configuration. This configuration runs only Flyway migrations (`db/migration`) and excludes the development seed (`db/seed`).
 
 ```bash
-JWT_SECRET="<production-secret>" docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+POSTGRES_USER="<production-user>" \
+POSTGRES_PASSWORD="<production-password>" \
+JWT_SECRET="<production-jwt-secret>" \
+CORS_ALLOWED_ORIGINS="https://app.example.com" \
+docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 ```
 
 ### Running Manually
