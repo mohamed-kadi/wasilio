@@ -6,9 +6,19 @@ import com.nexora.backend.domain.event.EventStore;
 import com.nexora.backend.domain.model.Address;
 import com.nexora.backend.domain.model.Customer;
 import com.nexora.backend.domain.model.Order;
+import com.nexora.backend.domain.model.OrderStatus;
 import com.nexora.backend.domain.repository.OrderRepository;
 import com.nexora.backend.infrastructure.security.CustomUserDetails;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -37,14 +47,65 @@ public class OrderController {
         return UUID.fromString(userDetails.getTenantId());
     }
 
-    public record CreateOrderRequest(Customer customer, Address address, BigDecimal amount) {}
-    public record RejectOrderRequest(String reason) {}
-    public record AssignCourierRequest(String courierId) {}
-    public record FailOrderRequest(String reason) {}
+    public record CreateOrderRequest(
+            @Valid @NotNull CustomerRequest customer,
+            @Valid @NotNull AddressRequest address,
+            @NotNull @Positive BigDecimal amount
+    ) {
+        Customer toCustomer() {
+            return new Customer(customer.firstName(), customer.lastName(), customer.email(), customer.phone());
+        }
+
+        Address toAddress() {
+            return new Address(address.street(), address.city(), address.state(), address.zipCode(), address.country());
+        }
+    }
+
+    public record CustomerRequest(
+            @NotBlank @Size(max = 100) String firstName,
+            @NotBlank @Size(max = 100) String lastName,
+            @NotBlank @Email @Size(max = 255) String email,
+            @NotBlank @Size(max = 50) String phone
+    ) {}
+
+    public record AddressRequest(
+            @NotBlank @Size(max = 255) String street,
+            @NotBlank @Size(max = 100) String city,
+            @NotBlank @Size(max = 100) String state,
+            @NotBlank @Size(max = 30) String zipCode,
+            @NotBlank @Size(max = 100) String country
+    ) {}
+
+    public record RejectOrderRequest(@NotBlank @Size(max = 500) String reason) {}
+    public record AssignCourierRequest(@NotBlank @Size(max = 100) String courierId) {}
+    public record FailOrderRequest(@NotBlank @Size(max = 500) String reason) {}
+
+    public record OrdersPageResponse(
+            List<Order> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages
+    ) {
+        static OrdersPageResponse from(Page<Order> orders) {
+            return new OrdersPageResponse(
+                    orders.getContent(),
+                    orders.getNumber(),
+                    orders.getSize(),
+                    orders.getTotalElements(),
+                    orders.getTotalPages()
+            );
+        }
+    }
 
     @PostMapping
-    public ResponseEntity<UUID> createOrder(@RequestBody CreateOrderRequest request) {
-        UUID orderId = orderLifecycleService.createOrder(getCurrentTenantId(), request.customer(), request.address(), request.amount());
+    public ResponseEntity<UUID> createOrder(@Valid @RequestBody CreateOrderRequest request) {
+        UUID orderId = orderLifecycleService.createOrder(
+                getCurrentTenantId(),
+                request.toCustomer(),
+                request.toAddress(),
+                request.amount()
+        );
         return ResponseEntity.ok(orderId);
     }
 
@@ -61,19 +122,19 @@ public class OrderController {
     }
 
     @PostMapping("/{orderId}/reject")
-    public ResponseEntity<Void> rejectOrder(@PathVariable UUID orderId, @RequestBody RejectOrderRequest request) {
+    public ResponseEntity<Void> rejectOrder(@PathVariable UUID orderId, @Valid @RequestBody RejectOrderRequest request) {
         orderLifecycleService.rejectOrder(getCurrentTenantId(), orderId, request.reason());
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{orderId}/assign-courier")
-    public ResponseEntity<Void> assignToCourier(@PathVariable UUID orderId, @RequestBody AssignCourierRequest request) {
+    public ResponseEntity<Void> assignToCourier(@PathVariable UUID orderId, @Valid @RequestBody AssignCourierRequest request) {
         orderLifecycleService.assignToCourier(getCurrentTenantId(), orderId, request.courierId());
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{orderId}/pick-up")
-    public ResponseEntity<Void> markPickedUp(@PathVariable UUID orderId, @RequestBody AssignCourierRequest request) {
+    public ResponseEntity<Void> markPickedUp(@PathVariable UUID orderId, @Valid @RequestBody AssignCourierRequest request) {
         orderLifecycleService.markPickedUp(getCurrentTenantId(), orderId, request.courierId());
         return ResponseEntity.ok().build();
     }
@@ -85,25 +146,49 @@ public class OrderController {
     }
 
     @PostMapping("/{orderId}/fail")
-    public ResponseEntity<Void> markFailed(@PathVariable UUID orderId, @RequestBody FailOrderRequest request) {
+    public ResponseEntity<Void> markFailed(@PathVariable UUID orderId, @Valid @RequestBody FailOrderRequest request) {
         orderLifecycleService.markFailed(getCurrentTenantId(), orderId, request.reason());
         return ResponseEntity.ok().build();
     }
 
     @GetMapping
-    public ResponseEntity<List<Order>> listOrders() {
-        return ResponseEntity.ok(orderRepository.findByTenantId(getCurrentTenantId()));
+    public ResponseEntity<OrdersPageResponse> listOrders(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) OrderStatus status
+    ) {
+        if (page < 0) {
+            throw new IllegalArgumentException("page must be greater than or equal to 0");
+        }
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException("size must be between 1 and 100");
+        }
+
+        UUID tenantId = getCurrentTenantId();
+        PageRequest pageRequest = PageRequest.of(
+                page,
+                size,
+                Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.ASC, "id"))
+        );
+        Page<Order> orders = status == null
+                ? orderRepository.findByTenantId(tenantId, pageRequest)
+                : orderRepository.findByTenantIdAndStatus(tenantId, status, pageRequest);
+        return ResponseEntity.ok(OrdersPageResponse.from(orders));
     }
 
     @GetMapping("/{orderId}")
     public ResponseEntity<Order> getOrder(@PathVariable UUID orderId) {
-        return orderRepository.findByIdAndTenantId(orderId, getCurrentTenantId())
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        Order order = orderRepository.findByIdAndTenantId(orderId, getCurrentTenantId())
+                .orElseThrow(() -> new IllegalArgumentException("Order not found"));
+        return ResponseEntity.ok(order);
     }
 
     @GetMapping("/{orderId}/events")
     public ResponseEntity<List<DomainEvent>> getOrderEvents(@PathVariable UUID orderId) {
-        return ResponseEntity.ok(eventStore.getEventsForAggregate(getCurrentTenantId(), orderId));
+        UUID tenantId = getCurrentTenantId();
+        if (orderRepository.findByIdAndTenantId(orderId, tenantId).isEmpty()) {
+            throw new IllegalArgumentException("Order not found");
+        }
+        return ResponseEntity.ok(eventStore.getEventsForAggregate(tenantId, orderId));
     }
 }
