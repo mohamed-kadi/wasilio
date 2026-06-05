@@ -21,7 +21,8 @@ services:
       - SPRING_DATASOURCE_USERNAME=postgres
       - SPRING_DATASOURCE_PASSWORD=password
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
-      - JWT_SECRET=${JWT_SECRET}
+      - SPRING_FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/seed
+      - JWT_SECRET=${JWT_SECRET:-secret}
     depends_on:
       - postgres
 

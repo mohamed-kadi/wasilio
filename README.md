@@ -33,17 +33,22 @@ The system enforces strict determinism. Invalid state transitions throw illegal 
 ### Prerequisites
 - Docker and Docker Compose
 - Java 17
-- Node.js 20+
+- Node.js 20.19+ (Vite 8 requires 20.19+)
 
 ### Running via Docker
 The easiest way to start the system locally is using Docker Compose:
 
 ```bash
-export JWT_SECRET="$(openssl rand -base64 32)"
 docker-compose up --build
 ```
 - **Frontend Dashboard:** [http://localhost:80](http://localhost:80)
 - **Backend API:** [http://localhost:8080](http://localhost:8080)
+
+**Local Development Bootstrap User:**
+The `docker-compose.yml` configures Flyway to automatically load a development database seed (`db/seed`).
+You can log in to the system with the following credentials:
+- **Email:** `admin@example.com`
+- **Password:** `password`
 
 ### Running Manually
 
@@ -55,14 +60,16 @@ docker-compose up postgres -d
 2. **Run Backend:**
 ```bash
 cd backend
-export JWT_SECRET="$(openssl rand -base64 32)"
+export JWT_SECRET="secret"
+export SPRING_FLYWAY_LOCATIONS="classpath:db/migration,classpath:db/seed"
 mvn spring-boot:run
 ```
 
 3. **Run Frontend:**
 ```bash
 cd frontend
-npm install
+nvm use 20.19.0 || nvm install 20.19.0
+npm ci
 npm run dev
 ```
 
