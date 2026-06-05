@@ -7,8 +7,12 @@ import com.nexora.backend.domain.model.Address;
 import com.nexora.backend.domain.model.Customer;
 import com.nexora.backend.domain.model.Order;
 import com.nexora.backend.domain.repository.OrderRepository;
+import com.nexora.backend.infrastructure.security.CustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -17,6 +21,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/orders")
+@PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
 @RequiredArgsConstructor
 public class OrderController {
 
@@ -24,9 +29,12 @@ public class OrderController {
     private final OrderRepository orderRepository;
     private final EventStore eventStore;
 
-    // Dummy helper to extract tenantId from security context in real life
     private UUID getCurrentTenantId() {
-        return UUID.fromString("00000000-0000-0000-0000-000000000001");
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomUserDetails userDetails)) {
+            throw new IllegalStateException("Authenticated user missing in security context");
+        }
+        return UUID.fromString(userDetails.getTenantId());
     }
 
     public record CreateOrderRequest(Customer customer, Address address, BigDecimal amount) {}
