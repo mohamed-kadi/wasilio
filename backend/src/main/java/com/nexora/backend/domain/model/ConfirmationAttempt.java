@@ -11,6 +11,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -54,4 +55,15 @@ public class ConfirmationAttempt {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @Column(name = "callback_at")
+    private Instant callbackAt;
+
+    @Setter
+    @Column(name = "callback_resolved_at")
+    private Instant callbackResolvedAt;
+
+    @Setter
+    @Column(name = "callback_resolved_by")
+    private String callbackResolvedBy;
 }

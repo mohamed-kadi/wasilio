@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -214,7 +215,13 @@ class ConfirmationWorkflowIntegrationTest {
 
         mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.NO_ANSWER, "First call"))
                 .andExpect(status().isCreated());
-        mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.CALL_BACK_LATER, "Call after 18:00"))
+        mockMvc.perform(recordAttempt(
+                jwtToken,
+                orderId,
+                ConfirmationOutcome.CALL_BACK_LATER,
+                "Call after 18:00",
+                Instant.now().plusSeconds(3600)
+        ))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/orders/" + orderId + "/confirmation-attempts")
@@ -239,6 +246,152 @@ class ConfirmationWorkflowIntegrationTest {
                 .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("status must be CREATED or CONFIRMATION_REQUESTED"));
+    }
+
+    @Test
+    void callBackLaterRequiresCallbackAt() throws Exception {
+        String orderId = createOrder(jwtToken, "CallbackMissing", "User", "0612345678");
+
+        mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.CALL_BACK_LATER, "Call later"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("callbackAt is required for CALL_BACK_LATER"));
+    }
+
+    @Test
+    void pastCallbackAtIsRejected() throws Exception {
+        String orderId = createOrder(jwtToken, "CallbackPast", "User", "0612345678");
+
+        mockMvc.perform(recordAttempt(
+                jwtToken,
+                orderId,
+                ConfirmationOutcome.CALL_BACK_LATER,
+                "Call later",
+                Instant.now().minusSeconds(60)
+        ))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("callbackAt must be in the future"));
+    }
+
+    @Test
+    void dueCallbackAppearsInCallbackQueue() throws Exception {
+        String orderId = createOrder(jwtToken, "Due", "Callback", "0612345678");
+        Instant scheduledAt = Instant.now().plusSeconds(3600);
+
+        mockMvc.perform(recordAttempt(
+                jwtToken,
+                orderId,
+                ConfirmationOutcome.CALL_BACK_LATER,
+                "Call this customer back",
+                scheduledAt
+        ))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.callbackAt").value(scheduledAt.toString()));
+
+        Instant dueAt = Instant.now().minusSeconds(60);
+        moveCallbackAt(orderId, dueAt);
+
+        mockMvc.perform(get("/api/confirmations/callbacks")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].orderId").value(orderId))
+                .andExpect(jsonPath("$.content[0].callbackAt").value(dueAt.toString()))
+                .andExpect(jsonPath("$.content[0].note").value("Call this customer back"))
+                .andExpect(jsonPath("$.content[0].order.customer.firstName").value("Due"));
+    }
+
+    @Test
+    void futureCallbackDoesNotAppearInDefaultDueQueue() throws Exception {
+        String orderId = createOrder(jwtToken, "Future", "Callback", "0612345678");
+        Instant callbackAt = Instant.now().plusSeconds(3600);
+
+        mockMvc.perform(recordAttempt(
+                jwtToken,
+                orderId,
+                ConfirmationOutcome.CALL_BACK_LATER,
+                "Call tomorrow",
+                callbackAt
+        ))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/confirmations/callbacks")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        mockMvc.perform(get("/api/confirmations/callbacks")
+                .param("scope", "UPCOMING")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].orderId").value(orderId))
+                .andExpect(jsonPath("$.content[0].status").value("UPCOMING"));
+    }
+
+    @Test
+    void finalConfirmationResolvesPendingCallbacks() throws Exception {
+        String orderId = createOrder(jwtToken, "Resolved", "Callback", "0612345678");
+
+        mockMvc.perform(recordAttempt(
+                jwtToken,
+                orderId,
+                ConfirmationOutcome.CALL_BACK_LATER,
+                "Call back later",
+                Instant.now().plusSeconds(3600)
+        ))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.CONFIRMED, "Confirmed on follow-up"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.outcome").value("CONFIRMED"));
+
+        mockMvc.perform(get("/api/confirmations/callbacks")
+                .param("scope", "ALL")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/confirmation-attempts")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].outcome").value("CALL_BACK_LATER"))
+                .andExpect(jsonPath("$[0].callbackResolvedAt").isString())
+                .andExpect(jsonPath("$[0].callbackResolvedBy").value("test@example.com"))
+                .andExpect(jsonPath("$[1].outcome").value("CONFIRMED"));
+    }
+
+    @Test
+    void callbackQueueIsTenantScoped() throws Exception {
+        String orderId = createOrder(jwtToken, "Tenant", "Callback", "0612345678");
+        String otherOrderId = createOrder(otherTenantJwtToken, "OtherTenant", "Callback", "0612345678");
+
+        mockMvc.perform(recordAttempt(
+                jwtToken,
+                orderId,
+                ConfirmationOutcome.CALL_BACK_LATER,
+                "Tenant callback",
+                Instant.now().plusSeconds(3600)
+        ))
+                .andExpect(status().isCreated());
+        mockMvc.perform(recordAttempt(
+                otherTenantJwtToken,
+                otherOrderId,
+                ConfirmationOutcome.CALL_BACK_LATER,
+                "Other callback",
+                Instant.now().plusSeconds(3600)
+        ))
+                .andExpect(status().isCreated());
+
+        Instant dueAt = Instant.now().minusSeconds(60);
+        moveCallbackAt(orderId, dueAt);
+        moveCallbackAt(otherOrderId, dueAt);
+
+        mockMvc.perform(get("/api/confirmations/callbacks")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].orderId").value(orderId))
+                .andExpect(jsonPath("$.content[0].order.customer.firstName").value("Tenant"));
     }
 
     private void cleanDatabase() {
@@ -273,12 +426,33 @@ class ConfirmationWorkflowIntegrationTest {
             ConfirmationOutcome outcome,
             String note
     ) throws Exception {
+        return recordAttempt(token, orderId, outcome, note, null);
+    }
+
+    private MockHttpServletRequestBuilder recordAttempt(
+            String token,
+            String orderId,
+            ConfirmationOutcome outcome,
+            String note,
+            Instant callbackAt
+    ) throws Exception {
         ConfirmationController.RecordConfirmationAttemptRequest request =
-                new ConfirmationController.RecordConfirmationAttemptRequest(outcome, note);
+                new ConfirmationController.RecordConfirmationAttemptRequest(outcome, note, callbackAt);
         return post("/api/orders/" + orderId + "/confirmation-attempts")
                 .header("Authorization", bearer(token))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(request));
+    }
+
+    private void moveCallbackAt(String orderId, Instant callbackAt) {
+        transactionTemplate.executeWithoutResult(status -> entityManager.createQuery("""
+                        update ConfirmationAttempt attempt
+                           set attempt.callbackAt = :callbackAt
+                         where attempt.orderId = :orderId
+                        """)
+                .setParameter("callbackAt", callbackAt)
+                .setParameter("orderId", UUID.fromString(orderId))
+                .executeUpdate());
     }
 
     private void requestConfirmation(String token, String orderId) throws Exception {

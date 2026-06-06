@@ -2,6 +2,7 @@ package com.nexora.backend.api;
 
 import com.nexora.backend.application.ConfirmationWorkflowService;
 import com.nexora.backend.domain.model.ConfirmationAttempt;
+import com.nexora.backend.domain.model.ConfirmationCallbackScope;
 import com.nexora.backend.domain.model.ConfirmationOutcome;
 import com.nexora.backend.domain.model.Order;
 import com.nexora.backend.domain.model.OrderStatus;
@@ -64,7 +65,8 @@ public class ConfirmationController {
 
     public record RecordConfirmationAttemptRequest(
             @NotNull ConfirmationOutcome outcome,
-            @Size(max = 1000) String note
+            @Size(max = 1000) String note,
+            Instant callbackAt
     ) {}
 
     public record ConfirmationAttemptResponse(
@@ -75,7 +77,10 @@ public class ConfirmationController {
             ConfirmationOutcome outcome,
             String note,
             String createdBy,
-            Instant createdAt
+            Instant createdAt,
+            Instant callbackAt,
+            Instant callbackResolvedAt,
+            String callbackResolvedBy
     ) {
         static ConfirmationAttemptResponse from(ConfirmationAttempt attempt) {
             return new ConfirmationAttemptResponse(
@@ -86,7 +91,65 @@ public class ConfirmationController {
                     attempt.getOutcome(),
                     attempt.getNote(),
                     attempt.getCreatedBy(),
-                    attempt.getCreatedAt()
+                    attempt.getCreatedAt(),
+                    attempt.getCallbackAt(),
+                    attempt.getCallbackResolvedAt(),
+                    attempt.getCallbackResolvedBy()
+            );
+        }
+    }
+
+    public record ConfirmationCallbacksPageResponse(
+            List<ConfirmationCallbackResponse> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages
+    ) {
+        static ConfirmationCallbacksPageResponse from(
+                Page<ConfirmationWorkflowService.ConfirmationCallbackItem> callbacks,
+                ConfirmationWorkflowService confirmationWorkflowService
+        ) {
+            return new ConfirmationCallbacksPageResponse(
+                    callbacks.getContent().stream()
+                            .map(item -> ConfirmationCallbackResponse.from(item, confirmationWorkflowService))
+                            .toList(),
+                    callbacks.getNumber(),
+                    callbacks.getSize(),
+                    callbacks.getTotalElements(),
+                    callbacks.getTotalPages()
+            );
+        }
+    }
+
+    public record ConfirmationCallbackResponse(
+            UUID callbackId,
+            UUID tenantId,
+            UUID orderId,
+            int attemptNumber,
+            Instant callbackAt,
+            ConfirmationWorkflowService.ConfirmationCallbackStatus status,
+            String note,
+            String createdBy,
+            Instant createdAt,
+            Order order
+    ) {
+        static ConfirmationCallbackResponse from(
+                ConfirmationWorkflowService.ConfirmationCallbackItem item,
+                ConfirmationWorkflowService confirmationWorkflowService
+        ) {
+            ConfirmationAttempt callback = item.callback();
+            return new ConfirmationCallbackResponse(
+                    callback.getAttemptId(),
+                    callback.getTenantId(),
+                    callback.getOrderId(),
+                    callback.getAttemptNumber(),
+                    callback.getCallbackAt(),
+                    confirmationWorkflowService.callbackStatus(callback),
+                    callback.getNote(),
+                    callback.getCreatedBy(),
+                    callback.getCreatedAt(),
+                    item.order()
             );
         }
     }
@@ -131,6 +194,7 @@ public class ConfirmationController {
                 orderId,
                 request.outcome(),
                 request.note(),
+                request.callbackAt(),
                 getCurrentUsername()
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(ConfirmationAttemptResponse.from(attempt));
@@ -143,6 +207,44 @@ public class ConfirmationController {
                 .map(ConfirmationAttemptResponse::from)
                 .toList();
         return ResponseEntity.ok(attempts);
+    }
+
+    @GetMapping("/confirmations/callbacks")
+    public ResponseEntity<ConfirmationCallbacksPageResponse> listConfirmationCallbacks(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "DUE") ConfirmationCallbackScope scope,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate callbackFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate callbackTo
+    ) {
+        validatePage(page, size);
+        validateDateRange(callbackFrom, callbackTo);
+
+        PageRequest pageRequest = PageRequest.of(
+                page,
+                size,
+                Sort.by(Sort.Direction.ASC, "callbackAt").and(Sort.by(Sort.Direction.ASC, "attemptId"))
+        );
+
+        Page<ConfirmationWorkflowService.ConfirmationCallbackItem> callbacks = confirmationWorkflowService.listCallbacks(
+                getCurrentTenantId(),
+                scope,
+                toStartOfDay(callbackFrom),
+                toExclusiveEndOfDay(callbackTo),
+                pageRequest
+        );
+
+        return ResponseEntity.ok(ConfirmationCallbacksPageResponse.from(callbacks, confirmationWorkflowService));
+    }
+
+    @PostMapping("/confirmations/callbacks/{callbackId}/resolve")
+    public ResponseEntity<ConfirmationAttemptResponse> resolveConfirmationCallback(@PathVariable UUID callbackId) {
+        ConfirmationAttempt callback = confirmationWorkflowService.resolveCallback(
+                getCurrentTenantId(),
+                callbackId,
+                getCurrentUsername()
+        );
+        return ResponseEntity.ok(ConfirmationAttemptResponse.from(callback));
     }
 
     private UUID getCurrentTenantId() {
