@@ -54,6 +54,14 @@ http://localhost,http://127.0.0.1,http://localhost:5173,http://127.0.0.1:5173
 
 Production compose requires `CORS_ALLOWED_ORIGINS` and fails configuration if it is missing.
 
+## Tenant Onboarding
+
+Tenant onboarding is controlled by `APP_ONBOARDING_ENABLED`. The backend default is `false`, local Docker Compose development enables it, and production compose requires the variable to be set explicitly.
+
+Use `APP_ONBOARDING_ENABLED=true` only when public tenant signup is intentionally open or during a controlled first-tenant setup window. Use `APP_ONBOARDING_ENABLED=false` for closed/private deployments after the initial ADMIN account exists.
+
+The local development seed remains limited to `docker-compose.override.yml` through `SPRING_FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/seed`. Production compose uses only `classpath:db/migration`, so the seeded `admin@example.com` account is not created in production.
+
 ## Database Backup And Restore
 
 PostgreSQL is the production source of truth for tenants, users, orders, and domain events. Backups must include the whole database, not only the `orders` projection, because `domain_events` is the authoritative event log.

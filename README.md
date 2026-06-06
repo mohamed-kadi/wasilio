@@ -51,16 +51,39 @@ You can log in to the system with the following credentials:
 - **Email:** `admin@example.com`
 - **Password:** `password`
 
+The local override also enables public tenant onboarding. Use [http://localhost/signup](http://localhost/signup) to create a real tenant and first ADMIN user without relying on the seed account.
+
+### Tenant Onboarding
+
+Tenant onboarding creates the merchant workspace context, tenant row, and first ADMIN user atomically.
+
+```http
+POST /api/onboarding/tenants
+Content-Type: application/json
+
+{
+  "tenantName": "Atlas Shop",
+  "adminName": "Admin User",
+  "adminEmail": "admin@example.com",
+  "password": "Str0ng!Password"
+}
+```
+
+Public onboarding is disabled by default unless `APP_ONBOARDING_ENABLED=true` is configured. Keep the development seed limited to local development; production compose loads only `db/migration` and does not load `db/seed`.
+
 **Production Compose:**
-Use the production override and provide `JWT_SECRET`, database credentials, and CORS origins from deployment secrets/configuration. This configuration runs only Flyway migrations (`db/migration`) and excludes the development seed (`db/seed`).
+Use the production override and provide `JWT_SECRET`, database credentials, CORS origins, and the onboarding toggle from deployment secrets/configuration. This configuration runs only Flyway migrations (`db/migration`) and excludes the development seed (`db/seed`).
 
 ```bash
 POSTGRES_USER="<production-user>" \
 POSTGRES_PASSWORD="<production-password>" \
 JWT_SECRET="<production-jwt-secret>" \
 CORS_ALLOWED_ORIGINS="https://app.example.com" \
+APP_ONBOARDING_ENABLED="false" \
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 ```
+
+Set `APP_ONBOARDING_ENABLED=true` only during a controlled signup window or when the deployment is intentionally self-serve. Set it to `false` after the first tenant is created for closed/private deployments.
 
 ### Running Manually
 
@@ -74,6 +97,7 @@ docker-compose up postgres -d
 cd backend
 export JWT_SECRET="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 export SPRING_FLYWAY_LOCATIONS="classpath:db/migration,classpath:db/seed"
+export APP_ONBOARDING_ENABLED="true"
 mvn spring-boot:run
 ```
 
@@ -89,6 +113,7 @@ npm run dev
 
 Base URL: `/api/orders`
 
+- `POST /api/onboarding/tenants` - Create a tenant and first ADMIN user when onboarding is enabled
 - `POST /` - Create a new order
 - `POST /{id}/request-confirmation` - Request order confirmation
 - `POST /{id}/confirm` - Confirm order

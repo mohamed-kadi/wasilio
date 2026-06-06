@@ -16,3 +16,4 @@ services:
       SPRING_FLYWAY_LOCATIONS: classpath:db/migration,classpath:db/seed
       JWT_SECRET: ${JWT_SECRET:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1,http://localhost:5173,http://127.0.0.1:5173}
+      APP_ONBOARDING_ENABLED: ${APP_ONBOARDING_ENABLED:-true}
