@@ -111,8 +111,44 @@ export interface ConfirmationAttempt {
   attemptNumber: number;
   outcome: ConfirmationOutcome;
   note?: string;
+  callbackAt?: string;
+  callbackResolvedAt?: string;
+  callbackResolvedBy?: string;
   createdBy: string;
   createdAt: string;
+}
+
+export type ConfirmationCallbackScope = 'DUE' | 'OVERDUE' | 'UPCOMING' | 'ALL';
+
+export type ConfirmationCallbackStatus = 'DUE' | 'OVERDUE' | 'UPCOMING' | 'RESOLVED';
+
+export interface ConfirmationCallback {
+  callbackId: string;
+  tenantId: string;
+  orderId: string;
+  attemptNumber: number;
+  callbackAt: string;
+  status: ConfirmationCallbackStatus;
+  note?: string;
+  createdBy: string;
+  createdAt: string;
+  order: Order;
+}
+
+export interface ConfirmationCallbacksPageResponse {
+  content: ConfirmationCallback[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface ConfirmationCallbacksQuery {
+  page?: number;
+  size?: number;
+  scope?: ConfirmationCallbackScope;
+  callbackFrom?: string;
+  callbackTo?: string;
 }
 
 export interface DomainEvent {
@@ -202,6 +238,23 @@ export async function fetchConfirmationQueue(query: ConfirmationQueueQuery = {})
   return apiRequest<OrdersPageResponse>(`/confirmations/queue?${params.toString()}`);
 }
 
+export async function fetchConfirmationCallbacks(
+  query: ConfirmationCallbacksQuery = {},
+): Promise<ConfirmationCallbacksPageResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+  params.set('scope', query.scope ?? 'DUE');
+  if (query.callbackFrom) {
+    params.set('callbackFrom', query.callbackFrom);
+  }
+  if (query.callbackTo) {
+    params.set('callbackTo', query.callbackTo);
+  }
+
+  return apiRequest<ConfirmationCallbacksPageResponse>(`/confirmations/callbacks?${params.toString()}`);
+}
+
 export async function fetchOrder(id: string): Promise<Order> {
   return apiRequest<Order>(`/orders/${id}`);
 }
@@ -240,10 +293,17 @@ export async function recordConfirmationAttempt(
   orderId: string,
   outcome: ConfirmationOutcome,
   note: string,
+  callbackAt?: string,
 ): Promise<ConfirmationAttempt> {
   return apiRequest<ConfirmationAttempt>(`/orders/${orderId}/confirmation-attempts`, {
     method: 'POST',
-    body: JSON.stringify({ outcome, note }),
+    body: JSON.stringify({ outcome, note, callbackAt }),
+  });
+}
+
+export async function resolveConfirmationCallback(callbackId: string): Promise<ConfirmationAttempt> {
+  return apiRequest<ConfirmationAttempt>(`/confirmations/callbacks/${callbackId}/resolve`, {
+    method: 'POST',
   });
 }
 

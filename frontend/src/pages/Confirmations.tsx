@@ -1,15 +1,34 @@
 import { type FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, ChevronLeft, ChevronRight, PhoneCall, RefreshCw, Search, XCircle } from 'lucide-react';
 import {
+  CalendarClock,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  PhoneCall,
+  RefreshCw,
+  Search,
+  XCircle,
+} from 'lucide-react';
+import {
+  fetchConfirmationCallbacks,
   fetchConfirmationAttempts,
   fetchConfirmationQueue,
   getErrorMessage,
   recordConfirmationAttempt,
+  resolveConfirmationCallback,
 } from '../api/client';
-import type { ConfirmationOutcome, Order } from '../api/client';
+import type {
+  ConfirmationAttempt,
+  ConfirmationCallback,
+  ConfirmationCallbackScope,
+  ConfirmationCallbackStatus,
+  ConfirmationOutcome,
+  Order,
+} from '../api/client';
 
 const queueStatuses = ['', 'CREATED', 'CONFIRMATION_REQUESTED'] as const;
+const callbackScopes: ConfirmationCallbackScope[] = ['DUE', 'OVERDUE', 'UPCOMING'];
 
 const outcomes: ConfirmationOutcome[] = [
   'CONFIRMED',
@@ -32,16 +51,26 @@ const outcomeColors: Record<ConfirmationOutcome, string> = {
   WRONG_NUMBER: 'bg-orange-100 text-orange-800',
 };
 
+const callbackStatusColors: Record<ConfirmationCallbackStatus, string> = {
+  DUE: 'bg-blue-100 text-blue-800',
+  OVERDUE: 'bg-red-100 text-red-800',
+  UPCOMING: 'bg-gray-100 text-gray-800',
+  RESOLVED: 'bg-green-100 text-green-800',
+};
+
 export default function Confirmations() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(20);
+  const [callbackPage, setCallbackPage] = useState(0);
+  const [callbackScope, setCallbackScope] = useState<ConfirmationCallbackScope>('DUE');
   const [status, setStatus] = useState<(typeof queueStatuses)[number]>('');
   const [search, setSearch] = useState('');
   const [createdFrom, setCreatedFrom] = useState('');
   const [createdTo, setCreatedTo] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [outcome, setOutcome] = useState<ConfirmationOutcome>('NO_ANSWER');
+  const [callbackAt, setCallbackAt] = useState('');
   const [note, setNote] = useState('');
 
   const {
@@ -53,6 +82,16 @@ export default function Confirmations() {
   } = useQuery({
     queryKey: ['confirmation-queue', { page, size, status, search, createdFrom, createdTo }],
     queryFn: () => fetchConfirmationQueue({ page, size, status, search, createdFrom, createdTo }),
+  });
+
+  const {
+    data: callbacksPage,
+    error: callbacksError,
+    isLoading: callbacksLoading,
+    isFetching: callbacksFetching,
+  } = useQuery({
+    queryKey: ['confirmation-callbacks', { callbackPage, callbackScope }],
+    queryFn: () => fetchConfirmationCallbacks({ page: callbackPage, size: 6, scope: callbackScope }),
   });
 
   const {
@@ -70,7 +109,11 @@ export default function Confirmations() {
       if (!selectedOrder) {
         throw new Error('Select an order before recording an attempt');
       }
-      return recordConfirmationAttempt(selectedOrder.id, outcome, note);
+      const scheduledCallbackAt = outcome === 'CALL_BACK_LATER' ? toIsoFromLocalDateTime(callbackAt) : undefined;
+      if (outcome === 'CALL_BACK_LATER' && !scheduledCallbackAt) {
+        throw new Error('Callback time is required for call-back-later attempts');
+      }
+      return recordConfirmationAttempt(selectedOrder.id, outcome, note, scheduledCallbackAt);
     },
     onSuccess: async (attempt) => {
       if (selectedOrder) {
@@ -78,11 +121,23 @@ export default function Confirmations() {
         await queryClient.invalidateQueries({ queryKey: ['order', selectedOrder.id] });
       }
       await queryClient.invalidateQueries({ queryKey: ['confirmation-queue'] });
+      await queryClient.invalidateQueries({ queryKey: ['confirmation-callbacks'] });
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
       await queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
       setNote('');
+      setCallbackAt('');
       if (attempt.outcome === 'CONFIRMED' || attempt.outcome === 'REJECTED') {
         setSelectedOrder(null);
+      }
+    },
+  });
+
+  const resolveCallbackMutation = useMutation({
+    mutationFn: (callbackId: string) => resolveConfirmationCallback(callbackId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['confirmation-callbacks'] });
+      if (selectedOrder) {
+        await queryClient.invalidateQueries({ queryKey: ['confirmation-attempts', selectedOrder.id] });
       }
     },
   });
@@ -92,6 +147,11 @@ export default function Confirmations() {
   const totalElements = queuePage?.totalElements ?? 0;
   const canGoBack = page > 0;
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
+  const callbacks = callbacksPage?.content ?? [];
+  const callbackTotalPages = callbacksPage?.totalPages ?? 0;
+  const callbackTotalElements = callbacksPage?.totalElements ?? 0;
+  const canGoBackCallbacks = callbackPage > 0;
+  const canGoForwardCallbacks = callbackTotalPages > 0 && callbackPage + 1 < callbackTotalPages;
 
   function resetFilters() {
     setSearch('');
@@ -104,6 +164,13 @@ export default function Confirmations() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     mutation.mutate();
+  }
+
+  function selectCallback(callback: ConfirmationCallback) {
+    setSelectedOrder(callback.order);
+    setOutcome('NO_ANSWER');
+    setCallbackAt('');
+    setNote(callback.note ?? '');
   }
 
   return (
@@ -123,6 +190,118 @@ export default function Confirmations() {
           <RefreshCw size={18} />
         </button>
       </div>
+
+      <section className="bg-white border border-gray-200 rounded-lg px-4 py-4 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="h-5 w-5 text-blue-600" />
+            <div>
+              <h3 className="text-base font-semibold text-gray-900">Follow-up callbacks</h3>
+              <p className="text-sm text-gray-500">
+                {callbackTotalElements} {callbackScope.toLowerCase()} callbacks
+                {callbacksFetching && !callbacksLoading ? ' - Refreshing' : ''}
+              </p>
+            </div>
+          </div>
+          <select
+            value={callbackScope}
+            onChange={(event) => {
+              setCallbackScope(event.target.value as ConfirmationCallbackScope);
+              setCallbackPage(0);
+            }}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {callbackScopes.map((scope) => (
+              <option key={scope} value={scope}>
+                {scope.replace(/_/g, ' ')}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {callbacksError && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {getErrorMessage(callbacksError)}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
+          {callbacks.map((callback) => (
+            <article key={callback.callbackId} className="rounded-md border border-gray-200 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {callback.order.customer.firstName} {callback.order.customer.lastName}
+                  </p>
+                  <p className="text-sm text-gray-500">{callback.order.customer.phone}</p>
+                </div>
+                <span className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${callbackStatusColors[callback.status]}`}>
+                  {callback.status}
+                </span>
+              </div>
+              <p className="mt-3 text-sm text-gray-700">{new Date(callback.callbackAt).toLocaleString()}</p>
+              {callback.note && <p className="mt-2 text-sm text-gray-600 line-clamp-2">{callback.note}</p>}
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => selectCallback(callback)}
+                  className="inline-flex items-center justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  Select
+                </button>
+                <button
+                  type="button"
+                  onClick={() => resolveCallbackMutation.mutate(callback.callbackId)}
+                  disabled={resolveCallbackMutation.isPending}
+                  className="inline-flex items-center justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                >
+                  Resolve
+                </button>
+              </div>
+            </article>
+          ))}
+          {!callbacksLoading && callbacks.length === 0 && (
+            <p className="text-sm text-gray-500">No callbacks in this view.</p>
+          )}
+          {callbacksLoading && <p className="text-sm text-gray-500">Loading callbacks...</p>}
+        </div>
+
+        {callbackTotalPages > 1 && (
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">
+              Page {callbackTotalPages === 0 ? 0 : callbackPage + 1} of {callbackTotalPages}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCallbackPage((currentPage) => currentPage - 1)}
+                disabled={!canGoBackCallbacks}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                aria-label="Previous callback page"
+                title="Previous callback page"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setCallbackPage((currentPage) => currentPage + 1)}
+                disabled={!canGoForwardCallbacks}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                aria-label="Next callback page"
+                title="Next callback page"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {resolveCallbackMutation.error && (
+          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {getErrorMessage(resolveCallbackMutation.error)}
+          </div>
+        )}
+      </section>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-6">
         <section className="space-y-4">
@@ -333,7 +512,13 @@ export default function Confirmations() {
                   <span className="block text-sm font-medium text-gray-700 mb-1">Outcome</span>
                   <select
                     value={outcome}
-                    onChange={(event) => setOutcome(event.target.value as ConfirmationOutcome)}
+                    onChange={(event) => {
+                      const nextOutcome = event.target.value as ConfirmationOutcome;
+                      setOutcome(nextOutcome);
+                      if (nextOutcome !== 'CALL_BACK_LATER') {
+                        setCallbackAt('');
+                      }
+                    }}
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     {outcomes.map((outcomeOption) => (
@@ -343,6 +528,20 @@ export default function Confirmations() {
                     ))}
                   </select>
                 </label>
+
+                {outcome === 'CALL_BACK_LATER' && (
+                  <label className="block">
+                    <span className="block text-sm font-medium text-gray-700 mb-1">Callback time</span>
+                    <input
+                      type="datetime-local"
+                      value={callbackAt}
+                      min={toLocalDateTimeInputValue(new Date())}
+                      onChange={(event) => setCallbackAt(event.target.value)}
+                      required
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </label>
+                )}
 
                 <label className="block">
                   <span className="block text-sm font-medium text-gray-700 mb-1">Note</span>
@@ -388,6 +587,26 @@ export default function Confirmations() {
                         </span>
                       </div>
                       {attempt.note && <p className="mt-2 text-sm text-gray-700">{attempt.note}</p>}
+                      {attempt.callbackAt && (
+                        <div className="mt-2 rounded-md bg-gray-50 px-2 py-2 text-xs text-gray-600">
+                          <div className="flex items-center justify-between gap-2">
+                            <span>{new Date(attempt.callbackAt).toLocaleString()}</span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full font-medium ${
+                                callbackStatusColors[getAttemptCallbackStatus(attempt)]
+                              }`}
+                            >
+                              {getAttemptCallbackStatus(attempt)}
+                            </span>
+                          </div>
+                          {attempt.callbackResolvedAt && (
+                            <p className="mt-1">
+                              Resolved by {attempt.callbackResolvedBy} -{' '}
+                              {new Date(attempt.callbackResolvedAt).toLocaleString()}
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <p className="mt-2 text-xs text-gray-500">
                         {attempt.createdBy} - {new Date(attempt.createdAt).toLocaleString()}
                       </p>
@@ -405,4 +624,33 @@ export default function Confirmations() {
       </div>
     </div>
   );
+}
+
+function toLocalDateTimeInputValue(date: Date): string {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function toIsoFromLocalDateTime(value: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function getAttemptCallbackStatus(attempt: ConfirmationAttempt): ConfirmationCallbackStatus {
+  if (attempt.callbackResolvedAt) {
+    return 'RESOLVED';
+  }
+  if (!attempt.callbackAt) {
+    return 'UPCOMING';
+  }
+  const callbackDate = new Date(attempt.callbackAt);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  if (callbackDate < todayStart) {
+    return 'OVERDUE';
+  }
+  return callbackDate <= new Date() ? 'DUE' : 'UPCOMING';
 }
