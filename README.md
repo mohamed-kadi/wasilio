@@ -71,6 +71,17 @@ Content-Type: application/json
 
 Public onboarding is disabled by default unless `APP_ONBOARDING_ENABLED=true` is configured. Keep the development seed limited to local development; production compose loads only `db/migration` and does not load `db/seed`.
 
+### Abuse Protection
+
+The backend applies basic in-memory throttling to `POST /api/auth/login` and `POST /api/onboarding/tenants`.
+
+- Login throttling tracks failed attempts by normalized email and remote IP.
+- Onboarding throttling tracks valid onboarding attempts by admin email and remote IP.
+- Throttled requests return `429 Too Many Requests` with `Retry-After`.
+- Security-sensitive login and onboarding outcomes are logged through the `security.audit` logger with correlation ID, email, tenant ID when available, and remote IP.
+
+The in-memory limiter is single-node only. Use Redis or another shared rate-limit store before running multiple backend instances.
+
 **Production Compose:**
 Use the production override and provide `JWT_SECRET`, database credentials, CORS origins, and the onboarding toggle from deployment secrets/configuration. This configuration runs only Flyway migrations (`db/migration`) and excludes the development seed (`db/seed`).
 
@@ -98,6 +109,7 @@ cd backend
 export JWT_SECRET="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 export SPRING_FLYWAY_LOCATIONS="classpath:db/migration,classpath:db/seed"
 export APP_ONBOARDING_ENABLED="true"
+export APP_SECURITY_THROTTLING_ENABLED="true"
 mvn spring-boot:run
 ```
 

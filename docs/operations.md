@@ -62,6 +62,41 @@ Use `APP_ONBOARDING_ENABLED=true` only when public tenant signup is intentionall
 
 The local development seed remains limited to `docker-compose.override.yml` through `SPRING_FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/seed`. Production compose uses only `classpath:db/migration`, so the seeded `admin@example.com` account is not created in production.
 
+## Abuse Protection And Security Audit Logs
+
+The backend has an MVP in-memory throttling layer for public security-sensitive endpoints.
+
+Login throttling applies to `POST /api/auth/login`. Failed login attempts increment counters for both normalized email and remote IP. A successful login clears the email counter, but it does not clear the remote IP counter because that counter protects against credential stuffing across many accounts.
+
+Onboarding throttling applies to valid `POST /api/onboarding/tenants` requests. Attempts increment counters for admin email and remote IP before tenant creation is attempted, so both successful onboarding and rejected onboarding count against the limit.
+
+Configuration:
+
+```text
+APP_SECURITY_THROTTLING_ENABLED=true
+APP_LOGIN_THROTTLE_MAX_ATTEMPTS=5
+APP_LOGIN_THROTTLE_WINDOW=PT10M
+APP_LOGIN_THROTTLE_LOCKOUT=PT15M
+APP_ONBOARDING_THROTTLE_MAX_ATTEMPTS=3
+APP_ONBOARDING_THROTTLE_WINDOW=PT1H
+APP_ONBOARDING_THROTTLE_LOCKOUT=PT1H
+```
+
+Durations use Spring Boot duration syntax. ISO-8601 values such as `PT10M` and `PT1H` are recommended for environment variables.
+
+Throttled requests return `429 Too Many Requests` and a `Retry-After` header. The current implementation stores counters in process memory, so counters reset on application restart and are not shared across backend replicas. Before multi-node production, replace or back this with Redis, a gateway/WAF rate limit, or another distributed store.
+
+Security-sensitive events are logged through the `security.audit` logger:
+
+- successful login
+- failed login
+- tenant onboarding success
+- tenant onboarding rejected
+- throttled login
+- throttled onboarding
+
+Audit log messages include `correlationId`, `email`, `tenantId` when available, and `remoteIp`. The remote IP resolver honors `X-Forwarded-For` when present, so production ingress must sanitize or overwrite that header at the trusted proxy boundary.
+
 ## Database Backup And Restore
 
 PostgreSQL is the production source of truth for tenants, users, orders, and domain events. Backups must include the whole database, not only the `orders` projection, because `domain_events` is the authoritative event log.
