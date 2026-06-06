@@ -96,3 +96,20 @@ Early-stage SaaS target:
 - RTO: 4 hours for manual restore while the platform is early-stage.
 
 These targets must be revisited before onboarding customers with stricter delivery or compliance requirements.
+
+## Order Projection Recovery
+
+`domain_events` is the write-side source of truth. The `orders` table is a read model rebuilt from those events.
+
+The orders projection records processed event IDs in `projection_processed_events` with `projection_name='orders'`. Reprocessing the same event ID is skipped, so duplicate delivery does not duplicate or corrupt the projection.
+
+Order projection updates are dispatched after the event transaction commits. If projection processing fails, the event remains committed in `domain_events` and the event ID is not marked as processed for the orders projection. Recovery is to rebuild the projection from the event log.
+
+For an MVP maintenance rebuild, run one backend instance with:
+
+```bash
+APP_PROJECTIONS_REBUILD_ORDERS_ON_STARTUP=true \
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up backend
+```
+
+Use this in a maintenance window or isolated admin run. The rebuild clears `orders` and the `orders` projection markers, then replays `domain_events` in tenant, aggregate, and aggregate sequence order. Leave `APP_PROJECTIONS_REBUILD_ORDERS_ON_STARTUP` unset or `false` during normal application startup.
