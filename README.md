@@ -82,6 +82,12 @@ The backend applies basic in-memory throttling to `POST /api/auth/login` and `PO
 
 The in-memory limiter is single-node only. Use Redis or another shared rate-limit store before running multiple backend instances.
 
+### COD Confirmation Operations
+
+The confirmation queue is available at [http://localhost/confirmations](http://localhost/confirmations) in the frontend. It lists tenant-scoped orders in `CREATED` or `CONFIRMATION_REQUESTED`, with status, date range, customer name/phone search, and pagination filters.
+
+Confirmation attempts are recorded per order with an outcome and note. `CONFIRMED` and `REJECTED` attempts append the matching order lifecycle event and finalize the order into `CONFIRMED` or `REJECTED`. `NO_ANSWER`, `CALL_BACK_LATER`, and `WRONG_NUMBER` keep the order in the queue for follow-up.
+
 **Production Compose:**
 Use the production override and provide `JWT_SECRET`, database credentials, CORS origins, and the onboarding toggle from deployment secrets/configuration. This configuration runs only Flyway migrations (`db/migration`) and excludes the development seed (`db/seed`).
 
@@ -123,17 +129,20 @@ npm run dev
 
 ## API Overview
 
-Base URL: `/api/orders`
+Base URL: `/api`
 
 - `POST /api/onboarding/tenants` - Create a tenant and first ADMIN user when onboarding is enabled
-- `POST /` - Create a new order
-- `POST /{id}/request-confirmation` - Request order confirmation
-- `POST /{id}/confirm` - Confirm order
-- `POST /{id}/reject` - Reject order
-- `POST /{id}/assign-courier` - Assign to a courier
-- `POST /{id}/pick-up` - Mark picked up
-- `POST /{id}/deliver` - Mark delivered
-- `POST /{id}/fail` - Mark failed
-- `GET /` - List all orders
-- `GET /{id}` - Get order details
-- `GET /{id}/events` - Get event timeline
+- `GET /api/confirmations/queue` - List orders awaiting COD confirmation
+- `POST /api/orders/{id}/confirmation-attempts` - Record a confirmation attempt
+- `GET /api/orders/{id}/confirmation-attempts` - List confirmation attempts for an order
+- `POST /api/orders` - Create a new order
+- `POST /api/orders/{id}/request-confirmation` - Request order confirmation
+- `POST /api/orders/{id}/confirm` - Confirm order
+- `POST /api/orders/{id}/reject` - Reject order
+- `POST /api/orders/{id}/assign-courier` - Assign to a courier
+- `POST /api/orders/{id}/pick-up` - Mark picked up
+- `POST /api/orders/{id}/deliver` - Mark delivered
+- `POST /api/orders/{id}/fail` - Mark failed
+- `GET /api/orders` - List all orders
+- `GET /api/orders/{id}` - Get order details
+- `GET /api/orders/{id}/events` - Get event timeline

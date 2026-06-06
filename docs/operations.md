@@ -97,6 +97,31 @@ Security-sensitive events are logged through the `security.audit` logger:
 
 Audit log messages include `correlationId`, `email`, `tenantId` when available, and `remoteIp`. The remote IP resolver honors `X-Forwarded-For` when present, so production ingress must sanitize or overwrite that header at the trusted proxy boundary.
 
+## COD Confirmation Workflow
+
+The confirmation queue is exposed through:
+
+- `GET /api/confirmations/queue`
+- `POST /api/orders/{orderId}/confirmation-attempts`
+- `GET /api/orders/{orderId}/confirmation-attempts`
+
+All confirmation endpoints require an authenticated `ADMIN` or `MERCHANT` user and scope data to the tenant in the JWT. The queue returns only orders in `CREATED` or `CONFIRMATION_REQUESTED`. It supports optional `status`, `createdFrom`, `createdTo`, customer name/phone `search`, `page`, and `size` parameters. The `status` filter accepts only `CREATED` or `CONFIRMATION_REQUESTED`.
+
+Each confirmation attempt records:
+
+- attempt ID
+- tenant ID
+- order ID
+- attempt number
+- outcome
+- note
+- authenticated user email
+- created timestamp
+
+Attempt outcomes are `CONFIRMED`, `REJECTED`, `NO_ANSWER`, `CALL_BACK_LATER`, and `WRONG_NUMBER`. `CONFIRMED` appends `OrderConfirmed` and moves the order projection to `CONFIRMED`. `REJECTED` appends `OrderRejected` and moves the projection to `REJECTED`. If either final outcome is recorded while the order is still `CREATED`, the backend first appends `OrderConfirmationRequested`, then the final event. Non-final outcomes leave the order in its existing confirmation queue status.
+
+Confirmation attempts are operational records in `confirmation_attempts`. They are not the source of truth for final order state; final order state still comes from `domain_events` and the `orders` projection. The attempts table has a tenant/order/attempt-number uniqueness constraint. It intentionally does not foreign-key to the `orders` projection, so projection rebuilds can clear and rebuild `orders` without deleting historical attempt records.
+
 ## Database Backup And Restore
 
 PostgreSQL is the production source of truth for tenants, users, orders, and domain events. Backups must include the whole database, not only the `orders` projection, because `domain_events` is the authoritative event log.
