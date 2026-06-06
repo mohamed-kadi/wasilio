@@ -17,7 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -31,7 +31,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Transactional
 @ActiveProfiles("test")
 class OrderIntegrationTest {
 
@@ -47,35 +46,50 @@ class OrderIntegrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
     private String jwtToken;
     private String otherTenantJwtToken;
 
     @BeforeEach
     void setup() throws Exception {
         UUID tenantId = UUID.randomUUID();
-        entityManager.persist(new Tenant(tenantId, "Test Tenant"));
-        entityManager.persist(new User(
-                UUID.randomUUID(),
-                "test@example.com",
-                passwordEncoder.encode("password"),
-                Role.MERCHANT,
-                tenantId
-        ));
-
         UUID otherTenantId = UUID.randomUUID();
-        entityManager.persist(new Tenant(otherTenantId, "Other Tenant"));
-        entityManager.persist(new User(
-                UUID.randomUUID(),
-                "other@example.com",
-                passwordEncoder.encode("password"),
-                Role.MERCHANT,
-                otherTenantId
-        ));
 
-        entityManager.flush();
+        transactionTemplate.executeWithoutResult(status -> {
+            cleanDatabase();
+            entityManager.persist(new Tenant(tenantId, "Test Tenant"));
+            entityManager.persist(new User(
+                    UUID.randomUUID(),
+                    "test@example.com",
+                    passwordEncoder.encode("password"),
+                    Role.MERCHANT,
+                    tenantId
+            ));
+
+            entityManager.persist(new Tenant(otherTenantId, "Other Tenant"));
+            entityManager.persist(new User(
+                    UUID.randomUUID(),
+                    "other@example.com",
+                    passwordEncoder.encode("password"),
+                    Role.MERCHANT,
+                    otherTenantId
+            ));
+
+            entityManager.flush();
+        });
 
         jwtToken = login("test@example.com", "password");
         otherTenantJwtToken = login("other@example.com", "password");
+    }
+
+    private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM users").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM tenants").executeUpdate();
     }
 
     @Test

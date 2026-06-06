@@ -22,7 +22,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.util.Date;
@@ -39,7 +39,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Transactional
 @ActiveProfiles("test")
 class AuthSecurityIntegrationTest {
 
@@ -61,32 +60,47 @@ class AuthSecurityIntegrationTest {
     @Value("${jwt.secret}")
     private String jwtSecret;
 
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
     private UUID tenantId;
     private UUID otherTenantId;
 
     @BeforeEach
     void setup() {
         tenantId = UUID.randomUUID();
-        entityManager.persist(new Tenant(tenantId, "Tenant A"));
-        entityManager.persist(new User(
-                UUID.randomUUID(),
-                "merchant-a@example.com",
-                passwordEncoder.encode("correct-password"),
-                Role.MERCHANT,
-                tenantId
-        ));
-
         otherTenantId = UUID.randomUUID();
-        entityManager.persist(new Tenant(otherTenantId, "Tenant B"));
-        entityManager.persist(new User(
-                UUID.randomUUID(),
-                "merchant-b@example.com",
-                passwordEncoder.encode("correct-password"),
-                Role.MERCHANT,
-                otherTenantId
-        ));
 
-        entityManager.flush();
+        transactionTemplate.executeWithoutResult(status -> {
+            cleanDatabase();
+            entityManager.persist(new Tenant(tenantId, "Tenant A"));
+            entityManager.persist(new User(
+                    UUID.randomUUID(),
+                    "merchant-a@example.com",
+                    passwordEncoder.encode("correct-password"),
+                    Role.MERCHANT,
+                    tenantId
+            ));
+
+            entityManager.persist(new Tenant(otherTenantId, "Tenant B"));
+            entityManager.persist(new User(
+                    UUID.randomUUID(),
+                    "merchant-b@example.com",
+                    passwordEncoder.encode("correct-password"),
+                    Role.MERCHANT,
+                    otherTenantId
+            ));
+
+            entityManager.flush();
+        });
+    }
+
+    private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM users").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM tenants").executeUpdate();
     }
 
     @Test

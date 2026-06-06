@@ -8,4 +8,5 @@ import java.util.UUID;
 public interface DomainEventRepository extends JpaRepository<DomainEvent, UUID> {
     List<DomainEvent> findByTenantIdAndAggregateIdOrderByAggregateSequenceAsc(UUID tenantId, UUID aggregateId);
     Optional<DomainEvent> findTopByTenantIdAndAggregateIdOrderByAggregateSequenceDesc(UUID tenantId, UUID aggregateId);
+    List<DomainEvent> findAllByOrderByTenantIdAscAggregateIdAscAggregateSequenceAsc();
 }
