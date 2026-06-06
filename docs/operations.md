@@ -104,6 +104,8 @@ The confirmation queue is exposed through:
 - `GET /api/confirmations/queue`
 - `POST /api/orders/{orderId}/confirmation-attempts`
 - `GET /api/orders/{orderId}/confirmation-attempts`
+- `GET /api/confirmations/callbacks`
+- `POST /api/confirmations/callbacks/{callbackId}/resolve`
 
 All confirmation endpoints require an authenticated `ADMIN` or `MERCHANT` user and scope data to the tenant in the JWT. The queue returns only orders in `CREATED` or `CONFIRMATION_REQUESTED`. It supports optional `status`, `createdFrom`, `createdTo`, customer name/phone `search`, `page`, and `size` parameters. The `status` filter accepts only `CREATED` or `CONFIRMATION_REQUESTED`.
 
@@ -115,10 +117,18 @@ Each confirmation attempt records:
 - attempt number
 - outcome
 - note
+- callback timestamp for `CALL_BACK_LATER`
+- callback resolved timestamp/user when a scheduled callback is closed
 - authenticated user email
 - created timestamp
 
 Attempt outcomes are `CONFIRMED`, `REJECTED`, `NO_ANSWER`, `CALL_BACK_LATER`, and `WRONG_NUMBER`. `CONFIRMED` appends `OrderConfirmed` and moves the order projection to `CONFIRMED`. `REJECTED` appends `OrderRejected` and moves the projection to `REJECTED`. If either final outcome is recorded while the order is still `CREATED`, the backend first appends `OrderConfirmationRequested`, then the final event. Non-final outcomes leave the order in its existing confirmation queue status.
+
+`CALL_BACK_LATER` requires a future `callbackAt` timestamp. The backend rejects missing or past callback timestamps and rejects `callbackAt` for every other outcome. Scheduled callbacks remain actionable only while the order is still in `CREATED` or `CONFIRMATION_REQUESTED`; confirmed, rejected, delivered, and failed orders are excluded from the callback queue.
+
+The callback queue is tenant scoped and supports `page`, `size`, `scope`, `callbackFrom`, and `callbackTo`. `scope=DUE` returns callbacks due now, including overdue callbacks. `scope=OVERDUE` returns callbacks before the current UTC day. `scope=UPCOMING` returns future callbacks. `scope=ALL` is available for internal review and date-range filtering.
+
+Recording `CONFIRMED` or `REJECTED` resolves all pending callbacks for the order. Operators may also explicitly resolve a callback through `POST /api/confirmations/callbacks/{callbackId}/resolve` when no lifecycle event should be emitted.
 
 Confirmation attempts are operational records in `confirmation_attempts`. They are not the source of truth for final order state; final order state still comes from `domain_events` and the `orders` projection. The attempts table has a tenant/order/attempt-number uniqueness constraint. It intentionally does not foreign-key to the `orders` projection, so projection rebuilds can clear and rebuild `orders` without deleting historical attempt records.
 

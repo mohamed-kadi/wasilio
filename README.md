@@ -88,6 +88,8 @@ The confirmation queue is available at [http://localhost/confirmations](http://l
 
 Confirmation attempts are recorded per order with an outcome and note. `CONFIRMED` and `REJECTED` attempts append the matching order lifecycle event and finalize the order into `CONFIRMED` or `REJECTED`. `NO_ANSWER`, `CALL_BACK_LATER`, and `WRONG_NUMBER` keep the order in the queue for follow-up.
 
+`CALL_BACK_LATER` requires a future callback time. Scheduled callbacks appear in the follow-up callbacks section with due, overdue, and upcoming views. Recording a final `CONFIRMED` or `REJECTED` attempt closes any pending callbacks for that order.
+
 **Production Compose:**
 Use the production override and provide `JWT_SECRET`, database credentials, CORS origins, and the onboarding toggle from deployment secrets/configuration. This configuration runs only Flyway migrations (`db/migration`) and excludes the development seed (`db/seed`).
 
@@ -133,6 +135,8 @@ Base URL: `/api`
 
 - `POST /api/onboarding/tenants` - Create a tenant and first ADMIN user when onboarding is enabled
 - `GET /api/confirmations/queue` - List orders awaiting COD confirmation
+- `GET /api/confirmations/callbacks` - List scheduled confirmation callbacks
+- `POST /api/confirmations/callbacks/{callbackId}/resolve` - Resolve a scheduled confirmation callback
 - `POST /api/orders/{id}/confirmation-attempts` - Record a confirmation attempt
 - `GET /api/orders/{id}/confirmation-attempts` - List confirmation attempts for an order
 - `POST /api/orders` - Create a new order
