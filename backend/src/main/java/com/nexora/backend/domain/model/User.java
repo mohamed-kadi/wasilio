@@ -21,6 +21,8 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
+    private String name;
+
     @Column(nullable = false)
     private String passwordHash;
 
@@ -30,4 +32,8 @@ public class User {
 
     @Column(nullable = false)
     private UUID tenantId;
+
+    public User(UUID id, String email, String passwordHash, Role role, UUID tenantId) {
+        this(id, email, null, passwordHash, role, tenantId);
+    }
 }

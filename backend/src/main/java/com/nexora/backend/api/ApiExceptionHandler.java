@@ -1,6 +1,7 @@
 package com.nexora.backend.api;
 
 import com.nexora.backend.domain.event.EventConcurrencyException;
+import com.nexora.backend.application.ResourceConflictException;
 import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(EventConcurrencyException.class)
     ResponseEntity<ProblemDetail> handleEventConcurrency(EventConcurrencyException ex) {
         return problem(HttpStatus.CONFLICT, "Event sequence conflict", ex.getMessage());
+    }
+
+    @ExceptionHandler(ResourceConflictException.class)
+    ResponseEntity<ProblemDetail> handleResourceConflict(ResourceConflictException ex) {
+        return problem(HttpStatus.CONFLICT, "Resource already exists", ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
