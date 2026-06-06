@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
 import { getErrorMessage, login } from '../api/client';
 import { useAuthStore } from '../store/authStore';
@@ -8,6 +8,7 @@ interface LocationState {
   from?: {
     pathname?: string;
   };
+  message?: string;
 }
 
 export default function Login() {
@@ -25,6 +26,7 @@ export default function Login() {
   }
 
   const from = (location.state as LocationState | null)?.from?.pathname ?? '/';
+  const message = (location.state as LocationState | null)?.message;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -51,6 +53,12 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+          {message && (
+            <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+              {message}
+            </div>
+          )}
+
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
@@ -98,6 +106,13 @@ export default function Login() {
             {loading ? 'Signing in' : 'Sign in'}
           </button>
         </form>
+
+        <p className="text-center text-sm text-gray-600">
+          Need a tenant?{' '}
+          <Link to="/signup" className="font-medium text-blue-600 hover:underline">
+            Create one
+          </Link>
+        </p>
       </div>
     </main>
   );

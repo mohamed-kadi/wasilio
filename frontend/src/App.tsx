@@ -6,6 +6,7 @@ import OrdersList from './pages/OrdersList';
 import CreateOrder from './pages/CreateOrder';
 import OrderDetails from './pages/OrderDetails';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import { useAuthStore } from './store/authStore';
 
 const queryClient = new QueryClient();
@@ -101,6 +102,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
           <Route path="/*" element={<ProtectedApp />} />
         </Routes>
       </Router>

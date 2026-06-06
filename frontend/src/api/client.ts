@@ -107,6 +107,23 @@ export interface LoginResponse {
   token: string;
 }
 
+export interface TenantOnboardingPayload {
+  tenantName: string;
+  adminName: string;
+  adminEmail: string;
+  password: string;
+}
+
+export interface TenantOnboardingResponse {
+  tenantId: string;
+  tenantName: string;
+  workspaceId: string;
+  workspaceName: string;
+  adminUserId: string;
+  adminEmail: string;
+  adminRole: string;
+}
+
 interface RequestOptions extends RequestInit {
   auth?: boolean;
 }
@@ -116,6 +133,14 @@ export async function login(email: string, password: string): Promise<LoginRespo
     method: 'POST',
     auth: false,
     body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function onboardTenant(data: TenantOnboardingPayload): Promise<TenantOnboardingResponse> {
+  return apiRequest<TenantOnboardingResponse>('/onboarding/tenants', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify(data),
   });
 }
 
