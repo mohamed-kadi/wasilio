@@ -34,6 +34,17 @@ management:
 app:
   onboarding:
     enabled: ${APP_ONBOARDING_ENABLED:false}
+  security:
+    throttling:
+      enabled: ${APP_SECURITY_THROTTLING_ENABLED:true}
+      login:
+        max-attempts: ${APP_LOGIN_THROTTLE_MAX_ATTEMPTS:5}
+        window: ${APP_LOGIN_THROTTLE_WINDOW:PT10M}
+        lockout: ${APP_LOGIN_THROTTLE_LOCKOUT:PT15M}
+      onboarding:
+        max-attempts: ${APP_ONBOARDING_THROTTLE_MAX_ATTEMPTS:3}
+        window: ${APP_ONBOARDING_THROTTLE_WINDOW:PT1H}
+        lockout: ${APP_ONBOARDING_THROTTLE_LOCKOUT:PT1H}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   projections:

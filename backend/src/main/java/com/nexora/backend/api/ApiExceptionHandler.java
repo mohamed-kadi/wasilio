@@ -3,7 +3,9 @@ package com.nexora.backend.api;
 import com.nexora.backend.domain.event.EventConcurrencyException;
 import com.nexora.backend.application.ResourceConflictException;
 import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
+import com.nexora.backend.infrastructure.security.RateLimitExceededException;
 import jakarta.validation.ConstraintViolationException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -41,6 +43,13 @@ public class ApiExceptionHandler {
     @ExceptionHandler(ResourceConflictException.class)
     ResponseEntity<ProblemDetail> handleResourceConflict(ResourceConflictException ex) {
         return problem(HttpStatus.CONFLICT, "Resource already exists", ex.getMessage());
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    ResponseEntity<ProblemDetail> handleRateLimitExceeded(RateLimitExceededException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getRetryAfterSeconds()))
+                .body(baseProblem(HttpStatus.TOO_MANY_REQUESTS, "Too many requests", ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
