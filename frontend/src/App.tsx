@@ -1,12 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, LogOut, PlusCircle, ShoppingCart } from 'lucide-react';
+import { LayoutDashboard, LogOut, PhoneCall, PlusCircle, ShoppingCart } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import OrdersList from './pages/OrdersList';
 import CreateOrder from './pages/CreateOrder';
 import OrderDetails from './pages/OrderDetails';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
+import Confirmations from './pages/Confirmations';
 import { useAuthStore } from './store/authStore';
 
 const queryClient = new QueryClient();
@@ -25,6 +26,10 @@ function Sidebar() {
         <Link to="/orders" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
           <ShoppingCart size={20} />
           <span>Orders</span>
+        </Link>
+        <Link to="/confirmations" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+          <PhoneCall size={20} />
+          <span>Confirmations</span>
         </Link>
         <Link to="/orders/new" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
           <PlusCircle size={20} />
@@ -86,6 +91,7 @@ function ProtectedApp() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/orders" element={<OrdersList />} />
+            <Route path="/confirmations" element={<Confirmations />} />
             <Route path="/orders/new" element={<CreateOrder />} />
             <Route path="/orders/:id" element={<OrderDetails />} />
             <Route path="*" element={<Navigate to="/" replace />} />

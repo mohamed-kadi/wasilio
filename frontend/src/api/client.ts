@@ -88,6 +88,33 @@ export interface OrdersQuery {
   status?: OrderStatus | '';
 }
 
+export type ConfirmationOutcome =
+  | 'CONFIRMED'
+  | 'REJECTED'
+  | 'NO_ANSWER'
+  | 'CALL_BACK_LATER'
+  | 'WRONG_NUMBER';
+
+export interface ConfirmationQueueQuery {
+  page?: number;
+  size?: number;
+  status?: 'CREATED' | 'CONFIRMATION_REQUESTED' | '';
+  createdFrom?: string;
+  createdTo?: string;
+  search?: string;
+}
+
+export interface ConfirmationAttempt {
+  attemptId: string;
+  tenantId: string;
+  orderId: string;
+  attemptNumber: number;
+  outcome: ConfirmationOutcome;
+  note?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
 export interface DomainEvent {
   eventId: string;
   eventType: string;
@@ -155,12 +182,36 @@ export async function fetchOrders(query: OrdersQuery = {}): Promise<OrdersPageRe
   return apiRequest<OrdersPageResponse>(`/orders?${params.toString()}`);
 }
 
+export async function fetchConfirmationQueue(query: ConfirmationQueueQuery = {}): Promise<OrdersPageResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+  if (query.status) {
+    params.set('status', query.status);
+  }
+  if (query.createdFrom) {
+    params.set('createdFrom', query.createdFrom);
+  }
+  if (query.createdTo) {
+    params.set('createdTo', query.createdTo);
+  }
+  if (query.search?.trim()) {
+    params.set('search', query.search.trim());
+  }
+
+  return apiRequest<OrdersPageResponse>(`/confirmations/queue?${params.toString()}`);
+}
+
 export async function fetchOrder(id: string): Promise<Order> {
   return apiRequest<Order>(`/orders/${id}`);
 }
 
 export async function fetchOrderEvents(id: string): Promise<DomainEvent[]> {
   return apiRequest<DomainEvent[]>(`/orders/${id}/events`);
+}
+
+export async function fetchConfirmationAttempts(orderId: string): Promise<ConfirmationAttempt[]> {
+  return apiRequest<ConfirmationAttempt[]>(`/orders/${orderId}/confirmation-attempts`);
 }
 
 export async function createOrder(data: CreateOrderPayload): Promise<string> {
@@ -182,6 +233,17 @@ export async function rejectOrder(orderId: string, reason: string): Promise<void
   await apiRequest<void>(`/orders/${orderId}/reject`, {
     method: 'POST',
     body: JSON.stringify({ reason }),
+  });
+}
+
+export async function recordConfirmationAttempt(
+  orderId: string,
+  outcome: ConfirmationOutcome,
+  note: string,
+): Promise<ConfirmationAttempt> {
+  return apiRequest<ConfirmationAttempt>(`/orders/${orderId}/confirmation-attempts`, {
+    method: 'POST',
+    body: JSON.stringify({ outcome, note }),
   });
 }
 
