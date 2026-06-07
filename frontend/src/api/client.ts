@@ -118,6 +118,35 @@ export interface CourierOperationsQueueQuery {
   createdTo?: string;
 }
 
+export type DeliveryFailureReason =
+  | 'CUSTOMER_UNREACHABLE'
+  | 'CUSTOMER_REFUSED'
+  | 'INVALID_ADDRESS'
+  | 'CUSTOMER_RESCHEDULED'
+  | 'LOST_PACKAGE'
+  | 'OTHER';
+
+export interface DeliveryFailure {
+  failureId: string;
+  tenantId: string;
+  orderId: string;
+  courierId: string;
+  reason: DeliveryFailureReason;
+  note?: string;
+  createdAt: string;
+}
+
+export interface CourierPerformance {
+  courierId: string;
+  courierName: string;
+  active: boolean;
+  assignedOrdersCount: number;
+  pickedUpOrdersCount: number;
+  deliveredOrdersCount: number;
+  failedOrdersCount: number;
+  deliverySuccessRate: number;
+}
+
 export interface OrdersQuery {
   page?: number;
   size?: number;
@@ -320,6 +349,28 @@ export async function fetchPickupQueue(query: CourierOperationsQueueQuery = {}):
   return apiRequest<OrdersPageResponse>(`/courier-operations/pickup-queue?${params.toString()}`);
 }
 
+export async function fetchDeliveryQueue(query: CourierOperationsQueueQuery = {}): Promise<OrdersPageResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+  params.set('status', 'PICKED_UP');
+  if (query.courierId) {
+    params.set('courierId', query.courierId);
+  }
+  if (query.createdFrom) {
+    params.set('createdFrom', query.createdFrom);
+  }
+  if (query.createdTo) {
+    params.set('createdTo', query.createdTo);
+  }
+
+  return apiRequest<OrdersPageResponse>(`/courier-operations/delivery-queue?${params.toString()}`);
+}
+
+export async function fetchCourierPerformance(): Promise<CourierPerformance[]> {
+  return apiRequest<CourierPerformance[]>('/courier-operations/courier-performance');
+}
+
 export async function fetchConfirmationQueue(query: ConfirmationQueueQuery = {}): Promise<OrdersPageResponse> {
   const params = new URLSearchParams();
   params.set('page', String(query.page ?? 0));
@@ -424,13 +475,13 @@ export async function markPickedUp(orderId: string, courierId: string): Promise<
 }
 
 export async function markDelivered(orderId: string): Promise<void> {
-  await apiRequest<void>(`/orders/${orderId}/deliver`, { method: 'POST' });
+  await apiRequest<void>(`/courier-operations/orders/${orderId}/deliver`, { method: 'POST' });
 }
 
-export async function markFailed(orderId: string, reason: string): Promise<void> {
-  await apiRequest<void>(`/orders/${orderId}/fail`, {
+export async function markFailed(orderId: string, reason: DeliveryFailureReason, note?: string): Promise<DeliveryFailure> {
+  return apiRequest<DeliveryFailure>(`/courier-operations/orders/${orderId}/fail`, {
     method: 'POST',
-    body: JSON.stringify({ reason }),
+    body: JSON.stringify({ reason, note }),
   });
 }
 

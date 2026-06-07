@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, LogOut, PackageCheck, PhoneCall, PlusCircle, ShoppingCart, Truck, Users } from 'lucide-react';
+import { BarChart3, CheckCircle2, LayoutDashboard, LogOut, PackageCheck, PhoneCall, PlusCircle, ShoppingCart, Truck, Users } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import OrdersList from './pages/OrdersList';
 import CreateOrder from './pages/CreateOrder';
@@ -12,6 +12,8 @@ import Couriers from './pages/Couriers';
 import CourierDetails from './pages/CourierDetails';
 import AssignmentQueue from './pages/AssignmentQueue';
 import PickupQueue from './pages/PickupQueue';
+import DeliveryQueue from './pages/DeliveryQueue';
+import CourierPerformance from './pages/CourierPerformance';
 import { useAuthStore } from './store/authStore';
 
 const queryClient = new QueryClient();
@@ -46,6 +48,14 @@ function Sidebar() {
         <Link to="/couriers/pickup" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
           <PackageCheck size={20} />
           <span>Pickup Queue</span>
+        </Link>
+        <Link to="/couriers/delivery" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+          <CheckCircle2 size={20} />
+          <span>Delivery Queue</span>
+        </Link>
+        <Link to="/couriers/performance" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+          <BarChart3 size={20} />
+          <span>Performance</span>
         </Link>
         <Link to="/orders/new" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
           <PlusCircle size={20} />
@@ -111,6 +121,8 @@ function ProtectedApp() {
             <Route path="/couriers" element={<Couriers />} />
             <Route path="/couriers/assignment" element={<AssignmentQueue />} />
             <Route path="/couriers/pickup" element={<PickupQueue />} />
+            <Route path="/couriers/delivery" element={<DeliveryQueue />} />
+            <Route path="/couriers/performance" element={<CourierPerformance />} />
             <Route path="/couriers/:id" element={<CourierDetails />} />
             <Route path="/orders/new" element={<CreateOrder />} />
             <Route path="/orders/:id" element={<OrderDetails />} />

@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, Package, Truck, XCircle } from 'lucide-react';
 import {
   assignCourier,
   confirmOrder,
+  type DeliveryFailureReason,
   fetchCouriers,
   fetchOrder,
   fetchOrderEvents,
@@ -23,14 +24,14 @@ type LifecycleCommand =
   | { action: 'assign-courier'; courierId: string }
   | { action: 'pick-up'; courierId: string }
   | { action: 'deliver' }
-  | { action: 'fail'; reason: string };
+  | { action: 'fail'; reason: DeliveryFailureReason };
 
 export default function OrderDetails() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [courierId, setCourierId] = useState('');
   const [rejectReason, setRejectReason] = useState('Customer unreachable');
-  const [failureReason, setFailureReason] = useState('Customer refused');
+  const [failureReason, setFailureReason] = useState<DeliveryFailureReason>('CUSTOMER_REFUSED');
 
   const {
     data: order,
@@ -224,12 +225,19 @@ export default function OrderDetails() {
               >
                 Mark Delivered
               </button>
-              <input
+              <select
                 value={failureReason}
-                onChange={(event) => setFailureReason(event.target.value)}
+                onChange={(event) => setFailureReason(event.target.value as DeliveryFailureReason)}
                 className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 aria-label="Failure reason"
-              />
+              >
+                <option value="CUSTOMER_UNREACHABLE">Customer unreachable</option>
+                <option value="CUSTOMER_REFUSED">Customer refused</option>
+                <option value="INVALID_ADDRESS">Invalid address</option>
+                <option value="CUSTOMER_RESCHEDULED">Customer rescheduled</option>
+                <option value="LOST_PACKAGE">Lost package</option>
+                <option value="OTHER">Other</option>
+              </select>
               <button
                 type="button"
                 disabled={mutationDisabled}
