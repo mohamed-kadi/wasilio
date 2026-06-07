@@ -195,11 +195,12 @@ class ConfirmationWorkflowIntegrationTest {
     @Test
     void cannotRecordAttemptOnFinalStateOrder() throws Exception {
         String orderId = createOrder(jwtToken, "Delivered", "User", "0612345678");
+        String courierId = createCourier(jwtToken, "Final State Courier");
 
         requestConfirmation(jwtToken, orderId);
         confirmOrder(jwtToken, orderId);
-        assignCourier(jwtToken, orderId, "Courier-1");
-        pickUp(jwtToken, orderId, "Courier-1");
+        assignCourier(jwtToken, orderId, courierId);
+        pickUp(jwtToken, orderId, courierId);
         mockMvc.perform(post("/api/orders/" + orderId + "/deliver")
                 .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isOk());
@@ -399,8 +400,20 @@ class ConfirmationWorkflowIntegrationTest {
         entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM couriers").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM users").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM tenants").executeUpdate();
+    }
+
+    private String createCourier(String token, String name) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/couriers")
+                .header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierController.CourierRequest(name, "0611111111"))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("courierId").asText();
     }
 
     private String createOrder(String token, String firstName, String lastName, String phone) throws Exception {

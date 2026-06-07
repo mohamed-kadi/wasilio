@@ -89,6 +89,7 @@ class OrderIntegrationTest {
         entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM couriers").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM users").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM tenants").executeUpdate();
     }
@@ -160,11 +161,12 @@ class OrderIntegrationTest {
     @Test
     void fulfilledLifecycle_succeedsThroughDeliveredAndBlocksFurtherMutation() throws Exception {
         String orderId = createOrder("Delivered");
+        String courierId = createCourier("Courier 1");
 
         requestConfirmation(orderId);
         confirmOrder(orderId);
-        assignCourier(orderId, "Courier-1");
-        pickUp(orderId, "Courier-1");
+        assignCourier(orderId, courierId);
+        pickUp(orderId, courierId);
 
         mockMvc.perform(post("/api/orders/" + orderId + "/deliver")
                 .header("Authorization", bearer(jwtToken)))
@@ -174,7 +176,7 @@ class OrderIntegrationTest {
                 .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("DELIVERED"))
-                .andExpect(jsonPath("$.courierId").value("Courier-1"));
+                .andExpect(jsonPath("$.courierId").value(courierId));
 
         mockMvc.perform(get("/api/orders/" + orderId + "/events")
                 .header("Authorization", bearer(jwtToken)))
@@ -193,11 +195,12 @@ class OrderIntegrationTest {
     @Test
     void failedLifecycle_marksFailedAndBlocksFurtherMutation() throws Exception {
         String orderId = createOrder("Failed");
+        String courierId = createCourier("Courier 2");
 
         requestConfirmation(orderId);
         confirmOrder(orderId);
-        assignCourier(orderId, "Courier-2");
-        pickUp(orderId, "Courier-2");
+        assignCourier(orderId, courierId);
+        pickUp(orderId, courierId);
 
         mockMvc.perform(post("/api/orders/" + orderId + "/fail")
                 .header("Authorization", bearer(jwtToken))
@@ -220,11 +223,12 @@ class OrderIntegrationTest {
     @Test
     void assignCourierBeforeConfirmed_returnsConflict() throws Exception {
         String orderId = createOrder("TooEarly");
+        String courierId = createCourier("Too Early Courier");
 
         mockMvc.perform(post("/api/orders/" + orderId + "/assign-courier")
                 .header("Authorization", bearer(jwtToken))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new OrderController.AssignCourierRequest("Courier-1"))))
+                .content(objectMapper.writeValueAsString(new OrderController.AssignCourierRequest(courierId))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.title").value("Invalid state transition"));
     }
@@ -351,6 +355,17 @@ class OrderIntegrationTest {
 
     private String createOrder(String firstName) throws Exception {
         return extractCreatedOrderId(createOrderResult(firstName, null));
+    }
+
+    private String createCourier(String name) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/couriers")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierController.CourierRequest(name, "0611111111"))))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("courierId").asText();
     }
 
     private MvcResult createOrderResult(String firstName, UUID correlationId) throws Exception {
