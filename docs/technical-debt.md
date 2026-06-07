@@ -66,11 +66,11 @@ Target: Playwright or equivalent E2E suite in CI.
 
 ### Courier Integrations
 
-Current state: courier lifecycle events exist, but operational screens and external integrations are not implemented.
+Current state: internal courier assignment, pickup, delivery outcomes, failure reasons, and basic courier metrics exist. External integrations are not implemented.
 
-Risk: delivery workflow remains manual.
+Risk: merchant teams still need manual coordination outside Nexora for real courier networks, tracking updates, and webhook reconciliation.
 
-Target: courier assignment workspace, integration abstraction, webhook ingestion, and failure reason tracking.
+Target: courier integration abstraction, webhook ingestion, external tracking sync, and delivery failure reason analytics.
 
 ### Analytics
 

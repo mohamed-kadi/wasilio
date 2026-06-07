@@ -51,4 +51,6 @@ Each state change appends an event to `domain_events`. The `orders` table reflec
 
 Internal courier operations now support courier resources, assignment queues, and pickup queues. Operators can assign active tenant couriers to confirmed orders and mark assigned orders as picked up.
 
+Delivery operations now support a delivery queue for `PICKED_UP` orders. Operators can mark picked up orders as `DELIVERED` or `FAILED`. A failed delivery appends `OrderDeliveryFailed`, updates the order projection to `FAILED`, and creates a tenant-scoped operational failure record with courier, reason, note, and timestamp.
+
 External courier integrations, courier authentication, delivery tracking, route optimization, and notifications remain future work.
