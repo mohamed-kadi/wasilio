@@ -1,9 +1,11 @@
 package com.nexora.backend.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nexora.backend.domain.model.DeliveryFailureReason;
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
+import com.nexora.backend.domain.repository.DeliveryFailureRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,6 +50,9 @@ class CourierOperationsIntegrationTest {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @Autowired
+    private DeliveryFailureRepository deliveryFailureRepository;
 
     private String jwtToken;
     private String otherTenantJwtToken;
@@ -253,7 +258,171 @@ class CourierOperationsIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    void deliveryQueueSupportsTenantIsolationFilteringAndPagination() throws Exception {
+        String firstCourierId = createCourier(jwtToken, "Delivery First", "0611111111");
+        String secondCourierId = createCourier(jwtToken, "Delivery Second", "0622222222");
+        String firstPickedUpOrderId = createPickedUpOrder(jwtToken, "FirstDelivery", firstCourierId);
+        String secondPickedUpOrderId = createPickedUpOrder(jwtToken, "SecondDelivery", secondCourierId);
+        createPickedUpOrder(otherTenantJwtToken, "OtherDelivery", createCourier(otherTenantJwtToken, "Other Delivery", "0633333333"));
+
+        mockMvc.perform(get("/api/courier-operations/delivery-queue")
+                .param("page", "0")
+                .param("size", "1")
+                .param("courierId", firstCourierId)
+                .param("createdFrom", Instant.now().minus(1, ChronoUnit.DAYS).toString())
+                .param("createdTo", Instant.now().plus(1, ChronoUnit.DAYS).toString())
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(firstPickedUpOrderId));
+
+        mockMvc.perform(get("/api/courier-operations/delivery-queue")
+                .param("status", "PICKED_UP")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+
+        mockMvc.perform(get("/api/courier-operations/delivery-queue")
+                .header("Authorization", bearer(otherTenantJwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1));
+
+        mockMvc.perform(get("/api/courier-operations/delivery-queue")
+                .param("courierId", secondCourierId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(secondPickedUpOrderId));
+    }
+
+    @Test
+    void markDelivered_updatesProjectionAndEmitsEvent() throws Exception {
+        String courierId = createCourier(jwtToken, "Delivered Courier", "0611111111");
+        String orderId = createPickedUpOrder(jwtToken, "Delivered", courierId);
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/deliver")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DELIVERED"));
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/events")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(6))
+                .andExpect(jsonPath("$[5].eventType").value("OrderDelivered"));
+    }
+
+    @Test
+    void markFailed_updatesProjectionEmitsEventAndPersistsFailureReason() throws Exception {
+        String courierId = createCourier(jwtToken, "Failed Courier", "0611111111");
+        String orderId = createPickedUpOrder(jwtToken, "Failed", courierId);
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/fail")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRequest(
+                        DeliveryFailureReason.CUSTOMER_UNREACHABLE,
+                        "No answer after two calls"
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderId").value(orderId))
+                .andExpect(jsonPath("$.courierId").value(courierId))
+                .andExpect(jsonPath("$.reason").value("CUSTOMER_UNREACHABLE"))
+                .andExpect(jsonPath("$.note").value("No answer after two calls"));
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED"))
+                .andExpect(jsonPath("$.failureReason").value("CUSTOMER_UNREACHABLE"));
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/events")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(6))
+                .andExpect(jsonPath("$[5].eventType").value("OrderDeliveryFailed"));
+
+        transactionTemplate.executeWithoutResult(status -> {
+            var failure = deliveryFailureRepository.findByOrderIdAndTenantId(UUID.fromString(orderId), getTenantId("courier@example.com"))
+                    .orElseThrow();
+            org.assertj.core.api.Assertions.assertThat(failure.getReason()).isEqualTo(DeliveryFailureReason.CUSTOMER_UNREACHABLE);
+            org.assertj.core.api.Assertions.assertThat(failure.getNote()).isEqualTo("No answer after two calls");
+        });
+    }
+
+    @Test
+    void deliveryOutcomesRejectInvalidStatesAndCrossTenantOrders() throws Exception {
+        String courierId = createCourier(jwtToken, "Delivery Guard", "0611111111");
+        String confirmedOrderId = createConfirmedOrder(jwtToken, "ConfirmedDeliveryGuard");
+        String assignedOrderId = createConfirmedOrder(jwtToken, "AssignedDeliveryGuard");
+        assignCourier(jwtToken, assignedOrderId, courierId)
+                .andExpect(status().isOk());
+        String pickedUpOrderId = createPickedUpOrder(jwtToken, "PickedDeliveryGuard", courierId);
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + confirmedOrderId + "/deliver")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid state transition"));
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + assignedOrderId + "/fail")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRequest(
+                        DeliveryFailureReason.CUSTOMER_REFUSED,
+                        null
+                ))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid state transition"));
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + pickedUpOrderId + "/deliver")
+                .header("Authorization", bearer(otherTenantJwtToken)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void courierPerformanceCalculatesTenantScopedCountsAndSuccessRate() throws Exception {
+        String firstCourierId = createCourier(jwtToken, "Metrics First", "0611111111");
+        String secondCourierId = createCourier(jwtToken, "Metrics Second", "0622222222");
+        String assignedOrderId = createConfirmedOrder(jwtToken, "MetricsAssigned");
+        String pickedUpOrderId = createPickedUpOrder(jwtToken, "MetricsPicked", firstCourierId);
+        String deliveredOrderId = createPickedUpOrder(jwtToken, "MetricsDelivered", firstCourierId);
+        String failedOrderId = createPickedUpOrder(jwtToken, "MetricsFailed", firstCourierId);
+        createPickedUpOrder(otherTenantJwtToken, "OtherMetrics", createCourier(otherTenantJwtToken, "Other Metrics", "0644444444"));
+
+        assignCourier(jwtToken, assignedOrderId, firstCourierId)
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/courier-operations/orders/" + deliveredOrderId + "/deliver")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/courier-operations/orders/" + failedOrderId + "/fail")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRequest(
+                        DeliveryFailureReason.INVALID_ADDRESS,
+                        "Address missing apartment"
+                ))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/courier-operations/courier-performance")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].courierId").value(firstCourierId))
+                .andExpect(jsonPath("$[0].assignedOrdersCount").value(4))
+                .andExpect(jsonPath("$[0].pickedUpOrdersCount").value(3))
+                .andExpect(jsonPath("$[0].deliveredOrdersCount").value(1))
+                .andExpect(jsonPath("$[0].failedOrdersCount").value(1))
+                .andExpect(jsonPath("$[0].deliverySuccessRate").value(0.5))
+                .andExpect(jsonPath("$[1].courierId").value(secondCourierId))
+                .andExpect(jsonPath("$[1].assignedOrdersCount").value(0));
+    }
+
     private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
@@ -288,6 +457,18 @@ class CourierOperationsIntegrationTest {
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/orders/" + orderId + "/confirm")
                 .header("Authorization", bearer(token)))
+                .andExpect(status().isOk());
+        return orderId;
+    }
+
+    private String createPickedUpOrder(String token, String firstName, String courierId) throws Exception {
+        String orderId = createConfirmedOrder(token, firstName);
+        assignCourier(token, orderId, courierId)
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/orders/" + orderId + "/pick-up")
+                .header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new OrderController.AssignCourierRequest(courierId))))
                 .andExpect(status().isOk());
         return orderId;
     }
@@ -334,5 +515,12 @@ class CourierOperationsIntegrationTest {
 
     private String bearer(String token) {
         return "Bearer " + token;
+    }
+
+    private UUID getTenantId(String email) {
+        return entityManager
+                .createQuery("select user.tenantId from User user where user.email = :email", UUID.class)
+                .setParameter("email", email)
+                .getSingleResult();
     }
 }
