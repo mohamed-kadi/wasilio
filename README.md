@@ -21,6 +21,27 @@ The `orders` table acts strictly as a **read model / projection**. When a domain
 ### Multi-Tenancy
 Strict tenant data isolation is enforced. Every domain entity and event requires a `tenantId`. All queries filter by this ID to ensure data security.
 
+## Documentation
+
+The full engineering documentation set starts at [docs/phases/documentation-index.md](docs/phases/documentation-index.md).
+
+- [System overview](docs/architecture/system-overview.md)
+- [DDD boundaries](docs/architecture/ddd-boundaries.md)
+- [Event sourcing](docs/architecture/event-sourcing.md)
+- [Multi-tenancy](docs/architecture/multi-tenancy.md)
+- [Security](docs/architecture/security.md)
+- [Frontend architecture](docs/architecture/frontend-architecture.md)
+- [Product vision](docs/product/vision.md)
+- [Roadmap](docs/product/roadmap.md)
+- [Order lifecycle](docs/product/order-lifecycle.md)
+- [Confirmation workflow](docs/product/confirmation-workflow.md)
+- [Callback workflow](docs/product/callback-workflow.md)
+- [Architecture decision records](docs/decisions/ADR-001-modular-monolith.md)
+- [Phase history](docs/phases/documentation-index.md)
+- [Audit archive](docs/audits/audit-003-current-readiness.md)
+- [Technical debt register](docs/technical-debt.md)
+- [Operations runbook](docs/operations.md)
+
 ## Order Lifecycle
 
 The system enforces strict determinism. Invalid state transitions throw illegal state exceptions.
