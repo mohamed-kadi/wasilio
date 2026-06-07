@@ -24,6 +24,26 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             select orderProjection
             from Order orderProjection
             where orderProjection.tenantId = :tenantId
+              and orderProjection.status = :status
+              and (:courierId is null or orderProjection.courierId = :courierId)
+              and (:unassignedOnly = false or orderProjection.courierId is null)
+              and (:createdFrom is null or orderProjection.createdAt >= :createdFrom)
+              and (:createdToExclusive is null or orderProjection.createdAt < :createdToExclusive)
+            """)
+    Page<Order> findCourierOperationsQueue(
+            @Param("tenantId") UUID tenantId,
+            @Param("status") OrderStatus status,
+            @Param("courierId") String courierId,
+            @Param("unassignedOnly") boolean unassignedOnly,
+            @Param("createdFrom") Instant createdFrom,
+            @Param("createdToExclusive") Instant createdToExclusive,
+            Pageable pageable
+    );
+
+    @Query("""
+            select orderProjection
+            from Order orderProjection
+            where orderProjection.tenantId = :tenantId
               and orderProjection.status in :statuses
               and (:createdFrom is null or orderProjection.createdAt >= :createdFrom)
               and (:createdToExclusive is null or orderProjection.createdAt < :createdToExclusive)

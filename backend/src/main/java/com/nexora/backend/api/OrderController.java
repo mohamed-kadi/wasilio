@@ -1,6 +1,7 @@
 package com.nexora.backend.api;
 
 import com.nexora.backend.application.OrderLifecycleService;
+import com.nexora.backend.application.CourierService;
 import com.nexora.backend.domain.event.DomainEvent;
 import com.nexora.backend.domain.event.EventStore;
 import com.nexora.backend.domain.model.Address;
@@ -36,6 +37,7 @@ import java.util.UUID;
 public class OrderController {
 
     private final OrderLifecycleService orderLifecycleService;
+    private final CourierService courierService;
     private final OrderRepository orderRepository;
     private final EventStore eventStore;
 
@@ -129,13 +131,19 @@ public class OrderController {
 
     @PostMapping("/{orderId}/assign-courier")
     public ResponseEntity<Void> assignToCourier(@PathVariable UUID orderId, @Valid @RequestBody AssignCourierRequest request) {
-        orderLifecycleService.assignToCourier(getCurrentTenantId(), orderId, request.courierId());
+        UUID tenantId = getCurrentTenantId();
+        UUID courierId = parseCourierId(request.courierId());
+        courierService.requireActiveCourier(tenantId, courierId);
+        orderLifecycleService.assignToCourier(tenantId, orderId, courierId.toString());
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/{orderId}/pick-up")
     public ResponseEntity<Void> markPickedUp(@PathVariable UUID orderId, @Valid @RequestBody AssignCourierRequest request) {
-        orderLifecycleService.markPickedUp(getCurrentTenantId(), orderId, request.courierId());
+        UUID tenantId = getCurrentTenantId();
+        UUID courierId = parseCourierId(request.courierId());
+        courierService.requireActiveCourier(tenantId, courierId);
+        orderLifecycleService.markPickedUp(tenantId, orderId, courierId.toString());
         return ResponseEntity.ok().build();
     }
 
@@ -190,5 +198,13 @@ public class OrderController {
             throw new IllegalArgumentException("Order not found");
         }
         return ResponseEntity.ok(eventStore.getEventsForAggregate(tenantId, orderId));
+    }
+
+    private UUID parseCourierId(String courierId) {
+        try {
+            return UUID.fromString(courierId);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Courier not found");
+        }
     }
 }
