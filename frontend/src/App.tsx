@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, LogOut, PhoneCall, PlusCircle, ShoppingCart } from 'lucide-react';
+import { LayoutDashboard, LogOut, PackageCheck, PhoneCall, PlusCircle, ShoppingCart, Truck, Users } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import OrdersList from './pages/OrdersList';
 import CreateOrder from './pages/CreateOrder';
@@ -8,6 +8,10 @@ import OrderDetails from './pages/OrderDetails';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Confirmations from './pages/Confirmations';
+import Couriers from './pages/Couriers';
+import CourierDetails from './pages/CourierDetails';
+import AssignmentQueue from './pages/AssignmentQueue';
+import PickupQueue from './pages/PickupQueue';
 import { useAuthStore } from './store/authStore';
 
 const queryClient = new QueryClient();
@@ -30,6 +34,18 @@ function Sidebar() {
         <Link to="/confirmations" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
           <PhoneCall size={20} />
           <span>Confirmations</span>
+        </Link>
+        <Link to="/couriers" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+          <Users size={20} />
+          <span>Couriers</span>
+        </Link>
+        <Link to="/couriers/assignment" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+          <Truck size={20} />
+          <span>Assignment Queue</span>
+        </Link>
+        <Link to="/couriers/pickup" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+          <PackageCheck size={20} />
+          <span>Pickup Queue</span>
         </Link>
         <Link to="/orders/new" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
           <PlusCircle size={20} />
@@ -92,6 +108,10 @@ function ProtectedApp() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/orders" element={<OrdersList />} />
             <Route path="/confirmations" element={<Confirmations />} />
+            <Route path="/couriers" element={<Couriers />} />
+            <Route path="/couriers/assignment" element={<AssignmentQueue />} />
+            <Route path="/couriers/pickup" element={<PickupQueue />} />
+            <Route path="/couriers/:id" element={<CourierDetails />} />
             <Route path="/orders/new" element={<CreateOrder />} />
             <Route path="/orders/:id" element={<OrderDetails />} />
             <Route path="*" element={<Navigate to="/" replace />} />

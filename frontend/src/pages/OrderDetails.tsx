@@ -5,6 +5,7 @@ import { CheckCircle2, Clock, Package, Truck, XCircle } from 'lucide-react';
 import {
   assignCourier,
   confirmOrder,
+  fetchCouriers,
   fetchOrder,
   fetchOrderEvents,
   getErrorMessage,
@@ -27,7 +28,7 @@ type LifecycleCommand =
 export default function OrderDetails() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const [courierId, setCourierId] = useState('C-100');
+  const [courierId, setCourierId] = useState('');
   const [rejectReason, setRejectReason] = useState('Customer unreachable');
   const [failureReason, setFailureReason] = useState('Customer refused');
 
@@ -49,6 +50,11 @@ export default function OrderDetails() {
     queryKey: ['order-events', id],
     queryFn: () => fetchOrderEvents(id!),
     enabled: !!id,
+  });
+
+  const { data: couriersPage } = useQuery({
+    queryKey: ['couriers', { page: 0, size: 100 }],
+    queryFn: () => fetchCouriers({ page: 0, size: 100 }),
   });
 
   const mutation = useMutation({
@@ -104,6 +110,8 @@ export default function OrderDetails() {
   }
 
   const mutationDisabled = mutation.isPending;
+  const activeCouriers = (couriersPage?.content ?? []).filter((courier) => courier.active);
+  const selectedPickupCourierId = order.courierId ?? courierId;
 
   const EventIcon = ({ type }: { type: string }) => {
     if (type.includes('Created')) return <Package className="w-5 h-5 text-blue-500" />;
@@ -166,15 +174,22 @@ export default function OrderDetails() {
 
           {order.status === 'CONFIRMED' && (
             <>
-              <input
+              <select
                 value={courierId}
                 onChange={(event) => setCourierId(event.target.value)}
-                className="w-40 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-52 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 aria-label="Courier ID"
-              />
+              >
+                <option value="">Select courier</option>
+                {activeCouriers.map((courier) => (
+                  <option key={courier.courierId} value={courier.courierId}>
+                    {courier.name}
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
-                disabled={mutationDisabled}
+                disabled={mutationDisabled || !courierId}
                 onClick={() => mutation.mutate({ action: 'assign-courier', courierId })}
                 className="px-4 py-2 bg-yellow-600 text-white rounded-md text-sm font-medium hover:bg-yellow-700 disabled:opacity-50"
               >
@@ -185,16 +200,13 @@ export default function OrderDetails() {
 
           {order.status === 'ASSIGNED_TO_COURIER' && (
             <>
-              <input
-                value={courierId}
-                onChange={(event) => setCourierId(event.target.value)}
-                className="w-40 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                aria-label="Pickup courier ID"
-              />
+              <span className="inline-flex items-center rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                Courier {selectedPickupCourierId.slice(0, 8)}...
+              </span>
               <button
                 type="button"
-                disabled={mutationDisabled}
-                onClick={() => mutation.mutate({ action: 'pick-up', courierId })}
+                disabled={mutationDisabled || !selectedPickupCourierId}
+                onClick={() => mutation.mutate({ action: 'pick-up', courierId: selectedPickupCourierId })}
                 className="px-4 py-2 bg-orange-600 text-white rounded-md text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
               >
                 Mark Picked Up

@@ -82,6 +82,42 @@ export interface OrdersPageResponse {
   totalPages: number;
 }
 
+export interface Courier {
+  courierId: string;
+  tenantId: string;
+  name: string;
+  phone: string;
+  active: boolean;
+  createdAt: string;
+}
+
+export interface CouriersPageResponse {
+  content: Courier[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface CouriersQuery {
+  page?: number;
+  size?: number;
+}
+
+export interface CourierPayload {
+  name: string;
+  phone: string;
+}
+
+export interface CourierOperationsQueueQuery {
+  page?: number;
+  size?: number;
+  courierId?: string;
+  status?: OrderStatus | '';
+  createdFrom?: string;
+  createdTo?: string;
+}
+
 export interface OrdersQuery {
   page?: number;
   size?: number;
@@ -216,6 +252,72 @@ export async function fetchOrders(query: OrdersQuery = {}): Promise<OrdersPageRe
   }
 
   return apiRequest<OrdersPageResponse>(`/orders?${params.toString()}`);
+}
+
+export async function fetchCouriers(query: CouriersQuery = {}): Promise<CouriersPageResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+
+  return apiRequest<CouriersPageResponse>(`/couriers?${params.toString()}`);
+}
+
+export async function fetchCourier(id: string): Promise<Courier> {
+  return apiRequest<Courier>(`/couriers/${id}`);
+}
+
+export async function createCourier(data: CourierPayload): Promise<Courier> {
+  return apiRequest<Courier>('/couriers', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateCourier(id: string, data: CourierPayload): Promise<Courier> {
+  return apiRequest<Courier>(`/couriers/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function setCourierActive(id: string, active: boolean): Promise<Courier> {
+  return apiRequest<Courier>(`/couriers/${id}/active`, {
+    method: 'PATCH',
+    body: JSON.stringify({ active }),
+  });
+}
+
+export async function fetchAssignmentQueue(query: CourierOperationsQueueQuery = {}): Promise<OrdersPageResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+  params.set('status', 'CONFIRMED');
+  if (query.createdFrom) {
+    params.set('createdFrom', query.createdFrom);
+  }
+  if (query.createdTo) {
+    params.set('createdTo', query.createdTo);
+  }
+
+  return apiRequest<OrdersPageResponse>(`/courier-operations/assignment-queue?${params.toString()}`);
+}
+
+export async function fetchPickupQueue(query: CourierOperationsQueueQuery = {}): Promise<OrdersPageResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+  params.set('status', 'ASSIGNED_TO_COURIER');
+  if (query.courierId) {
+    params.set('courierId', query.courierId);
+  }
+  if (query.createdFrom) {
+    params.set('createdFrom', query.createdFrom);
+  }
+  if (query.createdTo) {
+    params.set('createdTo', query.createdTo);
+  }
+
+  return apiRequest<OrdersPageResponse>(`/courier-operations/pickup-queue?${params.toString()}`);
 }
 
 export async function fetchConfirmationQueue(query: ConfirmationQueueQuery = {}): Promise<OrdersPageResponse> {
