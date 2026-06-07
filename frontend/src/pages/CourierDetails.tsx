@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { Save, ToggleLeft, ToggleRight } from 'lucide-react';
@@ -7,8 +7,6 @@ import { fetchCourier, getErrorMessage, setCourierActive, updateCourier } from '
 export default function CourierDetails() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
 
   const {
     data: courier,
@@ -20,15 +18,8 @@ export default function CourierDetails() {
     enabled: !!id,
   });
 
-  useEffect(() => {
-    if (courier) {
-      setName(courier.name);
-      setPhone(courier.phone);
-    }
-  }, [courier]);
-
   const updateMutation = useMutation({
-    mutationFn: () => updateCourier(id!, { name, phone }),
+    mutationFn: ({ name, phone }: { name: string; phone: string }) => updateCourier(id!, { name, phone }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['courier', id] });
       await queryClient.invalidateQueries({ queryKey: ['couriers'] });
@@ -45,7 +36,11 @@ export default function CourierDetails() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    updateMutation.mutate();
+    const formData = new FormData(event.currentTarget);
+    updateMutation.mutate({
+      name: String(formData.get('name') ?? ''),
+      phone: String(formData.get('phone') ?? ''),
+    });
   }
 
   if (isLoading) {
@@ -102,8 +97,8 @@ export default function CourierDetails() {
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-gray-700">Name</span>
             <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
+              name="name"
+              defaultValue={courier.name}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
               maxLength={255}
@@ -112,8 +107,8 @@ export default function CourierDetails() {
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-gray-700">Phone</span>
             <input
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
+              name="phone"
+              defaultValue={courier.phone}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
               maxLength={50}
