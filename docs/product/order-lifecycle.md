@@ -49,4 +49,6 @@ Each state change appends an event to `domain_events`. The `orders` table reflec
 
 ## Planned Courier Workflow
 
-The event types for assignment, pickup, delivery, and delivery failure already exist. The next product step is a courier operations surface and integration model that makes these transitions usable by operators and external courier systems.
+Internal courier operations now support courier resources, assignment queues, and pickup queues. Operators can assign active tenant couriers to confirmed orders and mark assigned orders as picked up.
+
+External courier integrations, courier authentication, delivery tracking, route optimization, and notifications remain future work.

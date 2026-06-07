@@ -14,18 +14,21 @@ This roadmap is intentionally product-oriented. Engineering debt that blocks rel
 - Confirmation queue.
 - Confirmation attempts.
 - Callback scheduling and callback queue.
+- Internal courier management.
+- Courier assignment queue.
+- Courier pickup queue.
 - Operational baseline documentation.
 
 ## Phase 2 Remaining
 
 - Improve confirmation UX and operator efficiency.
+- Improve courier operator visibility and detail screens.
 - Add frontend E2E coverage for login, signup, order creation, confirmation, and callbacks.
 - Add richer audit views for order timelines and confirmation history.
 
 ## Phase 3 Candidate: Courier Operations
 
-- Courier assignment workspace.
-- Pickup, delivery, and failure workflows.
+- Delivery and failure operations workspace.
 - Courier integration abstraction.
 - Courier webhook ingestion.
 - Delivery failure reason analytics.
