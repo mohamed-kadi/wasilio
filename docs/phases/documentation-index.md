@@ -14,11 +14,12 @@ This index is the starting point for future engineers and AI agents.
 ## Product
 
 - `docs/product/vision.md`: product direction and target users.
+- `docs/product/master-roadmap.md`: remaining phases, batches, sequencing, and audit gate.
 - `docs/product/roadmap.md`: completed work and future phases.
 - `docs/product/order-lifecycle.md`: lifecycle states and transitions.
 - `docs/product/confirmation-workflow.md`: confirmation queue and attempts.
 - `docs/product/callback-workflow.md`: callback scheduling and resolution.
-- `docs/product/courier-workflow.md`: internal courier resources, assignment, and pickup.
+- `docs/product/courier-workflow.md`: internal courier resources, assignment, pickup, delivery, and performance.
 
 ## Decisions
 

@@ -2,6 +2,8 @@
 
 This roadmap is intentionally product-oriented. Engineering debt that blocks reliability is tracked in `docs/technical-debt.md`.
 
+For detailed remaining phases, batch sequencing, deferred work, and the architecture audit gate, use `docs/product/master-roadmap.md` as the source of truth.
+
 ## Completed
 
 - Modular monolith foundation.
@@ -25,28 +27,30 @@ This roadmap is intentionally product-oriented. Engineering debt that blocks rel
 
 ## Phase 2 Remaining
 
-- Improve confirmation UX and operator efficiency.
+- Order search and advanced filtering.
+- Unified order timeline.
+- Customer notes.
+- CSV and filtered exports.
 - Add frontend E2E coverage for login, signup, order creation, confirmation, and callbacks.
-- Add richer audit views for order timelines and confirmation history.
 
-## Phase 3 Candidate: Courier Operations
+## Phase 3 Candidate: Business Layer
 
-- Courier integration abstraction.
-- Courier webhook ingestion.
-- Delivery failure reason analytics.
+- User management.
+- Tenant settings.
+- Audit center.
+- Internal notifications.
 
-## Phase 4 Candidate: Reliability And Scale
+## Phase 4 Candidate: SaaS Monetization
+
+- Subscription management.
+- Usage metering.
+- Stripe checkout and billing portal.
+
+## Phase 5 Candidate: Enterprise Hardening
 
 - Outbox and retry worker.
 - Distributed throttling.
 - Refresh tokens and token revocation.
 - Automated backups and restore drills.
 - Event upcasters and event version migration process.
-
-## Phase 5 Candidate: Commercial Platform
-
-- Billing and plans.
-- Tenant usage metrics.
-- Merchant analytics dashboards.
-- Integration marketplace for storefronts and couriers.
-- Admin console for support and tenant operations.
+- Projection monitoring.

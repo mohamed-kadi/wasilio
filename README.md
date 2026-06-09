@@ -32,6 +32,7 @@ The full engineering documentation set starts at [docs/phases/documentation-inde
 - [Security](docs/architecture/security.md)
 - [Frontend architecture](docs/architecture/frontend-architecture.md)
 - [Product vision](docs/product/vision.md)
+- [Master roadmap](docs/product/master-roadmap.md)
 - [Roadmap](docs/product/roadmap.md)
 - [Order lifecycle](docs/product/order-lifecycle.md)
 - [Confirmation workflow](docs/product/confirmation-workflow.md)
