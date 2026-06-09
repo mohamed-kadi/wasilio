@@ -1,6 +1,142 @@
 # Master Roadmap
 
-This roadmap captures the remaining Nexora implementation path after the core operational foundation. It is intended to prevent future work from becoming a sequence of disconnected feature prompts.
+This roadmap documents Nexora from the initial foundation through the planned production and SaaS phases. Future engineers should use it to understand what has already been implemented, how the system evolved, what remains, and which documents provide deeper technical context.
+
+## How To Use This Roadmap
+
+- Start with the project history to understand the implemented platform shape.
+- Use the current state section to understand what is production-adjacent today.
+- Use the remaining phases to sequence future work.
+- Use the architecture audit gate before moving from operational completion into commercialization or enterprise hardening.
+- Use the linked architecture, ADR, phase, and audit documents for implementation details.
+
+Primary supporting documents:
+
+- `docs/phases/documentation-index.md`
+- `docs/architecture/system-overview.md`
+- `docs/architecture/event-sourcing.md`
+- `docs/product/order-lifecycle.md`
+- `docs/product/courier-workflow.md`
+- `docs/technical-debt.md`
+
+## Project History
+
+### Phase 1: Foundation
+
+Goal: establish Nexora as a deterministic multi-tenant operational platform rather than a CRUD prototype.
+
+Implemented:
+
+- Modular monolith backend structure.
+- Tenant, user, order, and domain event models.
+- PostgreSQL persistence with Flyway migrations.
+- Event store as the source of truth for order lifecycle changes.
+- Orders projection as a read model.
+- Docker local development stack.
+- Initial frontend dashboard structure.
+
+How it was built:
+
+- Backend uses Spring Boot with API, application, domain, and infrastructure boundaries.
+- Domain events are appended before read models are updated.
+- Tenant isolation is enforced by `tenantId` on domain entities, events, and queries.
+
+See:
+
+- `docs/phases/phase-1-foundation.md`
+- `docs/architecture/system-overview.md`
+- `docs/architecture/ddd-boundaries.md`
+- `docs/architecture/event-sourcing.md`
+
+### Phase 1: Stabilization
+
+Goal: make the foundation safer to run and easier to reason about.
+
+Implemented:
+
+- Authentication and authorization baseline.
+- JWT security model.
+- Correlation IDs for request tracing.
+- Health checks.
+- Docker local/production compose split.
+- Initial production-readiness audits.
+- Technical debt register.
+
+How it was built:
+
+- JWTs carry tenant and user identity.
+- API requests resolve tenant context from authenticated user claims.
+- Operational and security concerns are documented separately from feature roadmap items.
+
+See:
+
+- `docs/phases/phase-1-stabilization.md`
+- `docs/architecture/security.md`
+- `docs/audits/audit-001-initial-production-readiness.md`
+- `docs/audits/audit-002-post-stabilization.md`
+
+### Phase 2: Onboarding And Confirmation Operations
+
+Goal: let real tenants enter the system and run COD confirmation workflows.
+
+Implemented:
+
+- Tenant onboarding.
+- First admin user creation.
+- Login throttling and onboarding abuse protection.
+- Confirmation queue.
+- Confirmation attempts.
+- Callback scheduling.
+- Callback queue.
+- Callback resolution.
+- Frontend onboarding, login, confirmation, and callback screens.
+
+How it was built:
+
+- Tenant onboarding creates the workspace and first admin atomically.
+- Confirmation attempts are operational records tied to orders and tenants.
+- Final confirmation or rejection appends lifecycle events.
+- Callback scheduling remains operational data while lifecycle state remains event-sourced.
+
+See:
+
+- `docs/phases/phase-2-onboarding.md`
+- `docs/phases/phase-2-confirmation.md`
+- `docs/product/confirmation-workflow.md`
+- `docs/product/callback-workflow.md`
+- `docs/decisions/ADR-007-confirmation-attempts-operational-records.md`
+- `docs/decisions/ADR-008-callback-scheduling-operational-records.md`
+
+### Phase 2: Courier And Delivery Operations
+
+Goal: complete the internal delivery workflow from confirmed order through courier assignment, pickup, delivery, or failure.
+
+Implemented:
+
+- Tenant-scoped courier management.
+- Courier activation and deactivation.
+- Assignment queue.
+- Pickup queue.
+- Delivery queue.
+- Delivery outcome workflow.
+- Delivery failure reason tracking.
+- Basic courier performance metrics.
+- Frontend courier, assignment, pickup, delivery, and performance screens.
+
+How it was built:
+
+- Couriers are internal tenant-scoped operational resources, not authenticated users.
+- Assignment and pickup preserve event-sourced order lifecycle transitions.
+- Delivery outcomes append existing `OrderDelivered` and `OrderDeliveryFailed` events.
+- Failure reasons are stored as operational records while the order lifecycle remains event-sourced.
+- Courier metrics are query-based over current projections.
+
+See:
+
+- `docs/product/courier-workflow.md`
+- `docs/product/order-lifecycle.md`
+- `docs/product/roadmap.md`
+- `docs/technical-debt.md`
 
 ## Current State
 
