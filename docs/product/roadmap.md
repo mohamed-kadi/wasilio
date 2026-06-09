@@ -23,11 +23,12 @@ For detailed remaining phases, batch sequencing, deferred work, and the architec
 - Delivery outcome workflow.
 - Delivery failure reason tracking.
 - Basic courier performance metrics.
+- Advanced order search and filtering.
+- Saved order search views.
 - Operational baseline documentation.
 
 ## Phase 2 Remaining
 
-- Order search and advanced filtering.
 - Unified order timeline.
 - Customer notes.
 - CSV and filtered exports.

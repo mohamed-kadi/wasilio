@@ -138,6 +138,29 @@ See:
 - `docs/product/roadmap.md`
 - `docs/technical-debt.md`
 
+### Phase 2: Order Search And Filtering
+
+Goal: make the order workspace usable when tenants have thousands of orders.
+
+Implemented:
+
+- Advanced tenant-scoped order search.
+- Search by phone.
+- Search by customer name.
+- Search by full or partial order ID.
+- Filter by courier.
+- Multi-status filters.
+- Created date range filters.
+- Saved search views.
+- Frontend advanced filter controls on the orders workspace.
+
+How it was built:
+
+- `GET /api/orders` remains the main tenant-scoped order listing endpoint.
+- Search uses the orders projection read model, not event replay.
+- Saved views are tenant-scoped operational preferences stored separately from order lifecycle state.
+- Saved view filters are stored as JSON so the filter shape can evolve without a schema migration for every UI filter.
+
 ## Current State
 
 Nexora is no longer a prototype or MVP skeleton. The platform now has the core operational shape of a production order management system for COD and delivery operations.
@@ -157,6 +180,7 @@ Completed capabilities include:
 - Delivery outcomes.
 - Failure tracking.
 - Courier performance metrics.
+- Advanced order search and saved views.
 - Frontend management UI.
 - Docker deployment.
 - CI pipeline.
@@ -177,10 +201,10 @@ Approximate maturity:
 
 The next implementation cycle should prioritize:
 
-1. Order Search & Filtering.
-2. Order Timeline.
-3. Customer Notes.
-4. User Management.
+1. Order Timeline.
+2. Customer Notes.
+3. User Management.
+4. Exports.
 
 After those batches, pause feature work and perform a full architecture audit before continuing into monetization, integrations, or enterprise hardening.
 
@@ -193,6 +217,8 @@ Phase 2 should finish the internal operations workspace before adding new busine
 ### Batch 7: Order Search & Filtering
 
 Purpose: allow operations teams to work with thousands of orders without relying on manual scanning.
+
+Status: implemented.
 
 Backend scope:
 
