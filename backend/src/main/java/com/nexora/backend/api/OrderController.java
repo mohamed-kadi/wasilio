@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.application.OrderLifecycleService;
 import com.nexora.backend.application.CourierService;
+import com.nexora.backend.application.OrderTimelineService;
 import com.nexora.backend.domain.event.DomainEvent;
 import com.nexora.backend.domain.event.EventStore;
 import com.nexora.backend.domain.model.Address;
@@ -49,6 +50,7 @@ public class OrderController {
     private final OrderSearchSavedViewRepository savedViewRepository;
     private final EventStore eventStore;
     private final ObjectMapper objectMapper;
+    private final OrderTimelineService orderTimelineService;
 
     private UUID getCurrentTenantId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -231,7 +233,9 @@ public class OrderController {
                 normalizeSearch(customerName),
                 normalizeSearch(orderId),
                 courierId == null ? null : courierId.toString(),
+                createdFrom != null,
                 createdFrom,
+                createdTo != null,
                 createdTo,
                 pageRequest
         );
@@ -303,6 +307,11 @@ public class OrderController {
             throw new IllegalArgumentException("Order not found");
         }
         return ResponseEntity.ok(eventStore.getEventsForAggregate(tenantId, orderId));
+    }
+
+    @GetMapping("/{orderId}/timeline")
+    public ResponseEntity<List<OrderTimelineService.OrderTimelineItem>> getOrderTimeline(@PathVariable UUID orderId) {
+        return ResponseEntity.ok(orderTimelineService.getTimeline(getCurrentTenantId(), orderId));
     }
 
     private UUID parseCourierId(String courierId) {

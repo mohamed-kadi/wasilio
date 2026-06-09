@@ -47,6 +47,8 @@ The production overlay, `docker-compose.prod.yml`, requires explicit database cr
 - Orders projection with idempotent processed-event tracking.
 - Manual projection rebuild flag for maintenance recovery.
 - COD confirmation queue, attempts, and callback scheduling.
+- Courier management, assignment, pickup, delivery, and failure operations.
+- Advanced order search, saved views, and unified order timeline.
 - Basic in-memory throttling for login and onboarding.
 - Correlation IDs carried into logs, responses, errors, and domain events.
 
@@ -56,4 +58,4 @@ The production overlay, `docker-compose.prod.yml`, requires explicit database cr
 - No refresh-token model or token revocation store.
 - Abuse throttling is process-local and must be replaced or backed by Redis before multi-node deployment.
 - Event payloads are versioned but there are no event upcasters yet.
-- Courier integrations, billing, and analytics are planned but not implemented.
+- External courier integrations, billing, analytics dashboards, notifications, and risk scoring are planned but not implemented.

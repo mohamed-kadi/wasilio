@@ -25,11 +25,11 @@ For detailed remaining phases, batch sequencing, deferred work, and the architec
 - Basic courier performance metrics.
 - Advanced order search and filtering.
 - Saved order search views.
+- Unified order timeline.
 - Operational baseline documentation.
 
 ## Phase 2 Remaining
 
-- Unified order timeline.
 - Customer notes.
 - CSV and filtered exports.
 - Add frontend E2E coverage for login, signup, order creation, confirmation, and callbacks.

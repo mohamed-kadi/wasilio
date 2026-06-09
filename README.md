@@ -57,15 +57,51 @@ The system enforces strict determinism. Invalid state transitions throw illegal 
 - Java 17
 - Node.js 20.19+ (Vite 8 requires 20.19+)
 
-### Running via Docker
-The easiest way to start the system locally is using Docker Compose:
+### Choose One Local Run Mode
+
+Use **Docker Compose** when you want the full app with PostgreSQL, backend, and frontend in one command. This is the recommended path for testing the product locally.
+
+Use **manual running** when you are actively developing backend or frontend code and want hot reload or direct Maven/Vite logs. In manual mode, run PostgreSQL with Docker, then start the backend and frontend from your terminal.
+
+Do not run the Docker backend and the manual backend at the same time on the same host port. Both default to `8080`.
+
+### Running With Docker Compose
 
 ```bash
 cp .env.example .env
 docker-compose up --build
 ```
-- **Frontend Dashboard:** [http://localhost:80](http://localhost:80)
+
+Default local URLs:
+
+- **Frontend Dashboard:** [http://localhost](http://localhost)
 - **Backend API:** [http://localhost:8080](http://localhost:8080)
+- **PostgreSQL:** `localhost:5432`
+
+If Docker fails with `bind: address already in use`, another local process is already using one of those host ports. Either stop that process or change the host port in `.env`:
+
+```dotenv
+FRONTEND_PORT=8081
+BACKEND_PORT=8082
+POSTGRES_PORT=5433
+```
+
+Then restart Compose:
+
+```bash
+docker-compose up --build
+```
+
+With the example overrides above, open:
+
+- **Frontend Dashboard:** `http://localhost:8081`
+- **Backend API:** `http://localhost:8082`
+
+To see what is using a port on macOS/Linux:
+
+```bash
+lsof -nP -iTCP:8080 -sTCP:LISTEN
+```
 
 **Local Development Bootstrap User:**
 The default Compose stack loads `docker-compose.yml` plus `docker-compose.override.yml`. The override is local-development only and configures Flyway to load the development database seed (`db/seed`).
@@ -74,6 +110,8 @@ You can log in to the system with the following credentials:
 - **Password:** `password`
 
 The local override also enables public tenant onboarding. Use [http://localhost/signup](http://localhost/signup) to create a real tenant and first ADMIN user without relying on the seed account.
+
+The local override sets `SPRING_FLYWAY_OUT_OF_ORDER=true` because the development seed is versioned as `V999`. This lets an existing local database volume accept newer app migrations that were added after the seed had already run. Production compose does not enable this.
 
 ### Tenant Onboarding
 
@@ -126,7 +164,7 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 
 Set `APP_ONBOARDING_ENABLED=true` only during a controlled signup window or when the deployment is intentionally self-serve. Set it to `false` after the first tenant is created for closed/private deployments.
 
-### Running Manually
+### Running Manually For Development
 
 1. **Start Database:**
 ```bash
@@ -151,6 +189,18 @@ npm ci
 npm run dev
 ```
 
+Manual local URLs:
+
+- **Frontend Dashboard:** [http://localhost:5173](http://localhost:5173)
+- **Backend API:** [http://localhost:8080](http://localhost:8080)
+- **PostgreSQL:** `localhost:5432`
+
+If you previously started the full Docker stack, stop the Docker backend/frontend before manual development:
+
+```bash
+docker-compose stop backend frontend
+```
+
 ## API Overview
 
 Base URL: `/api`
@@ -172,3 +222,4 @@ Base URL: `/api`
 - `GET /api/orders` - List all orders
 - `GET /api/orders/{id}` - Get order details
 - `GET /api/orders/{id}/events` - Get event timeline
+- `GET /api/orders/{id}/timeline` - Get unified lifecycle and operational timeline

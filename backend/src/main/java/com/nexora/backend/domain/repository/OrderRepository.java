@@ -34,8 +34,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
               )
               and (:orderId is null or lower(cast(o.id as varchar)) like lower(concat('%', :orderId, '%')))
               and (:courierId is null or o.courier_id = :courierId)
-              and (:createdFrom is null or o.created_at >= :createdFrom)
-              and (:createdToExclusive is null or o.created_at < :createdToExclusive)
+              and (:createdFromEnabled = false or o.created_at >= :createdFrom)
+              and (:createdToExclusiveEnabled = false or o.created_at < :createdToExclusive)
             order by o.created_at desc, o.id asc
             """,
             countQuery = """
@@ -52,8 +52,8 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
               )
               and (:orderId is null or lower(cast(o.id as varchar)) like lower(concat('%', :orderId, '%')))
               and (:courierId is null or o.courier_id = :courierId)
-              and (:createdFrom is null or o.created_at >= :createdFrom)
-              and (:createdToExclusive is null or o.created_at < :createdToExclusive)
+              and (:createdFromEnabled = false or o.created_at >= :createdFrom)
+              and (:createdToExclusiveEnabled = false or o.created_at < :createdToExclusive)
             """,
             nativeQuery = true)
     Page<Order> searchOrders(
@@ -64,7 +64,9 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             @Param("customerName") String customerName,
             @Param("orderId") String orderId,
             @Param("courierId") String courierId,
+            @Param("createdFromEnabled") boolean createdFromEnabled,
             @Param("createdFrom") Instant createdFrom,
+            @Param("createdToExclusiveEnabled") boolean createdToExclusiveEnabled,
             @Param("createdToExclusive") Instant createdToExclusive,
             Pageable pageable
     );
@@ -76,15 +78,17 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
               and orderProjection.status = :status
               and (:courierId is null or orderProjection.courierId = :courierId)
               and (:unassignedOnly = false or orderProjection.courierId is null)
-              and (:createdFrom is null or orderProjection.createdAt >= :createdFrom)
-              and (:createdToExclusive is null or orderProjection.createdAt < :createdToExclusive)
+              and (:createdFromEnabled = false or orderProjection.createdAt >= :createdFrom)
+              and (:createdToExclusiveEnabled = false or orderProjection.createdAt < :createdToExclusive)
             """)
     Page<Order> findCourierOperationsQueue(
             @Param("tenantId") UUID tenantId,
             @Param("status") OrderStatus status,
             @Param("courierId") String courierId,
             @Param("unassignedOnly") boolean unassignedOnly,
+            @Param("createdFromEnabled") boolean createdFromEnabled,
             @Param("createdFrom") Instant createdFrom,
+            @Param("createdToExclusiveEnabled") boolean createdToExclusiveEnabled,
             @Param("createdToExclusive") Instant createdToExclusive,
             Pageable pageable
     );
@@ -123,10 +127,10 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             from Order orderProjection
             where orderProjection.tenantId = :tenantId
               and orderProjection.status in :statuses
-              and (:createdFrom is null or orderProjection.createdAt >= :createdFrom)
-              and (:createdToExclusive is null or orderProjection.createdAt < :createdToExclusive)
+              and (:createdFromEnabled = false or orderProjection.createdAt >= :createdFrom)
+              and (:createdToExclusiveEnabled = false or orderProjection.createdAt < :createdToExclusive)
               and (
-                    :search is null
+                    :searchEnabled = false
                     or lower(orderProjection.customer.firstName) like lower(concat('%', :search, '%'))
                     or lower(orderProjection.customer.lastName) like lower(concat('%', :search, '%'))
                     or orderProjection.customer.phone like concat('%', :search, '%')
@@ -135,8 +139,11 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Page<Order> findConfirmationQueue(
             @Param("tenantId") UUID tenantId,
             @Param("statuses") List<OrderStatus> statuses,
+            @Param("createdFromEnabled") boolean createdFromEnabled,
             @Param("createdFrom") Instant createdFrom,
+            @Param("createdToExclusiveEnabled") boolean createdToExclusiveEnabled,
             @Param("createdToExclusive") Instant createdToExclusive,
+            @Param("searchEnabled") boolean searchEnabled,
             @Param("search") String search,
             Pageable pageable
     );

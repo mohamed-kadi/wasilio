@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Clock, Package, Truck, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock, MessageSquare, Package, PhoneCall, Truck, XCircle } from 'lucide-react';
 import {
   assignCourier,
   confirmOrder,
   type DeliveryFailureReason,
   fetchCouriers,
   fetchOrder,
-  fetchOrderEvents,
+  fetchOrderTimeline,
   getErrorMessage,
   markDelivered,
   markFailed,
@@ -44,12 +44,12 @@ export default function OrderDetails() {
   });
 
   const {
-    data: events = [],
-    error: eventsError,
-    isLoading: loadingEvents,
+    data: timeline = [],
+    error: timelineError,
+    isLoading: loadingTimeline,
   } = useQuery({
-    queryKey: ['order-events', id],
-    queryFn: () => fetchOrderEvents(id!),
+    queryKey: ['order-timeline', id],
+    queryFn: () => fetchOrderTimeline(id!),
     enabled: !!id,
   });
 
@@ -83,13 +83,13 @@ export default function OrderDetails() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', id] });
-      queryClient.invalidateQueries({ queryKey: ['order-events', id] });
+      queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
     },
   });
 
-  if (loadingOrder || loadingEvents) {
+  if (loadingOrder || loadingTimeline) {
     return <div>Loading...</div>;
   }
 
@@ -114,14 +114,31 @@ export default function OrderDetails() {
   const activeCouriers = (couriersPage?.content ?? []).filter((courier) => courier.active);
   const selectedPickupCourierId = order.courierId ?? courierId;
 
-  const EventIcon = ({ type }: { type: string }) => {
+  const TimelineIcon = ({ type, category }: { type: string; category: string }) => {
+    if (category === 'CALLBACK') return <PhoneCall className="w-5 h-5 text-purple-500" />;
+    if (category === 'CONFIRMATION') return <MessageSquare className="w-5 h-5 text-indigo-500" />;
     if (type.includes('Created')) return <Package className="w-5 h-5 text-blue-500" />;
     if (type.includes('Confirmed')) return <CheckCircle2 className="w-5 h-5 text-indigo-500" />;
     if (type.includes('Assigned') || type.includes('PickedUp')) return <Truck className="w-5 h-5 text-yellow-500" />;
     if (type.includes('Delivered')) return <CheckCircle2 className="w-5 h-5 text-green-500" />;
-    if (type.includes('Failed') || type.includes('Rejected')) return <XCircle className="w-5 h-5 text-red-500" />;
+    if (type.includes('Failed') || type.includes('Rejected') || type.includes('Failure')) return <XCircle className="w-5 h-5 text-red-500" />;
     return <Clock className="w-5 h-5 text-gray-400" />;
   };
+
+  const detailValue = (value: unknown) => {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value)) {
+      return new Date(value).toLocaleString();
+    }
+    return String(value);
+  };
+
+  const timelineDetails = (details: Record<string, unknown>) =>
+    ['outcome', 'note', 'callbackAt', 'resolvedBy', 'courierId', 'reason', 'aggregateSequence']
+      .map((key) => [key, detailValue(details[key])] as const)
+      .filter(([, value]) => value);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -310,31 +327,47 @@ export default function OrderDetails() {
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-medium text-gray-900 border-b pb-4 mb-6">Event Timeline</h3>
-          {eventsError && (
+          <h3 className="text-lg font-medium text-gray-900 border-b pb-4 mb-6">Order Timeline</h3>
+          {timelineError && (
             <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {getErrorMessage(eventsError)}
+              {getErrorMessage(timelineError)}
             </div>
           )}
           <div className="space-y-6">
-            {events.map((event, index) => (
-              <div key={event.eventId} className="relative flex gap-4">
-                {index !== events.length - 1 && (
+            {timeline.map((item, index) => {
+              const details = timelineDetails(item.details);
+
+              return (
+              <div key={item.itemId} className="relative flex gap-4">
+                {index !== timeline.length - 1 && (
                   <div className="absolute left-2.5 top-8 bottom-0 w-px bg-gray-200 -mb-6" />
                 )}
                 <div className="relative z-10 flex-shrink-0 bg-white">
-                  <EventIcon type={event.eventType} />
+                  <TimelineIcon type={item.type} category={item.category} />
                 </div>
-                <div>
-                  <p className="font-medium text-sm text-gray-900">
-                    {event.eventType.replace(/([A-Z])/g, ' $1').trim()}
-                  </p>
-                  <p className="text-xs text-gray-500">{new Date(event.timestamp).toLocaleString()}</p>
-                  <p className="text-xs text-gray-400">Sequence {event.aggregateSequence}</p>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-medium text-sm text-gray-900">{item.title}</p>
+                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                      {item.category.toLowerCase()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500">{new Date(item.timestamp).toLocaleString()}</p>
+                  {item.actor && <p className="text-xs text-gray-500">By {item.actor}</p>}
+                  {details.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {details.map(([key, value]) => (
+                        <p key={key} className="break-words text-xs text-gray-500">
+                          <span className="font-medium text-gray-600">{key}:</span> {value}
+                        </p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-            ))}
-            {events.length === 0 && !eventsError && <p className="text-sm text-gray-500">No events recorded.</p>}
+              );
+            })}
+            {timeline.length === 0 && !timelineError && <p className="text-sm text-gray-500">No timeline items recorded.</p>}
           </div>
         </div>
       </div>

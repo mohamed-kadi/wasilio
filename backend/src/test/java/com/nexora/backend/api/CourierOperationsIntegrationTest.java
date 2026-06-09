@@ -347,6 +347,14 @@ class CourierOperationsIntegrationTest {
                 .andExpect(jsonPath("$.length()").value(6))
                 .andExpect(jsonPath("$[5].eventType").value("OrderDeliveryFailed"));
 
+        mockMvc.perform(get("/api/orders/" + orderId + "/timeline")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(7))
+                .andExpect(jsonPath("$[?(@.type=='DeliveryFailureRecorded')].category").value("DELIVERY"))
+                .andExpect(jsonPath("$[?(@.type=='DeliveryFailureRecorded')].details.reason").value("CUSTOMER_UNREACHABLE"))
+                .andExpect(jsonPath("$[?(@.type=='DeliveryFailureRecorded')].details.note").value("No answer after two calls"));
+
         transactionTemplate.executeWithoutResult(status -> {
             var failure = deliveryFailureRepository.findByOrderIdAndTenantId(UUID.fromString(orderId), getTenantId("courier@example.com"))
                     .orElseThrow();
@@ -389,7 +397,7 @@ class CourierOperationsIntegrationTest {
         String firstCourierId = createCourier(jwtToken, "Metrics First", "0611111111");
         String secondCourierId = createCourier(jwtToken, "Metrics Second", "0622222222");
         String assignedOrderId = createConfirmedOrder(jwtToken, "MetricsAssigned");
-        String pickedUpOrderId = createPickedUpOrder(jwtToken, "MetricsPicked", firstCourierId);
+        createPickedUpOrder(jwtToken, "MetricsPicked", firstCourierId);
         String deliveredOrderId = createPickedUpOrder(jwtToken, "MetricsDelivered", firstCourierId);
         String failedOrderId = createPickedUpOrder(jwtToken, "MetricsFailed", firstCourierId);
         createPickedUpOrder(otherTenantJwtToken, "OtherMetrics", createCourier(otherTenantJwtToken, "Other Metrics", "0644444444"));

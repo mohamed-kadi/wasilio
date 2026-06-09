@@ -107,7 +107,9 @@ public class CourierOperationsController {
                 queueStatus,
                 null,
                 true,
+                createdFrom != null,
                 createdFrom,
+                createdTo != null,
                 createdTo,
                 pageRequest(page, size)
         )));
@@ -131,7 +133,9 @@ public class CourierOperationsController {
                 queueStatus,
                 courierId == null ? null : courierId.toString(),
                 false,
+                createdFrom != null,
                 createdFrom,
+                createdTo != null,
                 createdTo,
                 pageRequest(page, size)
         )));
@@ -155,7 +159,9 @@ public class CourierOperationsController {
                 queueStatus,
                 courierId == null ? null : courierId.toString(),
                 false,
+                createdFrom != null,
                 createdFrom,
+                createdTo != null,
                 createdTo,
                 pageRequest(page, size)
         )));

@@ -181,6 +181,7 @@ Completed capabilities include:
 - Failure tracking.
 - Courier performance metrics.
 - Advanced order search and saved views.
+- Unified order timeline.
 - Frontend management UI.
 - Docker deployment.
 - CI pipeline.
@@ -201,10 +202,10 @@ Approximate maturity:
 
 The next implementation cycle should prioritize:
 
-1. Order Timeline.
-2. Customer Notes.
-3. User Management.
-4. Exports.
+1. Customer Notes.
+2. Exports.
+3. Frontend E2E coverage.
+4. User Management.
 
 After those batches, pause feature work and perform a full architecture audit before continuing into monetization, integrations, or enterprise hardening.
 
@@ -247,6 +248,8 @@ Non-goals:
 ### Batch 8: Order Timeline
 
 Purpose: give operators and managers complete operational visibility into what happened to an order.
+
+Status: implemented.
 
 Backend scope:
 

@@ -35,6 +35,12 @@ Protected routes:
 - `/orders/new`
 - `/orders/:id`
 - `/confirmations`
+- `/couriers`
+- `/couriers/:id`
+- `/couriers/assignment`
+- `/couriers/pickup`
+- `/couriers/delivery`
+- `/couriers/performance`
 
 `ProtectedApp` redirects unauthenticated users to `/login` and keeps the authenticated dashboard shell around protected pages.
 

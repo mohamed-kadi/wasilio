@@ -53,6 +53,33 @@ Primary code:
 - `domain/model/ConfirmationCallbackScope.java`
 - `domain/repository/ConfirmationAttemptRepository.java`
 
+### Courier Operations
+
+Owns tenant-scoped internal couriers, assignment queues, pickup queues, delivery queues, delivery outcomes, delivery failure records, and basic courier performance metrics. Final assignment, pickup, delivery, and failure state transitions still go through the order lifecycle.
+
+Primary code:
+
+- `api/CourierController.java`
+- `api/CourierOperationsController.java`
+- `application/CourierService.java`
+- `application/DeliveryOperationsService.java`
+- `domain/model/Courier.java`
+- `domain/model/DeliveryFailure.java`
+- `domain/model/DeliveryFailureReason.java`
+- `domain/repository/CourierRepository.java`
+- `domain/repository/DeliveryFailureRepository.java`
+
+### Order Workspace
+
+Owns read-side usability features for operational order management, including advanced search, saved views, and unified timeline composition.
+
+Primary code:
+
+- `api/OrderController.java`
+- `application/OrderTimelineService.java`
+- `domain/model/OrderSearchSavedView.java`
+- `domain/repository/OrderSearchSavedViewRepository.java`
+
 ## Boundary Rules
 
 - Application services coordinate workflows; domain decisions should not be hidden in controllers.
@@ -60,10 +87,12 @@ Primary code:
 - Query screens read projections and operational records, not reconstructed aggregates.
 - Tenant context must be passed into every repository query that can expose tenant-owned data.
 - Operational records may support workflow, but they must not become the source of final order lifecycle truth.
+- New workflow hardening should follow `docs/architecture/implementation-guardrails.md`.
 
 ## Future Context Candidates
 
-- Courier dispatch and courier webhooks.
+- Risk scoring and delivery intelligence.
+- Courier dispatch integrations and courier webhooks.
 - Billing and subscription management.
 - Merchant analytics and reporting.
 - Integration ingestion for stores, marketplaces, and shipping partners.

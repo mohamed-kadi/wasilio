@@ -362,6 +362,32 @@ class ConfirmationWorkflowIntegrationTest {
     }
 
     @Test
+    void orderTimelineIncludesConfirmationAttemptsAndCallbackResolution() throws Exception {
+        String orderId = createOrder(jwtToken, "Timeline", "Callback", "0612345678");
+
+        mockMvc.perform(recordAttempt(
+                jwtToken,
+                orderId,
+                ConfirmationOutcome.CALL_BACK_LATER,
+                "Call customer after work",
+                Instant.now().plusSeconds(3600)
+        ))
+                .andExpect(status().isCreated());
+        mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.CONFIRMED, "Confirmed on second call"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/timeline")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(6))
+                .andExpect(jsonPath("$[0].type").value("OrderCreated"))
+                .andExpect(jsonPath("$[?(@.type=='ConfirmationAttemptRecorded' && @.category=='CALLBACK')].title").value("Callback scheduled"))
+                .andExpect(jsonPath("$[?(@.type=='ConfirmationAttemptRecorded' && @.category=='CONFIRMATION')].actor").value("test@example.com"))
+                .andExpect(jsonPath("$[?(@.type=='CallbackResolved')].actor").value("test@example.com"))
+                .andExpect(jsonPath("$[?(@.type=='OrderConfirmed')].source").value("DOMAIN_EVENT"));
+    }
+
+    @Test
     void callbackQueueIsTenantScoped() throws Exception {
         String orderId = createOrder(jwtToken, "Tenant", "Callback", "0612345678");
         String otherOrderId = createOrder(otherTenantJwtToken, "OtherTenant", "Callback", "0612345678");

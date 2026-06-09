@@ -244,6 +244,21 @@ export interface DomainEvent {
   payload: string;
 }
 
+export type OrderTimelineSource = 'DOMAIN_EVENT' | 'OPERATIONAL_RECORD';
+
+export type OrderTimelineCategory = 'LIFECYCLE' | 'CONFIRMATION' | 'CALLBACK' | 'DELIVERY';
+
+export interface OrderTimelineItem {
+  itemId: string;
+  source: OrderTimelineSource;
+  category: OrderTimelineCategory;
+  type: string;
+  title: string;
+  timestamp: string;
+  actor?: string;
+  details: Record<string, unknown>;
+}
+
 export interface CreateOrderPayload {
   customer: Customer;
   address: Address;
@@ -479,6 +494,10 @@ export async function fetchOrder(id: string): Promise<Order> {
 
 export async function fetchOrderEvents(id: string): Promise<DomainEvent[]> {
   return apiRequest<DomainEvent[]>(`/orders/${id}/events`);
+}
+
+export async function fetchOrderTimeline(id: string): Promise<OrderTimelineItem[]> {
+  return apiRequest<OrderTimelineItem[]>(`/orders/${id}/timeline`);
 }
 
 export async function fetchConfirmationAttempts(orderId: string): Promise<ConfirmationAttempt[]> {

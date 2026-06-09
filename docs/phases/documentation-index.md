@@ -5,6 +5,7 @@ This index is the starting point for future engineers and AI agents.
 ## Architecture
 
 - `docs/architecture/system-overview.md`: runtime shape, backend layers, source of truth, and compose split.
+- `docs/architecture/implementation-guardrails.md`: checklist for safely hardening workflows and adding new features.
 - `docs/architecture/ddd-boundaries.md`: bounded contexts and package ownership.
 - `docs/architecture/event-sourcing.md`: event append flow, projections, rebuilds, and gaps.
 - `docs/architecture/multi-tenancy.md`: tenant identity and row-level isolation strategy.

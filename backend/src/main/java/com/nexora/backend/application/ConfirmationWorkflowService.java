@@ -43,12 +43,16 @@ public class ConfirmationWorkflowService {
             String search,
             Pageable pageable
     ) {
+        String normalizedSearch = normalizeSearch(search);
         return orderRepository.findConfirmationQueue(
                 tenantId,
                 queueStatuses(status),
+                createdFrom != null,
                 createdFrom,
+                createdToExclusive != null,
                 createdToExclusive,
-                normalizeSearch(search),
+                normalizedSearch != null,
+                normalizedSearch,
                 pageable
         );
     }
@@ -129,9 +133,13 @@ public class ConfirmationWorkflowService {
                 tenantId,
                 ConfirmationOutcome.CALL_BACK_LATER,
                 QUEUE_STATUSES,
+                window.callbackFrom() != null,
                 window.callbackFrom(),
+                window.callbackToExclusive() != null,
                 window.callbackToExclusive(),
+                window.dueAt() != null,
                 window.dueAt(),
+                window.after() != null,
                 window.after(),
                 pageable
         ).map(callback -> new ConfirmationCallbackItem(

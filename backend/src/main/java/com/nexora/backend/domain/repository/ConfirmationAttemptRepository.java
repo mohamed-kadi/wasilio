@@ -40,18 +40,22 @@ public interface ConfirmationAttemptRepository extends JpaRepository<Confirmatio
               and attempt.callbackAt is not null
               and attempt.callbackResolvedAt is null
               and orderProjection.status in :actionableStatuses
-              and (:callbackFrom is null or attempt.callbackAt >= :callbackFrom)
-              and (:callbackToExclusive is null or attempt.callbackAt < :callbackToExclusive)
-              and (:dueAt is null or attempt.callbackAt <= :dueAt)
-              and (:after is null or attempt.callbackAt > :after)
+              and (:callbackFromEnabled = false or attempt.callbackAt >= :callbackFrom)
+              and (:callbackToExclusiveEnabled = false or attempt.callbackAt < :callbackToExclusive)
+              and (:dueAtEnabled = false or attempt.callbackAt <= :dueAt)
+              and (:afterEnabled = false or attempt.callbackAt > :after)
             """)
     Page<ConfirmationAttempt> findPendingCallbacks(
             @Param("tenantId") UUID tenantId,
             @Param("outcome") ConfirmationOutcome outcome,
             @Param("actionableStatuses") List<OrderStatus> actionableStatuses,
+            @Param("callbackFromEnabled") boolean callbackFromEnabled,
             @Param("callbackFrom") Instant callbackFrom,
+            @Param("callbackToExclusiveEnabled") boolean callbackToExclusiveEnabled,
             @Param("callbackToExclusive") Instant callbackToExclusive,
+            @Param("dueAtEnabled") boolean dueAtEnabled,
             @Param("dueAt") Instant dueAt,
+            @Param("afterEnabled") boolean afterEnabled,
             @Param("after") Instant after,
             Pageable pageable
     );
