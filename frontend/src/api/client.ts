@@ -150,7 +150,26 @@ export interface CourierPerformance {
 export interface OrdersQuery {
   page?: number;
   size?: number;
-  status?: OrderStatus | '';
+  status?: OrderStatus | OrderStatus[] | '';
+  phone?: string;
+  customerName?: string;
+  orderId?: string;
+  courierId?: string;
+  createdFrom?: string;
+  createdTo?: string;
+}
+
+export interface OrderSearchSavedView {
+  viewId: string;
+  name: string;
+  filters: Record<string, string>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OrderSearchSavedViewPayload {
+  name: string;
+  filters: Record<string, string>;
 }
 
 export type ConfirmationOutcome =
@@ -276,11 +295,57 @@ export async function fetchOrders(query: OrdersQuery = {}): Promise<OrdersPageRe
   const params = new URLSearchParams();
   params.set('page', String(query.page ?? 0));
   params.set('size', String(query.size ?? 20));
-  if (query.status) {
-    params.set('status', query.status);
+  const statuses = Array.isArray(query.status) ? query.status : query.status ? [query.status] : [];
+  statuses.forEach((status) => params.append('status', status));
+  if (query.phone) {
+    params.set('phone', query.phone);
+  }
+  if (query.customerName) {
+    params.set('customerName', query.customerName);
+  }
+  if (query.orderId) {
+    params.set('orderId', query.orderId);
+  }
+  if (query.courierId) {
+    params.set('courierId', query.courierId);
+  }
+  if (query.createdFrom) {
+    params.set('createdFrom', query.createdFrom);
+  }
+  if (query.createdTo) {
+    params.set('createdTo', query.createdTo);
   }
 
   return apiRequest<OrdersPageResponse>(`/orders?${params.toString()}`);
+}
+
+export async function fetchOrderSearchSavedViews(): Promise<OrderSearchSavedView[]> {
+  return apiRequest<OrderSearchSavedView[]>('/orders/search-views');
+}
+
+export async function createOrderSearchSavedView(
+  payload: OrderSearchSavedViewPayload,
+): Promise<OrderSearchSavedView> {
+  return apiRequest<OrderSearchSavedView>('/orders/search-views', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateOrderSearchSavedView(
+  viewId: string,
+  payload: OrderSearchSavedViewPayload,
+): Promise<OrderSearchSavedView> {
+  return apiRequest<OrderSearchSavedView>(`/orders/search-views/${viewId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteOrderSearchSavedView(viewId: string): Promise<void> {
+  return apiRequest<void>(`/orders/search-views/${viewId}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function fetchCouriers(query: CouriersQuery = {}): Promise<CouriersPageResponse> {
