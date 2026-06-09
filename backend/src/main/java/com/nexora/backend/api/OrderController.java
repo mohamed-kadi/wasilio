@@ -1,5 +1,8 @@
 package com.nexora.backend.api;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.application.OrderLifecycleService;
 import com.nexora.backend.application.CourierService;
 import com.nexora.backend.domain.event.DomainEvent;
@@ -7,8 +10,10 @@ import com.nexora.backend.domain.event.EventStore;
 import com.nexora.backend.domain.model.Address;
 import com.nexora.backend.domain.model.Customer;
 import com.nexora.backend.domain.model.Order;
+import com.nexora.backend.domain.model.OrderSearchSavedView;
 import com.nexora.backend.domain.model.OrderStatus;
 import com.nexora.backend.domain.repository.OrderRepository;
+import com.nexora.backend.domain.repository.OrderSearchSavedViewRepository;
 import com.nexora.backend.infrastructure.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -19,7 +24,7 @@ import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -27,7 +32,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -39,7 +46,9 @@ public class OrderController {
     private final OrderLifecycleService orderLifecycleService;
     private final CourierService courierService;
     private final OrderRepository orderRepository;
+    private final OrderSearchSavedViewRepository savedViewRepository;
     private final EventStore eventStore;
+    private final ObjectMapper objectMapper;
 
     private UUID getCurrentTenantId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -81,6 +90,36 @@ public class OrderController {
     public record RejectOrderRequest(@NotBlank @Size(max = 500) String reason) {}
     public record AssignCourierRequest(@NotBlank @Size(max = 100) String courierId) {}
     public record FailOrderRequest(@NotBlank @Size(max = 500) String reason) {}
+    public record OrderSearchSavedViewRequest(
+            @NotBlank @Size(max = 100) String name,
+            @NotNull Map<String, String> filters
+    ) {}
+
+    public record OrderSearchSavedViewResponse(
+            UUID viewId,
+            String name,
+            Map<String, String> filters,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
+        static OrderSearchSavedViewResponse from(OrderSearchSavedView view, ObjectMapper objectMapper) {
+            try {
+                Map<String, String> filters = objectMapper.readValue(
+                        view.getFiltersJson(),
+                        new TypeReference<>() {}
+                );
+                return new OrderSearchSavedViewResponse(
+                        view.getViewId(),
+                        view.getName(),
+                        filters,
+                        view.getCreatedAt(),
+                        view.getUpdatedAt()
+                );
+            } catch (JsonProcessingException ex) {
+                throw new IllegalStateException("Saved view filters could not be read", ex);
+            }
+        }
+    }
 
     public record OrdersPageResponse(
             List<Order> content,
@@ -163,7 +202,13 @@ public class OrderController {
     public ResponseEntity<OrdersPageResponse> listOrders(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) OrderStatus status
+            @RequestParam(required = false) List<OrderStatus> status,
+            @RequestParam(required = false) @Size(max = 50) String phone,
+            @RequestParam(required = false) @Size(max = 200) String customerName,
+            @RequestParam(required = false) @Size(max = 36) String orderId,
+            @RequestParam(required = false) UUID courierId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo
     ) {
         if (page < 0) {
             throw new IllegalArgumentException("page must be greater than or equal to 0");
@@ -171,17 +216,77 @@ public class OrderController {
         if (size < 1 || size > 100) {
             throw new IllegalArgumentException("size must be between 1 and 100");
         }
+        if (createdFrom != null && createdTo != null && !createdFrom.isBefore(createdTo)) {
+            throw new IllegalArgumentException("createdFrom must be before createdTo");
+        }
 
         UUID tenantId = getCurrentTenantId();
-        PageRequest pageRequest = PageRequest.of(
-                page,
-                size,
-                Sort.by(Sort.Direction.DESC, "createdAt").and(Sort.by(Sort.Direction.ASC, "id"))
+        PageRequest pageRequest = PageRequest.of(page, size);
+        List<OrderStatus> statuses = status == null ? List.of() : status;
+        Page<Order> orders = orderRepository.searchOrders(
+                tenantId,
+                !statuses.isEmpty(),
+                statuses.isEmpty() ? List.of(OrderStatus.CREATED.name()) : statuses.stream().map(Enum::name).toList(),
+                normalizeSearch(phone),
+                normalizeSearch(customerName),
+                normalizeSearch(orderId),
+                courierId == null ? null : courierId.toString(),
+                createdFrom,
+                createdTo,
+                pageRequest
         );
-        Page<Order> orders = status == null
-                ? orderRepository.findByTenantId(tenantId, pageRequest)
-                : orderRepository.findByTenantIdAndStatus(tenantId, status, pageRequest);
         return ResponseEntity.ok(OrdersPageResponse.from(orders));
+    }
+
+    @GetMapping("/search-views")
+    public ResponseEntity<List<OrderSearchSavedViewResponse>> listSearchViews() {
+        return ResponseEntity.ok(savedViewRepository.findByTenantIdOrderByNameAscViewIdAsc(getCurrentTenantId()).stream()
+                .map(view -> OrderSearchSavedViewResponse.from(view, objectMapper))
+                .toList());
+    }
+
+    @PostMapping("/search-views")
+    public ResponseEntity<OrderSearchSavedViewResponse> createSearchView(
+            @Valid @RequestBody OrderSearchSavedViewRequest request
+    ) {
+        UUID tenantId = getCurrentTenantId();
+        String name = request.name().trim();
+        if (savedViewRepository.existsByTenantIdAndNameIgnoreCase(tenantId, name)) {
+            throw new IllegalArgumentException("Saved view name already exists");
+        }
+        Instant now = Instant.now();
+        OrderSearchSavedView view = savedViewRepository.save(OrderSearchSavedView.builder()
+                .viewId(UUID.randomUUID())
+                .tenantId(tenantId)
+                .name(name)
+                .filtersJson(toFiltersJson(request.filters()))
+                .createdAt(now)
+                .updatedAt(now)
+                .build());
+        return ResponseEntity.ok(OrderSearchSavedViewResponse.from(view, objectMapper));
+    }
+
+    @PutMapping("/search-views/{viewId}")
+    public ResponseEntity<OrderSearchSavedViewResponse> updateSearchView(
+            @PathVariable UUID viewId,
+            @Valid @RequestBody OrderSearchSavedViewRequest request
+    ) {
+        UUID tenantId = getCurrentTenantId();
+        OrderSearchSavedView view = savedViewRepository.findByViewIdAndTenantId(viewId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Saved view not found"));
+        view.setName(request.name().trim());
+        view.setFiltersJson(toFiltersJson(request.filters()));
+        view.setUpdatedAt(Instant.now());
+        return ResponseEntity.ok(OrderSearchSavedViewResponse.from(savedViewRepository.save(view), objectMapper));
+    }
+
+    @DeleteMapping("/search-views/{viewId}")
+    public ResponseEntity<Void> deleteSearchView(@PathVariable UUID viewId) {
+        UUID tenantId = getCurrentTenantId();
+        OrderSearchSavedView view = savedViewRepository.findByViewIdAndTenantId(viewId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Saved view not found"));
+        savedViewRepository.delete(view);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/{orderId}")
@@ -205,6 +310,21 @@ public class OrderController {
             return UUID.fromString(courierId);
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("Courier not found");
+        }
+    }
+
+    private String normalizeSearch(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private String toFiltersJson(Map<String, String> filters) {
+        try {
+            return objectMapper.writeValueAsString(filters);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("Saved view filters are invalid");
         }
     }
 }

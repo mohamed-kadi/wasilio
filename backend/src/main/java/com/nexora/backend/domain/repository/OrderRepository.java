@@ -20,6 +20,55 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Page<Order> findByTenantIdAndStatus(UUID tenantId, OrderStatus status, Pageable pageable);
     boolean existsByIdAndTenantIdNot(UUID id, UUID tenantId);
 
+    @Query(value = """
+            select *
+            from orders o
+            where o.tenant_id = :tenantId
+              and (:statusFilterEnabled = false or o.status in (:statuses))
+              and (:phone is null or lower(o.phone) like lower(concat('%', :phone, '%')))
+              and (
+                    :customerName is null
+                    or lower(o.first_name) like lower(concat('%', :customerName, '%'))
+                    or lower(o.last_name) like lower(concat('%', :customerName, '%'))
+                    or lower(concat(coalesce(o.first_name, ''), ' ', coalesce(o.last_name, ''))) like lower(concat('%', :customerName, '%'))
+              )
+              and (:orderId is null or lower(cast(o.id as varchar)) like lower(concat('%', :orderId, '%')))
+              and (:courierId is null or o.courier_id = :courierId)
+              and (:createdFrom is null or o.created_at >= :createdFrom)
+              and (:createdToExclusive is null or o.created_at < :createdToExclusive)
+            order by o.created_at desc, o.id asc
+            """,
+            countQuery = """
+            select count(*)
+            from orders o
+            where o.tenant_id = :tenantId
+              and (:statusFilterEnabled = false or o.status in (:statuses))
+              and (:phone is null or lower(o.phone) like lower(concat('%', :phone, '%')))
+              and (
+                    :customerName is null
+                    or lower(o.first_name) like lower(concat('%', :customerName, '%'))
+                    or lower(o.last_name) like lower(concat('%', :customerName, '%'))
+                    or lower(concat(coalesce(o.first_name, ''), ' ', coalesce(o.last_name, ''))) like lower(concat('%', :customerName, '%'))
+              )
+              and (:orderId is null or lower(cast(o.id as varchar)) like lower(concat('%', :orderId, '%')))
+              and (:courierId is null or o.courier_id = :courierId)
+              and (:createdFrom is null or o.created_at >= :createdFrom)
+              and (:createdToExclusive is null or o.created_at < :createdToExclusive)
+            """,
+            nativeQuery = true)
+    Page<Order> searchOrders(
+            @Param("tenantId") UUID tenantId,
+            @Param("statusFilterEnabled") boolean statusFilterEnabled,
+            @Param("statuses") List<String> statuses,
+            @Param("phone") String phone,
+            @Param("customerName") String customerName,
+            @Param("orderId") String orderId,
+            @Param("courierId") String courierId,
+            @Param("createdFrom") Instant createdFrom,
+            @Param("createdToExclusive") Instant createdToExclusive,
+            Pageable pageable
+    );
+
     @Query("""
             select orderProjection
             from Order orderProjection

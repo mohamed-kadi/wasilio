@@ -20,11 +20,14 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -85,6 +88,8 @@ class OrderIntegrationTest {
     }
 
     private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM order_search_saved_views").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
@@ -320,6 +325,124 @@ class OrderIntegrationTest {
     }
 
     @Test
+    void listOrders_supportsAdvancedTenantScopedSearchFilters() throws Exception {
+        String courierId = createCourier("Search Courier");
+        String aliceOrderId = createOrder("Alice", "Atlas", "alice@example.com", "0600000001");
+        String bobOrderId = createOrder("Bob", "Beldi", "bob@example.com", "0600000002");
+        String otherTenantOrderId = createOtherTenantOrder("Alice");
+
+        requestConfirmation(aliceOrderId);
+        confirmOrder(aliceOrderId);
+        assignCourier(aliceOrderId, courierId);
+
+        mockMvc.perform(get("/api/orders")
+                .param("phone", "000001")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(aliceOrderId));
+
+        mockMvc.perform(get("/api/orders")
+                .param("customerName", "alice atlas")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(aliceOrderId));
+
+        mockMvc.perform(get("/api/orders")
+                .param("orderId", bobOrderId.substring(0, 8))
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(bobOrderId));
+
+        mockMvc.perform(get("/api/orders")
+                .param("courierId", courierId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(aliceOrderId));
+
+        mockMvc.perform(get("/api/orders")
+                .param("status", "CREATED")
+                .param("status", "ASSIGNED_TO_COURIER")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+
+        mockMvc.perform(get("/api/orders")
+                .param("createdFrom", Instant.now().plusSeconds(60).toString())
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        mockMvc.perform(get("/api/orders")
+                .param("customerName", "Alice")
+                .header("Authorization", bearer(otherTenantJwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(otherTenantOrderId));
+    }
+
+    @Test
+    void searchSavedViews_areTenantScopedAndCrudManaged() throws Exception {
+        String payload = """
+                {
+                  "name": "Failed deliveries",
+                  "filters": {
+                    "status": "FAILED",
+                    "courierId": "courier-1"
+                  }
+                }
+                """;
+
+        MvcResult createResult = mockMvc.perform(post("/api/orders/search-views")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Failed deliveries"))
+                .andExpect(jsonPath("$.filters.status").value("FAILED"))
+                .andReturn();
+        String viewId = objectMapper.readTree(createResult.getResponse().getContentAsString()).get("viewId").asText();
+
+        mockMvc.perform(get("/api/orders/search-views")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].viewId").value(viewId));
+
+        mockMvc.perform(get("/api/orders/search-views")
+                .header("Authorization", bearer(otherTenantJwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        String updatePayload = """
+                {
+                  "name": "Delivered today",
+                  "filters": {
+                    "status": "DELIVERED"
+                  }
+                }
+                """;
+        mockMvc.perform(put("/api/orders/search-views/" + viewId)
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(updatePayload))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Delivered today"))
+                .andExpect(jsonPath("$.filters.status").value("DELIVERED"));
+
+        mockMvc.perform(delete("/api/orders/search-views/" + viewId)
+                .header("Authorization", bearer(otherTenantJwtToken)))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(delete("/api/orders/search-views/" + viewId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
     void listOrders_rejectsInvalidPaginationAndFilters() throws Exception {
         mockMvc.perform(get("/api/orders")
                 .param("page", "-1")
@@ -355,6 +478,38 @@ class OrderIntegrationTest {
 
     private String createOrder(String firstName) throws Exception {
         return extractCreatedOrderId(createOrderResult(firstName, null));
+    }
+
+    private String createOrder(String firstName, String lastName, String email, String phone) throws Exception {
+        OrderController.CreateOrderRequest createRequest = new OrderController.CreateOrderRequest(
+                new OrderController.CustomerRequest(firstName, lastName, email, phone),
+                new OrderController.AddressRequest("1 Main St", "Casablanca", "Casablanca-Settat", "20000", "Morocco"),
+                new BigDecimal("100.00")
+        );
+
+        MvcResult result = mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return extractCreatedOrderId(result);
+    }
+
+    private String createOtherTenantOrder(String firstName) throws Exception {
+        OrderController.CreateOrderRequest createRequest = new OrderController.CreateOrderRequest(
+                new OrderController.CustomerRequest(firstName, "Other", "other-order@example.com", "0699999999"),
+                new OrderController.AddressRequest("1 Main St", "Casablanca", "Casablanca-Settat", "20000", "Morocco"),
+                new BigDecimal("100.00")
+        );
+
+        MvcResult result = mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(otherTenantJwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return extractCreatedOrderId(result);
     }
 
     private String createCourier(String name) throws Exception {
