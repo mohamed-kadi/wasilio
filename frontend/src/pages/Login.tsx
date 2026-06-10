@@ -3,6 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { LogIn } from 'lucide-react';
 import { getErrorMessage, login } from '../api/client';
 import { useAuthStore } from '../store/authStore';
+import BrandLogo from '../components/BrandLogo';
 
 interface LocationState {
   from?: {
@@ -48,7 +49,7 @@ export default function Login() {
     <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-blue-600 tracking-tight">nexora</h1>
+          <BrandLogo markClassName="h-10 w-10" textClassName="text-2xl" />
           <h2 className="mt-6 text-xl font-semibold text-gray-900">Sign in</h2>
         </div>
 

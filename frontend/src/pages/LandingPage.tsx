@@ -5,6 +5,7 @@ import { ApiError, captureMarketingLead, getErrorMessage } from '../api/client';
 import { usePageMeta } from '../lib/seo';
 import { campaignSourceFromLocation, installMetaPixel, trackLeadSubmitted } from '../lib/tracking';
 import { useAuthStore } from '../store/authStore';
+import BrandLogo from '../components/BrandLogo';
 
 const orderVolumes = ['Under 100/month', '100-500/month', '500-1,500/month', '1,500+/month'];
 
@@ -25,8 +26,8 @@ export default function LandingPage() {
   const campaignSource = useMemo(() => campaignSourceFromLocation(), []);
 
   usePageMeta({
-    title: 'Nexora | COD Operations For Moroccan Merchants',
-    description: 'Nexora helps Moroccan COD merchants manage confirmations, callbacks, courier workflows, delivery outcomes, manual payments, and receipts.',
+    title: 'Wasilio | COD Operations For Moroccan Merchants',
+    description: 'Wasilio helps Moroccan COD merchants manage confirmations, callbacks, courier workflows, delivery outcomes, manual payments, and receipts.',
     path: '/',
   });
 
@@ -81,7 +82,9 @@ export default function LandingPage() {
     <main className="min-h-screen bg-white text-gray-950">
       <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4">
-          <Link to="/" className="text-xl font-bold tracking-tight text-blue-700">nexora</Link>
+          <Link to="/" aria-label="Wasilio home">
+            <BrandLogo markClassName="h-8 w-8" textClassName="text-xl" />
+          </Link>
           <nav className="flex items-center gap-3 text-sm">
             <a href="#pricing" className="hidden font-medium text-gray-600 hover:text-gray-950 sm:inline">Pricing</a>
             <a href="#contact" className="hidden font-medium text-gray-600 hover:text-gray-950 sm:inline">Demo</a>
@@ -95,7 +98,7 @@ export default function LandingPage() {
           <div className="flex flex-col justify-center">
             <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">COD operations for Moroccan merchants</p>
             <h1 className="mt-4 max-w-3xl text-4xl font-bold leading-tight text-gray-950 sm:text-5xl">
-              Nexora turns WhatsApp follow-ups and delivery spreadsheets into one controlled COD workflow.
+              Wasilio turns WhatsApp follow-ups and delivery spreadsheets into one controlled COD workflow.
             </h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-gray-700">
               Manage order confirmation, callbacks, courier assignment, pickup, delivery outcomes, and payment status before your team loses time chasing updates across tools.
@@ -163,7 +166,7 @@ export default function LandingPage() {
       <section id="contact" className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-5 py-14 lg:grid-cols-[0.8fr_1.2fr]">
         <div>
           <p className="text-sm font-semibold uppercase text-blue-700">Trial client acquisition</p>
-          <h2 className="mt-3 text-3xl font-bold text-gray-950">Request a Nexora pilot demo.</h2>
+          <h2 className="mt-3 text-3xl font-bold text-gray-950">Request a Wasilio pilot demo.</h2>
           <p className="mt-4 leading-7 text-gray-700">
             Share your store details and order volume. We will review fit, schedule a walkthrough, and prepare onboarding for selected pilot merchants.
           </p>
@@ -180,7 +183,7 @@ export default function LandingPage() {
         <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
           {submitted && (
             <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-              Demo request received. Nexora operations can now follow up from the internal lead list.
+              Demo request received. Wasilio operations can now follow up from the internal lead list.
             </div>
           )}
           {error && (
@@ -229,7 +232,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-gray-200 bg-gray-50">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-sm text-gray-600 sm:flex-row sm:items-center sm:justify-between">
-          <p>© 2026 Nexora. COD operations software for controlled merchant pilots.</p>
+          <p>© 2026 Wasilio. COD operations software for controlled merchant pilots.</p>
           <nav className="flex flex-wrap gap-4">
             <Link to="/terms" className="font-medium hover:text-gray-950">Terms</Link>
             <Link to="/privacy" className="font-medium hover:text-gray-950">Privacy</Link>

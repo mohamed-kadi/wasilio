@@ -20,6 +20,7 @@ import DeliveryQueue from './pages/DeliveryQueue';
 import CourierPerformance from './pages/CourierPerformance';
 import AdminBilling from './pages/AdminBilling';
 import { useAuthStore } from './store/authStore';
+import BrandLogo from './components/BrandLogo';
 
 const queryClient = new QueryClient();
 
@@ -30,7 +31,7 @@ function Sidebar() {
   return (
     <div className="w-64 bg-white border-r min-h-screen flex flex-col">
       <div className="h-16 flex items-center px-6 border-b">
-        <h1 className="text-xl font-bold text-blue-600 tracking-tight">nexora</h1>
+        <BrandLogo markClassName="h-8 w-8" textClassName="text-xl" />
       </div>
       <nav className="flex-1 px-4 py-4 space-y-1">
         {!isSuperAdmin && (
@@ -149,14 +150,14 @@ function AccountPaused() {
             <p className="text-sm font-semibold uppercase text-amber-700">Account paused</p>
             <h1 className="mt-2 text-2xl font-bold text-gray-900">Merchant workspace is temporarily unavailable</h1>
             <p className="mt-3 text-sm leading-6 text-gray-600">
-              This tenant is currently marked as <span className="font-semibold text-gray-900">{blockedTenantStatus}</span>. Merchant workflows are paused until Nexora operations updates the account status.
+              This tenant is currently marked as <span className="font-semibold text-gray-900">{blockedTenantStatus}</span>. Merchant workflows are paused until Wasilio operations updates the account status.
             </p>
           </div>
         </div>
 
         <div className="mt-5 rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
           <p className="font-medium text-gray-900">{session?.user.email}</p>
-          <p className="mt-1">Contact Nexora support or settle the outstanding payment, then check again.</p>
+          <p className="mt-1">Contact Wasilio support or settle the outstanding payment, then check again.</p>
         </div>
 
         <div className="mt-6 flex flex-wrap gap-3">

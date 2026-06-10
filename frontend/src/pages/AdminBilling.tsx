@@ -790,7 +790,7 @@ function ReceiptDocument({ receipt }: { receipt: TenantPaymentReceipt }) {
     <article className="receipt-document mx-auto max-w-3xl rounded-md border border-gray-200 bg-white p-6 text-sm text-gray-900">
       <header className="flex flex-wrap items-start justify-between gap-6 border-b border-gray-200 pb-5">
         <div>
-          <p className="text-xl font-bold text-blue-600">nexora</p>
+          <p className="text-xl font-bold text-[#0F5B4A]">Wasilio</p>
           <p className="mt-1 text-xs uppercase tracking-wide text-gray-500">Manual payment receipt</p>
         </div>
         <div className="text-left sm:text-right">
@@ -833,7 +833,7 @@ function ReceiptDocument({ receipt }: { receipt: TenantPaymentReceipt }) {
       )}
 
       <footer className="mt-8 border-t border-gray-200 pt-4 text-xs text-gray-500">
-        <p>This receipt confirms a manual payment recorded by Nexora operations.</p>
+        <p>This receipt confirms a manual payment recorded by Wasilio operations.</p>
       </footer>
     </article>
   );

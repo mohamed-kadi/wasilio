@@ -19,7 +19,7 @@ test('public landing captures a demo lead with campaign source', async ({ page }
   });
 
   await page.goto('/?utm_source=facebook&utm_campaign=pilot');
-  await expect(page.getByRole('heading', { name: /Nexora turns WhatsApp/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Wasilio turns WhatsApp/i })).toBeVisible();
 
   await page.getByLabel('Contact name').fill('Sara Admin');
   await page.getByLabel('Store name').fill('Casa Beauty');

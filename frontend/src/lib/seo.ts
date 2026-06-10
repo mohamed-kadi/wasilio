@@ -7,7 +7,7 @@ interface PageMeta {
   type?: string;
 }
 
-const siteName = 'Nexora';
+const siteName = 'Wasilio';
 
 export function publicSiteUrl() {
   return (import.meta.env.VITE_PUBLIC_SITE_URL as string | undefined)?.replace(/\/$/, '')

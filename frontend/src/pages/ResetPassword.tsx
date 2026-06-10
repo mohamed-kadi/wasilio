@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, KeyRound } from 'lucide-react';
 import { confirmPasswordReset, getErrorMessage } from '../api/client';
 import { useAuthStore } from '../store/authStore';
+import BrandLogo from '../components/BrandLogo';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -42,7 +43,7 @@ export default function ResetPassword() {
     <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm space-y-6">
         <div>
-          <h1 className="text-2xl font-bold text-blue-600 tracking-tight">nexora</h1>
+          <BrandLogo markClassName="h-10 w-10" textClassName="text-2xl" />
           <h2 className="mt-6 text-xl font-semibold text-gray-900">Choose a new password</h2>
         </div>
 

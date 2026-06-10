@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { ArrowLeft, UserPlus } from 'lucide-react';
 import { ApiError, getErrorMessage, onboardTenant } from '../api/client';
 import { useAuthStore } from '../store/authStore';
+import BrandLogo from '../components/BrandLogo';
 
 const STRONG_PASSWORD = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{12,}$/;
 
@@ -64,7 +65,7 @@ export default function Signup() {
             <ArrowLeft size={16} />
             Sign in
           </Link>
-          <h1 className="mt-6 text-2xl font-bold text-blue-600 tracking-tight">nexora</h1>
+          <BrandLogo className="mt-6" markClassName="h-10 w-10" textClassName="text-2xl" />
           <h2 className="mt-4 text-xl font-semibold text-gray-900">Create tenant</h2>
         </div>
 
