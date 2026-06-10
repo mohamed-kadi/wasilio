@@ -182,15 +182,25 @@ PostgreSQL is the production source of truth for tenants, users, orders, and dom
 
 ### Backup
 
-Run logical backups with `pg_dump` from a trusted host or a short-lived maintenance container:
+Run logical backups from a trusted deployment host after the production Compose stack is running:
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres \
-  pg_dump -U "$POSTGRES_USER" -d "${POSTGRES_DB:-nexora}" --format=custom \
-  > "backups/nexora-$(date +%Y%m%d%H%M%S).dump"
+POSTGRES_USER="<production-user>" \
+POSTGRES_DB="nexora" \
+BACKUP_DIR="/var/backups/nexora" \
+BACKUP_RETENTION_DAYS="14" \
+./scripts/backup-postgres.sh
 ```
 
-Store backup artifacts outside the application host with encryption at rest. For early-stage production, take at least daily full logical backups and keep enough history to recover from accidental data corruption discovered after a delay.
+The script writes `BACKUP_DIR/BACKUP_PREFIX-YYYYMMDDTHHMMSSZ.dump` using PostgreSQL custom format and verifies the dump catalog with `pg_restore --list`. `BACKUP_RETENTION_DAYS` is optional; when set, only local files matching the configured prefix are pruned.
+
+Store backup artifacts outside the application host with encryption at rest. For early-stage production, take at least daily full logical backups and keep enough history to recover from accidental data corruption discovered after a delay. A simple daily cron entry on the deployment host is acceptable for the first pilots:
+
+```cron
+17 2 * * * cd /srv/nexora && POSTGRES_USER=postgres POSTGRES_DB=nexora BACKUP_DIR=/var/backups/nexora BACKUP_RETENTION_DAYS=14 ./scripts/backup-postgres.sh >> /var/log/nexora-backup.log 2>&1
+```
+
+After each successful run, sync the new `.dump` artifact to encrypted off-host storage and record the artifact name in the deployment log.
 
 ### Restore
 
@@ -203,6 +213,14 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres
 ```
 
 After restore, run the backend with Flyway enabled and Hibernate set to `validate`. Verify `/actuator/health/readiness`, login, order list, and event timelines before accepting traffic.
+
+Run a restore drill before the first trial merchant and after any migration that changes order, tenant, billing, or event tables. The drill should restore the latest backup into an isolated database, start one backend instance against it, and verify:
+
+- `/actuator/health/readiness` returns healthy.
+- Super-admin login works.
+- A merchant login works.
+- Existing orders and timelines load.
+- Admin billing tenants, subscriptions, payments, receipts, and leads load.
 
 ### Migration Rollback
 

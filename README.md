@@ -242,6 +242,20 @@ After the first successful login, set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false` 
 
 Set `APP_ONBOARDING_ENABLED=true` only during a controlled signup window or when the deployment is intentionally self-serve. Set it to `false` after the first tenant is created for closed/private deployments.
 
+### Production Backups
+
+Use the backup helper from the deployment host after the production Compose stack is running:
+
+```bash
+POSTGRES_USER="<production-user>" \
+POSTGRES_DB="nexora" \
+BACKUP_DIR="/var/backups/nexora" \
+BACKUP_RETENTION_DAYS="14" \
+./scripts/backup-postgres.sh
+```
+
+The script creates a timestamped custom-format PostgreSQL dump and verifies the backup catalog with `pg_restore --list`. Store successful backup artifacts outside the application host with encryption at rest.
+
 ### Running Manually For Development
 
 1. **Start Database:**

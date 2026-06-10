@@ -29,6 +29,8 @@ pnpm-debug.log*
 
 # Archives
 *.zip
+backups/
+*.dump
 
 # IDE and OS files
 .idea/

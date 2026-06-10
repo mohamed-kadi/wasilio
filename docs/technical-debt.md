@@ -40,9 +40,9 @@ Target: Redis-backed limiter or trusted gateway/WAF rate limiting.
 
 ### Backup Automation
 
-Current state: backup and restore are documented, but execution is manual.
+Current state: backup and restore are documented, and a `scripts/backup-postgres.sh` helper creates and verifies local PostgreSQL dumps. Scheduling, off-host encrypted sync, alerts, and restore drills are still operational setup.
 
-Risk: missed backups and untested restores.
+Risk: missed backups, host-local backup loss, and untested restores if production operations do not install scheduling and off-host storage.
 
 Target: scheduled encrypted backups, off-host storage, alerts, restore drills, and documented RPO/RTO updates.
 
