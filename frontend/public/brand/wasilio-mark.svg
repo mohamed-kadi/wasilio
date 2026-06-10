@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Wasilio mark</title>
+  <desc id="desc">A route-line W mark with connected checkpoints.</desc>
+  <rect width="128" height="128" rx="28" fill="#0F5B4A"/>
+  <path d="M28 38L44 90L64 58L84 90L100 38" fill="none" stroke="#F7F8F5" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="28" cy="38" r="7" fill="#D99A2B"/>
+  <circle cx="64" cy="58" r="7" fill="#D99A2B"/>
+  <circle cx="100" cy="38" r="7" fill="#D99A2B"/>
+</svg>

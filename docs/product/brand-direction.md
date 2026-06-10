@@ -175,6 +175,24 @@ Suggested palette:
 - Accent: amber `#D99A2B`.
 - Neutral: off-white `#F7F8F5`, slate `#1F2933`.
 
+## Created Logo Assets
+
+Initial vector direction: a route-line `W` with three connected checkpoints. The mark is intentionally simple so it can work as a favicon, receipt mark, social preview signal, and navbar brand.
+
+Files:
+
+- `frontend/public/brand/wasilio-mark.svg`
+- `frontend/public/brand/wasilio-mark-mono.svg`
+- `frontend/public/brand/wasilio-logo.svg`
+- `frontend/public/favicon.svg`
+- `frontend/public/social-preview.svg`
+
+Design notes:
+
+- Primary mark uses deep green `#0F5B4A` with warm amber checkpoints `#D99A2B`.
+- The `W` reads as both the Wasilio initial and an operational route path.
+- No truck, parcel, cash, or shopping-cart literalism; the identity should feel like merchant operations software, not a courier company.
+
 ## Rollout Plan
 
 Do not rename Java packages or database identifiers in the first rebrand pass. Keep internal technical names stable unless there is a real operational reason to change them.

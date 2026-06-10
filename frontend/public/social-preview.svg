@@ -1,9 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <rect width="1200" height="630" fill="#eff6ff"/>
-  <rect x="80" y="80" width="1040" height="470" rx="24" fill="#ffffff" stroke="#bfdbfe" stroke-width="2"/>
-  <text x="130" y="205" fill="#1d4ed8" font-family="Arial, sans-serif" font-size="42" font-weight="700">nexora</text>
-  <text x="130" y="300" fill="#111827" font-family="Arial, sans-serif" font-size="58" font-weight="700">COD operations for Moroccan merchants</text>
-  <text x="130" y="380" fill="#4b5563" font-family="Arial, sans-serif" font-size="30">Confirm orders, track callbacks, manage couriers, and capture pilot leads.</text>
-  <rect x="130" y="440" width="260" height="60" rx="10" fill="#1d4ed8"/>
-  <text x="162" y="480" fill="#ffffff" font-family="Arial, sans-serif" font-size="24" font-weight="700">Request a demo</text>
+  <rect width="1200" height="630" fill="#F7F8F5"/>
+  <rect x="84" y="78" width="1032" height="474" rx="28" fill="#ffffff" stroke="#D8DED6" stroke-width="2"/>
+  <rect x="132" y="128" width="72" height="72" rx="18" fill="#0F5B4A"/>
+  <path d="M149 149L159 181L168 162L178 181L188 149" fill="none" stroke="#F7F8F5" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="149" cy="149" r="4.2" fill="#D99A2B"/>
+  <circle cx="168" cy="162" r="4.2" fill="#D99A2B"/>
+  <circle cx="188" cy="149" r="4.2" fill="#D99A2B"/>
+  <text x="224" y="179" fill="#0F5B4A" font-family="Arial, sans-serif" font-size="48" font-weight="700">Wasilio</text>
+  <text x="132" y="286" fill="#1F2933" font-family="Arial, sans-serif" font-size="58" font-weight="700">COD operations for</text>
+  <text x="132" y="354" fill="#1F2933" font-family="Arial, sans-serif" font-size="58" font-weight="700">Moroccan merchants</text>
+  <text x="132" y="424" fill="#51615B" font-family="Arial, sans-serif" font-size="30">Confirm orders, track callbacks, and coordinate delivery.</text>
+  <rect x="132" y="468" width="260" height="62" rx="10" fill="#0F5B4A"/>
+  <text x="166" y="509" fill="#ffffff" font-family="Arial, sans-serif" font-size="24" font-weight="700">Request a demo</text>
+  <circle cx="990" cy="170" r="9" fill="#D99A2B"/>
+  <path d="M918 498C970 462 1008 408 1024 340C1039 278 1066 230 1100 196" fill="none" stroke="#D8DED6" stroke-width="10" stroke-linecap="round"/>
+  <path d="M918 498C970 462 1008 408 1024 340C1039 278 1066 230 1100 196" fill="none" stroke="#0F5B4A" stroke-width="4" stroke-linecap="round" stroke-dasharray="1 20"/>
 </svg>
