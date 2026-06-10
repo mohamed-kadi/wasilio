@@ -1,6 +1,25 @@
 # Brand Direction
 
-This document captures the naming and logo direction before replacing the temporary Nexora brand. It is a working decision artifact, not a final legal or domain clearance.
+This document captures the naming and logo direction before replacing the temporary Nexora brand. It is a working decision artifact, not a final legal or trademark clearance.
+
+## Current Decision
+
+Selected working brand: **Wasilio**
+
+Preferred domain: **wasilio.ma**
+
+Rationale:
+
+- The name has a local delivery/connection signal without sounding like a small courier company.
+- It is short, professional, and pronounceable for Moroccan Arabic, French, and English contexts.
+- The `.ma` domain reinforces the first market and is appropriate for Moroccan merchant acquisition.
+- A WHOIS check on June 10, 2026 returned `No Object Found` for `wasilio.ma`, so it appears unregistered at the time of checking. This is not a substitute for registrar checkout or legal review.
+
+Immediate action:
+
+- Register `wasilio.ma` before public rebrand work.
+- Consider defensive fallbacks if affordable: `getwasilio.com`, `usewasilio.com`, and `wasilio.co`.
+- Keep the product codebase internal names unchanged until the public-facing rebrand is confirmed.
 
 ## Naming Criteria
 
@@ -22,7 +41,7 @@ Avoid:
 - Names that are too close to banks, telecoms, marketplaces, or existing logistics brands.
 - Spellings that are hard to dictate over phone or WhatsApp.
 
-## Shortlist
+## Shortlist Archive
 
 ### Wasilio
 
@@ -40,7 +59,7 @@ Risks:
 - Needs domain and trademark clearance.
 - Similar-sounding names around delivery/connectivity should be checked carefully.
 
-Recommendation: top candidate.
+Recommendation: selected working brand.
 
 ### Kourio
 
@@ -120,7 +139,7 @@ Recommendation: acceptable, not first choice.
 
 ## Recommended Brand Position
 
-Use **Wasilio** as the working front-runner.
+Use **Wasilio** as the selected working brand.
 
 Positioning line:
 
