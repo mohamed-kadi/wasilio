@@ -17,6 +17,7 @@ This index is the starting point for future engineers and AI agents.
 - `docs/product/vision.md`: product direction and target users.
 - `docs/product/master-roadmap.md`: remaining phases, batches, sequencing, and audit gate.
 - `docs/product/launch-readiness-pivot.md`: temporary path for merchant pilots, admin billing, receipts, public site, SEO, and return path.
+- `docs/product/brand-direction.md`: working name shortlist, logo direction, and rebrand rollout plan.
 - `docs/product/roadmap.md`: completed work and future phases.
 - `docs/product/order-lifecycle.md`: lifecycle states and transitions.
 - `docs/product/confirmation-workflow.md`: confirmation queue and attempts.

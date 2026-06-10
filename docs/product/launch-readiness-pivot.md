@@ -60,7 +60,7 @@ Not ready for public paid SaaS:
 - Lead capture exists, but no CRM automation.
 - SEO setup has a first slice, but final production domain metadata still needs campaign validation.
 - Facebook/Meta tracking is configurable but not enabled until a pixel ID is provided.
-- Final logo or brand system is still incomplete.
+- Final product name, logo, and brand system are still incomplete. Current working front-runner: `Wasilio`; see `docs/product/brand-direction.md`.
 - Legal pages have first-slice publication copy and still need final business/legal review.
 - No email verification.
 - No production backup automation.
