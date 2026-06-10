@@ -96,7 +96,7 @@ export default function OrderDetails() {
   if (orderError) {
     return (
       <div className="space-y-4">
-        <Link to="/orders" className="text-sm text-blue-600 hover:underline">
+        <Link to="/app/orders" className="text-sm text-blue-600 hover:underline">
           &larr; Back to Orders
         </Link>
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -144,7 +144,7 @@ export default function OrderDetails() {
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <Link to="/orders" className="text-sm text-blue-600 hover:underline mb-2 block">
+          <Link to="/app/orders" className="text-sm text-blue-600 hover:underline mb-2 block">
             &larr; Back to Orders
           </Link>
           <h2 className="text-2xl font-bold text-gray-900">Order Details</h2>

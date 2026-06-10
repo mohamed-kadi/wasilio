@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 
 const AUTH_STORAGE_KEY = 'nexora.auth.session';
+const LEGACY_AUTH_STORAGE_KEY = AUTH_STORAGE_KEY;
+
+export type BlockedTenantStatus = 'OVERDUE' | 'SUSPENDED' | 'DISABLED';
 
 export interface AuthUser {
   email: string;
@@ -23,20 +26,30 @@ interface JwtPayload {
 
 interface AuthState {
   session: AuthSession | null;
+  blockedTenantStatus: BlockedTenantStatus | null;
   setToken: (token: string) => void;
+  setTenantBlocked: (status: BlockedTenantStatus) => void;
+  clearTenantBlocked: () => void;
   clearSession: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   session: loadSession(),
+  blockedTenantStatus: null,
   setToken: (token) => {
     const session = sessionFromToken(token);
     saveSession(session);
-    set({ session });
+    set({ session, blockedTenantStatus: null });
+  },
+  setTenantBlocked: (status) => {
+    set({ blockedTenantStatus: status });
+  },
+  clearTenantBlocked: () => {
+    set({ blockedTenantStatus: null });
   },
   clearSession: () => {
     clearStoredSession();
-    set({ session: null });
+    set({ session: null, blockedTenantStatus: null });
   },
 }));
 
@@ -45,7 +58,9 @@ function loadSession(): AuthSession | null {
     return null;
   }
 
-  const rawSession = window.localStorage.getItem(AUTH_STORAGE_KEY);
+  window.localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY);
+
+  const rawSession = window.sessionStorage.getItem(AUTH_STORAGE_KEY);
   if (!rawSession) {
     return null;
   }
@@ -65,13 +80,15 @@ function loadSession(): AuthSession | null {
 
 function saveSession(session: AuthSession) {
   if (typeof window !== 'undefined') {
-    window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+    window.localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY);
+    window.sessionStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
   }
 }
 
 export function clearStoredSession() {
   if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    window.localStorage.removeItem(LEGACY_AUTH_STORAGE_KEY);
+    window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
   }
 }
 

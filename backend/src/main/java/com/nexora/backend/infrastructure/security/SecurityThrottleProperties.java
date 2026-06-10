@@ -16,6 +16,7 @@ public class SecurityThrottleProperties {
     private boolean enabled = true;
     private Limit login = new Limit();
     private Limit onboarding = new Limit();
+    private Limit passwordReset = new Limit();
 
     @Getter
     @Setter

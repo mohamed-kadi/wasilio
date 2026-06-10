@@ -19,7 +19,7 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
 
   if (session) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

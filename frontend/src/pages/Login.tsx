@@ -22,10 +22,10 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   if (session) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
-  const from = (location.state as LocationState | null)?.from?.pathname ?? '/';
+  const from = (location.state as LocationState | null)?.from?.pathname ?? '/app';
   const message = (location.state as LocationState | null)?.message;
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -82,9 +82,14 @@ export default function Login() {
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-              Password
-            </label>
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <Link to="/forgot-password" className="text-sm font-medium text-blue-600 hover:underline">
+                Forgot?
+              </Link>
+            </div>
             <input
               id="password"
               name="password"

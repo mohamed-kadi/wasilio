@@ -56,11 +56,11 @@ Target: versioned payload mapping and tested upcasters before event schema chang
 
 ### Frontend E2E Tests
 
-Current state: frontend has lint/build scripts but no browser workflow tests.
+Current state: frontend has lint/build scripts and a first Playwright smoke suite for landing lead capture and same-browser auth isolation. It does not yet cover live backend workflows in CI.
 
 Risk: regressions in login, signup, order creation, confirmation, and callbacks.
 
-Target: Playwright or equivalent E2E suite in CI.
+Target: expand Playwright coverage for live login, signup, order creation, confirmation, callbacks, billing, and run it in CI.
 
 ## Medium
 

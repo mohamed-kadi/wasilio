@@ -6,6 +6,7 @@ This roadmap documents Nexora from the initial foundation through the planned pr
 
 - Start with the project history to understand the implemented platform shape.
 - Use the current state section to understand what is production-adjacent today.
+- Use `docs/product/launch-readiness-pivot.md` when preparing for merchant pilots or public acquisition.
 - Use the remaining phases to sequence future work.
 - Use the architecture audit gate before moving from operational completion into commercialization or enterprise hardening.
 - Use the linked architecture, ADR, phase, and audit documents for implementation details.
@@ -17,6 +18,7 @@ Primary supporting documents:
 - `docs/architecture/event-sourcing.md`
 - `docs/product/order-lifecycle.md`
 - `docs/product/courier-workflow.md`
+- `docs/product/launch-readiness-pivot.md`
 - `docs/technical-debt.md`
 
 ## Project History
@@ -200,7 +202,7 @@ Approximate maturity:
 
 ## Execution Recommendation
 
-The next implementation cycle should prioritize:
+Original operations-completion recommendation:
 
 1. Customer Notes.
 2. Exports.
@@ -210,6 +212,10 @@ The next implementation cycle should prioritize:
 After those batches, pause feature work and perform a full architecture audit before continuing into monetization, integrations, or enterprise hardening.
 
 Reason: at that point Nexora should be usable by a real small-to-medium delivery operation. Work after that is primarily scale, commercial packaging, reliability, and enterprise hardening.
+
+Launch-readiness pivot recommendation:
+
+If the immediate goal is to publish, pilot, or sell Nexora, temporarily follow `docs/product/launch-readiness-pivot.md` before returning to the operations-completion sequence. The launch path prioritizes internal admin, subscription status, manual Moroccan payment tracking, receipts, public landing/lead capture, SEO, and production trust hardening.
 
 ## Phase 2: Operations Completion
 
@@ -399,9 +405,25 @@ Non-goals:
 - Customer-facing notifications.
 - Courier mobile push notifications.
 
+## Launch Readiness Pivot
+
+Status: active candidate path when preparing merchant pilots or public acquisition.
+
+Use `docs/product/launch-readiness-pivot.md` as the detailed source of truth.
+
+Summary:
+
+- L1: Internal admin console for tenant management.
+- L2: Plans, manual cash/bank-transfer payments, and receipts.
+- L3: Public landing site and lead capture first slice implemented; SEO, legal pages, brand polish, and Facebook/Meta tracking remain.
+- L4: Production trust hardening.
+- L5: Controlled public beta.
+
+Return to the original roadmap after L1-L4, then continue customer notes, exports, E2E coverage, user management, architecture audit, and deterministic risk scoring.
+
 ## Phase 4: SaaS Monetization
 
-Phase 4 should wait until the core operations workflow is stable and useful.
+Phase 4 should wait until the core operations workflow is stable and useful. If the business is preparing for public launch sooner, use the launch-readiness pivot first and keep Stripe/online billing deferred until manual billing and receipts work.
 
 ### Subscription Management
 

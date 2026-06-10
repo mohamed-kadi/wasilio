@@ -208,7 +208,7 @@ export default function OrdersList() {
           <p className="text-sm text-gray-500">{totalElements} total orders</p>
         </div>
         <Link
-          to="/orders/new"
+          to="/app/orders/new"
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
         >
           <PlusCircle size={18} />

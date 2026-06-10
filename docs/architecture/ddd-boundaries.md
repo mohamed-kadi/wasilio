@@ -80,6 +80,24 @@ Primary code:
 - `domain/model/OrderSearchSavedView.java`
 - `domain/repository/OrderSearchSavedViewRepository.java`
 
+### Admin Billing
+
+Owns Nexora-side tenant administration, launch-readiness subscription status, manual payment records, and receipt records. These records are operational/commercial data and do not affect order lifecycle truth.
+
+Primary code:
+
+- `api/AdminController.java`
+- `application/AdminBillingService.java`
+- `domain/model/SubscriptionPlan.java`
+- `domain/model/TenantSubscription.java`
+- `domain/model/TenantPayment.java`
+- `domain/model/TenantStatus.java`
+- `domain/model/SubscriptionStatus.java`
+- `domain/model/PaymentMethod.java`
+- `domain/repository/SubscriptionPlanRepository.java`
+- `domain/repository/TenantSubscriptionRepository.java`
+- `domain/repository/TenantPaymentRepository.java`
+
 ## Boundary Rules
 
 - Application services coordinate workflows; domain decisions should not be hidden in controllers.
@@ -93,6 +111,5 @@ Primary code:
 
 - Risk scoring and delivery intelligence.
 - Courier dispatch integrations and courier webhooks.
-- Billing and subscription management.
 - Merchant analytics and reporting.
 - Integration ingestion for stores, marketplaces, and shipping partners.

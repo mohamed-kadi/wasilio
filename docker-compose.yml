@@ -20,6 +20,11 @@ services:
     build:
       context: .
       dockerfile: docker/frontend.Dockerfile
+      args:
+        VITE_PUBLIC_SITE_URL: ${VITE_PUBLIC_SITE_URL:-http://localhost}
+        VITE_PUBLIC_SUPPORT_EMAIL: ${VITE_PUBLIC_SUPPORT_EMAIL:-support@nexora.local}
+        VITE_PUBLIC_WHATSAPP_URL: ${VITE_PUBLIC_WHATSAPP_URL:-}
+        VITE_PUBLIC_META_PIXEL_ID: ${VITE_PUBLIC_META_PIXEL_ID:-}
     ports:
       - "${FRONTEND_PORT:-80}:80"
     depends_on:

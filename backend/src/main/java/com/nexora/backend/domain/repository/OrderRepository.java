@@ -19,6 +19,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Page<Order> findByTenantId(UUID tenantId, Pageable pageable);
     Page<Order> findByTenantIdAndStatus(UUID tenantId, OrderStatus status, Pageable pageable);
     boolean existsByIdAndTenantIdNot(UUID id, UUID tenantId);
+    long countByTenantId(UUID tenantId);
 
     @Query(value = """
             select *

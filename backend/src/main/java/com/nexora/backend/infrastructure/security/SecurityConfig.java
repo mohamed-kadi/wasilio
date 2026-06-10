@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
@@ -39,6 +40,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
+    private final TenantAccessFilter tenantAccessFilter;
     private final CustomUserDetailsService userDetailsService;
     private final ObjectMapper objectMapper;
 
@@ -52,6 +54,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable) // NOSONAR
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/api/onboarding/**", "/actuator/health", "/actuator/health/**", "/error").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/marketing/leads").permitAll()
                 .anyRequest().authenticated()
             )
             .exceptionHandling(ex -> ex
@@ -64,7 +67,8 @@ public class SecurityConfig {
             )
             .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authenticationProvider(authenticationProvider())
-            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(tenantAccessFilter, JwtAuthenticationFilter.class);
 
         return http.build();
     }

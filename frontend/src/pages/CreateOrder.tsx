@@ -52,7 +52,7 @@ export default function CreateOrder() {
 
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
-      navigate('/orders');
+      navigate('/app/orders');
     } catch (submitError) {
       if (submitError instanceof ApiError) {
         setFieldErrors(toFieldErrorMap(submitError));

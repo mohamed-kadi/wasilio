@@ -7,3 +7,36 @@
     @apply bg-gray-50 text-gray-900;
   }
 }
+
+@media print {
+  body {
+    background: white;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .receipt-document,
+  .receipt-document * {
+    visibility: visible;
+  }
+
+  .receipt-shell {
+    border: 0 !important;
+    padding: 0 !important;
+  }
+
+  .receipt-actions {
+    display: none !important;
+  }
+
+  .receipt-document {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    max-width: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+}

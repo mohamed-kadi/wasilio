@@ -62,6 +62,19 @@ public class AbuseProtectionService {
         return consume(onboardingIpKey(remoteIp), properties.getOnboarding(), "onboarding-ip");
     }
 
+    public RateLimitDecision recordPasswordResetAttempt(String email, String remoteIp) {
+        if (!properties.isEnabled()) {
+            return RateLimitDecision.allow();
+        }
+
+        RateLimitDecision emailDecision = consume(passwordResetEmailKey(email), properties.getPasswordReset(), "password-reset-email");
+        if (!emailDecision.allowed()) {
+            return emailDecision;
+        }
+
+        return consume(passwordResetIpKey(remoteIp), properties.getPasswordReset(), "password-reset-ip");
+    }
+
     public void clearAll() {
         buckets.clear();
     }
@@ -146,6 +159,14 @@ public class AbuseProtectionService {
 
     private String onboardingIpKey(String remoteIp) {
         return "onboarding:ip:" + normalize(remoteIp);
+    }
+
+    private String passwordResetEmailKey(String email) {
+        return "password-reset:email:" + normalize(email);
+    }
+
+    private String passwordResetIpKey(String remoteIp) {
+        return "password-reset:ip:" + normalize(remoteIp);
     }
 
     private String normalize(String value) {

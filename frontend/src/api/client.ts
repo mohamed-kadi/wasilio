@@ -1,4 +1,4 @@
-import { useAuthStore } from '../store/authStore';
+import { useAuthStore, type BlockedTenantStatus } from '../store/authStore';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
 
@@ -14,6 +14,7 @@ export interface ProblemResponse {
   detail?: string;
   error?: string;
   timestamp?: string;
+  tenantStatus?: string;
   fieldErrors?: FieldError[];
 }
 
@@ -22,6 +23,7 @@ export class ApiError extends Error {
   readonly title: string;
   readonly detail: string;
   readonly fieldErrors: FieldError[];
+  readonly tenantStatus?: string;
 
   constructor(status: number, problem: ProblemResponse) {
     const title = problem.title ?? 'Request failed';
@@ -32,6 +34,7 @@ export class ApiError extends Error {
     this.title = title;
     this.detail = detail;
     this.fieldErrors = problem.fieldErrors ?? [];
+    this.tenantStatus = problem.tenantStatus;
   }
 }
 
@@ -286,6 +289,127 @@ export interface TenantOnboardingResponse {
   adminRole: string;
 }
 
+export type TenantStatus = 'ACTIVE' | 'TRIALING' | 'OVERDUE' | 'SUSPENDED' | 'DISABLED';
+
+export type SubscriptionStatus = 'TRIALING' | 'ACTIVE' | 'OVERDUE' | 'SUSPENDED' | 'CANCELED';
+
+export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CHECK' | 'OTHER';
+
+export interface SubscriptionPlan {
+  planId: string;
+  code: string;
+  name: string;
+  monthlyPrice: number;
+  currency: string;
+  orderLimit?: number;
+  userLimit?: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantSubscription {
+  subscriptionId: string;
+  tenantId: string;
+  planId: string;
+  status: SubscriptionStatus;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  trialEndsAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TenantPayment {
+  paymentId: string;
+  tenantId: string;
+  subscriptionId?: string;
+  receiptNumber: string;
+  method: PaymentMethod;
+  amount: number;
+  currency: string;
+  paidAt: string;
+  periodStart?: string;
+  periodEnd?: string;
+  collectedBy: string;
+  notes?: string;
+  createdAt: string;
+}
+
+export interface TenantPaymentReceipt extends TenantPayment {
+  tenantName: string;
+  tenantStatus: TenantStatus;
+  subscriptionStatus?: SubscriptionStatus;
+  plan?: SubscriptionPlan;
+}
+
+export interface AdminTenantSummary {
+  tenantId: string;
+  name: string;
+  status: TenantStatus;
+  createdAt: string;
+  updatedAt: string;
+  usersCount: number;
+  ordersCount: number;
+  subscription?: TenantSubscription;
+  plan?: SubscriptionPlan;
+}
+
+export interface AdminTenantDetail extends AdminTenantSummary {
+  payments: TenantPayment[];
+}
+
+export interface CreateSubscriptionPlanPayload {
+  code: string;
+  name: string;
+  monthlyPrice: number;
+  currency: string;
+  orderLimit?: number;
+  userLimit?: number;
+}
+
+export interface UpsertTenantSubscriptionPayload {
+  planId: string;
+  status: SubscriptionStatus;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  trialEndsAt?: string;
+}
+
+export interface RecordTenantPaymentPayload {
+  method: PaymentMethod;
+  amount: number;
+  currency: string;
+  paidAt?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  notes?: string;
+}
+
+export interface MarketingLeadPayload {
+  contactName: string;
+  storeName: string;
+  phone: string;
+  email?: string;
+  city?: string;
+  monthlyOrderVolume?: string;
+  message?: string;
+  campaignSource?: string;
+}
+
+export interface MarketingLead {
+  leadId: string;
+  contactName: string;
+  storeName: string;
+  phone: string;
+  email?: string;
+  city?: string;
+  monthlyOrderVolume?: string;
+  message?: string;
+  campaignSource?: string;
+  createdAt: string;
+}
+
 interface RequestOptions extends RequestInit {
   auth?: boolean;
 }
@@ -298,12 +422,90 @@ export async function login(email: string, password: string): Promise<LoginRespo
   });
 }
 
+export async function requestPasswordReset(email: string): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>('/auth/password-reset/request', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function confirmPasswordReset(token: string, newPassword: string): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>('/auth/password-reset/confirm', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify({ token, newPassword }),
+  });
+}
+
 export async function onboardTenant(data: TenantOnboardingPayload): Promise<TenantOnboardingResponse> {
   return apiRequest<TenantOnboardingResponse>('/onboarding/tenants', {
     method: 'POST',
     auth: false,
     body: JSON.stringify(data),
   });
+}
+
+export async function captureMarketingLead(data: MarketingLeadPayload): Promise<MarketingLead> {
+  return apiRequest<MarketingLead>('/marketing/leads', {
+    method: 'POST',
+    auth: false,
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchMarketingLeads(): Promise<MarketingLead[]> {
+  return apiRequest<MarketingLead[]>('/marketing/leads');
+}
+
+export async function fetchAdminTenants(): Promise<AdminTenantSummary[]> {
+  return apiRequest<AdminTenantSummary[]>('/admin/tenants');
+}
+
+export async function fetchAdminTenant(tenantId: string): Promise<AdminTenantDetail> {
+  return apiRequest<AdminTenantDetail>(`/admin/tenants/${tenantId}`);
+}
+
+export async function updateAdminTenantStatus(tenantId: string, status: TenantStatus): Promise<AdminTenantDetail> {
+  return apiRequest<AdminTenantDetail>(`/admin/tenants/${tenantId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function fetchSubscriptionPlans(): Promise<SubscriptionPlan[]> {
+  return apiRequest<SubscriptionPlan[]>('/admin/plans');
+}
+
+export async function createSubscriptionPlan(payload: CreateSubscriptionPlanPayload): Promise<SubscriptionPlan> {
+  return apiRequest<SubscriptionPlan>('/admin/plans', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function upsertTenantSubscription(
+  tenantId: string,
+  payload: UpsertTenantSubscriptionPayload,
+): Promise<AdminTenantDetail> {
+  return apiRequest<AdminTenantDetail>(`/admin/tenants/${tenantId}/subscription`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function recordTenantPayment(
+  tenantId: string,
+  payload: RecordTenantPaymentPayload,
+): Promise<TenantPayment> {
+  return apiRequest<TenantPayment>(`/admin/tenants/${tenantId}/payments`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchTenantPaymentReceipt(tenantId: string, paymentId: string): Promise<TenantPaymentReceipt> {
+  return apiRequest<TenantPaymentReceipt>(`/admin/tenants/${tenantId}/payments/${paymentId}/receipt`);
 }
 
 export async function fetchOrders(query: OrdersQuery = {}): Promise<OrdersPageResponse> {
@@ -604,7 +806,11 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
   }
 
   if (!response.ok) {
-    throw await toApiError(response);
+    const error = await toApiError(response);
+    if (isBlockedTenantError(error)) {
+      useAuthStore.getState().setTenantBlocked(error.tenantStatus as BlockedTenantStatus);
+    }
+    throw error;
   }
 
   if (response.status === 204) {
@@ -613,6 +819,12 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
 
   const text = await response.text();
   return text ? (JSON.parse(text) as T) : (undefined as T);
+}
+
+function isBlockedTenantError(error: ApiError): boolean {
+  return error.status === 403
+    && error.title === 'Tenant account blocked'
+    && ['OVERDUE', 'SUSPENDED', 'DISABLED'].includes(error.tenantStatus ?? '');
 }
 
 async function toApiError(response: Response): Promise<ApiError> {

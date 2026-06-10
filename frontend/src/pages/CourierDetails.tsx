@@ -50,7 +50,7 @@ export default function CourierDetails() {
   if (error || !courier) {
     return (
       <div className="space-y-4">
-        <Link to="/couriers" className="text-sm text-blue-600 hover:underline">
+        <Link to="/app/couriers" className="text-sm text-blue-600 hover:underline">
           &larr; Back to Couriers
         </Link>
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -63,7 +63,7 @@ export default function CourierDetails() {
   return (
     <div className="max-w-3xl space-y-6">
       <div>
-        <Link to="/couriers" className="text-sm text-blue-600 hover:underline">
+        <Link to="/app/couriers" className="text-sm text-blue-600 hover:underline">
           &larr; Back to Couriers
         </Link>
         <h2 className="mt-2 text-2xl font-bold text-gray-900">{courier.name}</h2>
