@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-Nexora serves multiple merchants. Tenant data must not leak across accounts, but the MVP does not yet need physically separate databases per tenant.
+Wasilio serves multiple merchants. Tenant data must not leak across accounts, but the MVP does not yet need physically separate databases per tenant.
 
 ## Decision
 

@@ -1,6 +1,6 @@
 # Product Vision
 
-Nexora is a COD operations platform for Moroccan e-commerce merchants. It replaces informal WhatsApp threads, spreadsheets, and manual status tracking with a deterministic SaaS workflow.
+Wasilio is a COD operations platform for Moroccan e-commerce merchants. It replaces informal WhatsApp threads, spreadsheets, and manual status tracking with a deterministic SaaS workflow.
 
 ## Target Users
 
@@ -23,7 +23,7 @@ This creates duplicate work, missed callbacks, poor auditability, and unclear re
 
 ## Product Direction
 
-Nexora should become the operational source of truth for COD merchants:
+Wasilio should become the operational source of truth for COD merchants:
 
 - deterministic order lifecycle
 - tenant-scoped merchant workspaces

@@ -1,6 +1,6 @@
 # Launch Readiness Pivot
 
-This document captures the temporary product pivot from pure operations workflow completion into commercial launch readiness. The goal is to make Nexora usable for controlled merchant pilots and eventually public acquisition without losing the original COD operations roadmap.
+This document captures the temporary product pivot from pure operations workflow completion into commercial launch readiness. The goal is to make Wasilio usable for controlled merchant pilots and eventually public acquisition without losing the original COD operations roadmap.
 
 ## Decision
 

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Establish Nexora as a deterministic, tenant-aware COD operations platform with a backend, database schema, event-sourced order lifecycle, and frontend dashboard foundation.
+Establish Wasilio as a deterministic, tenant-aware COD operations platform with a backend, database schema, event-sourced order lifecycle, and frontend dashboard foundation.
 
 ## Major Changes
 

@@ -1,6 +1,6 @@
 # Order Lifecycle
 
-Nexora enforces deterministic order transitions through `OrderLifecycleService`. Invalid transitions are rejected.
+Wasilio enforces deterministic order transitions through `OrderLifecycleService`. Invalid transitions are rejected.
 
 ## States
 

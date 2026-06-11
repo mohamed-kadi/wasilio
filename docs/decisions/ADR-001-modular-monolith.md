@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-Nexora is an early-stage SaaS with several related workflows: tenant identity, order lifecycle, confirmation operations, projections, and future courier operations. The team needs fast iteration while preserving clear boundaries for future extraction.
+Wasilio is an early-stage SaaS with several related workflows: tenant identity, order lifecycle, confirmation operations, projections, and future courier operations. The team needs fast iteration while preserving clear boundaries for future extraction.
 
 ## Decision
 

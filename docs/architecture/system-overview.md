@@ -1,6 +1,6 @@
 # System Overview
 
-Nexora is a multi-tenant COD operations platform for Moroccan e-commerce merchants. The current implementation is a modular monolith with a Spring Boot backend, PostgreSQL persistence, and a Vite React frontend.
+Wasilio is a multi-tenant COD operations platform for Moroccan e-commerce merchants. The current implementation is a modular monolith with a Spring Boot backend, PostgreSQL persistence, and a Vite React frontend.
 
 ## Runtime Shape
 

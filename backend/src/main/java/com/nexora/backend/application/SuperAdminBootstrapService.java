@@ -49,7 +49,7 @@ public class SuperAdminBootstrapService {
         User superAdmin = new User(
                 UUID.randomUUID(),
                 normalizedEmail,
-                "Nexora Super Admin",
+                "Wasilio Super Admin",
                 passwordEncoder.encode(password),
                 Role.SUPER_ADMIN,
                 savedTenant.getId()
@@ -70,7 +70,7 @@ public class SuperAdminBootstrapService {
     private String normalizeTenantName(String tenantName) {
         String normalized = tenantName == null ? "" : tenantName.trim().replaceAll("\\s+", " ");
         if (normalized.isBlank()) {
-            return "Nexora Internal";
+            return "Wasilio Internal";
         }
         return normalized;
     }

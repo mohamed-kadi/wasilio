@@ -64,7 +64,7 @@ The local development seed remains limited to `docker-compose.override.yml` thro
 
 ## Public Site And Trial Lead Capture
 
-The public landing page is served at `/`. Authenticated merchant workflows live under `/app`, while Nexora staff operations live under `/admin/billing`.
+The public landing page is served at `/`. Authenticated merchant workflows live under `/app`, while Wasilio staff operations live under `/admin/billing`.
 
 Production frontend builds require public build-time values:
 
@@ -187,7 +187,7 @@ Run logical backups from a trusted deployment host after the production Compose 
 ```bash
 POSTGRES_USER="<production-user>" \
 POSTGRES_DB="nexora" \
-BACKUP_DIR="/var/backups/nexora" \
+BACKUP_DIR="/var/backups/wasilio" \
 BACKUP_RETENTION_DAYS="14" \
 ./scripts/backup-postgres.sh
 ```
@@ -197,7 +197,7 @@ The script writes `BACKUP_DIR/BACKUP_PREFIX-YYYYMMDDTHHMMSSZ.dump` using Postgre
 Store backup artifacts outside the application host with encryption at rest. For early-stage production, take at least daily full logical backups and keep enough history to recover from accidental data corruption discovered after a delay. A simple daily cron entry on the deployment host is acceptable for the first pilots:
 
 ```cron
-17 2 * * * cd /srv/nexora && POSTGRES_USER=postgres POSTGRES_DB=nexora BACKUP_DIR=/var/backups/nexora BACKUP_RETENTION_DAYS=14 ./scripts/backup-postgres.sh >> /var/log/nexora-backup.log 2>&1
+17 2 * * * cd /srv/wasilio && POSTGRES_USER=postgres POSTGRES_DB=nexora BACKUP_DIR=/var/backups/wasilio BACKUP_RETENTION_DAYS=14 ./scripts/backup-postgres.sh >> /var/log/wasilio-backup.log 2>&1
 ```
 
 After each successful run, sync the new `.dump` artifact to encrypted off-host storage and record the artifact name in the deployment log.
@@ -209,7 +209,7 @@ Restore into a fresh database or isolated environment first, then promote after 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres \
   pg_restore -U "$POSTGRES_USER" -d "${POSTGRES_DB:-nexora}" --clean --if-exists \
-  < backups/nexora-YYYYMMDDHHMMSS.dump
+  < backups/wasilio-YYYYMMDDTHHMMSSZ.dump
 ```
 
 After restore, run the backend with Flyway enabled and Hibernate set to `validate`. Verify `/actuator/health/readiness`, login, order list, and event timelines before accepting traffic.

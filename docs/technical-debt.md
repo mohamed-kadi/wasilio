@@ -68,7 +68,7 @@ Target: expand Playwright coverage for live login, signup, order creation, confi
 
 Current state: internal courier assignment, pickup, delivery outcomes, failure reasons, and basic courier metrics exist. External integrations are not implemented.
 
-Risk: merchant teams still need manual coordination outside Nexora for real courier networks, tracking updates, and webhook reconciliation.
+Risk: merchant teams still need manual coordination outside Wasilio for real courier networks, tracking updates, and webhook reconciliation.
 
 Target: courier integration abstraction, webhook ingestion, external tracking sync, and delivery failure reason analytics.
 

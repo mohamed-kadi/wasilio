@@ -48,8 +48,8 @@ management:
 app:
   email:
     mode: ${APP_EMAIL_MODE:log}
-    from: ${APP_EMAIL_FROM:Nexora <no-reply@nexora.local>}
-    support-contact: ${APP_SUPPORT_CONTACT:support@nexora.local}
+    from: ${APP_EMAIL_FROM:Wasilio <no-reply@wasilio.local>}
+    support-contact: ${APP_SUPPORT_CONTACT:support@wasilio.local}
   frontend:
     base-url: ${APP_FRONTEND_BASE_URL:http://localhost}
   onboarding:
@@ -61,7 +61,7 @@ app:
       enabled: ${APP_SUPER_ADMIN_BOOTSTRAP_ENABLED:false}
       email: ${APP_SUPER_ADMIN_EMAIL:}
       password: ${APP_SUPER_ADMIN_PASSWORD:}
-      tenant-name: ${APP_SUPER_ADMIN_TENANT_NAME:Nexora Internal}
+      tenant-name: ${APP_SUPER_ADMIN_TENANT_NAME:Wasilio Internal}
   security:
     throttling:
       enabled: ${APP_SECURITY_THROTTLING_ENABLED:true}

@@ -1,10 +1,10 @@
-# Nexora - COD E-Commerce Operations SaaS
+# Wasilio - COD E-Commerce Operations SaaS
 
-Nexora is a multi-tenant operational platform designed for COD (Cash-on-Delivery) e-commerce merchants in Morocco. It replaces manual WhatsApp and Excel tracking with a deterministic, event-driven SaaS system.
+Wasilio is a multi-tenant operational platform designed for COD (Cash-on-Delivery) e-commerce merchants in Morocco. It replaces manual WhatsApp and Excel tracking with a deterministic, event-driven SaaS system.
 
 ## Architecture
 
-Nexora is built as a **Modular Monolith** using **Domain-Driven Design (DDD)** and an **Event-Driven Architecture**.
+Wasilio is built as a **Modular Monolith** using **Domain-Driven Design (DDD)** and an **Event-Driven Architecture**.
 
 - **Domain Layer:** Contains business rules, entities (`Tenant`, `User`, `Order`), value objects (`Address`, `Customer`), and immutable domain events.
 - **Application Layer:** Orchestrates use cases (e.g., `OrderLifecycleService`), appending events and acting as the boundary for transactions.
@@ -111,7 +111,7 @@ You can log in to the system with the following credentials:
 - **Email:** `admin@example.com`
 - **Password:** `password`
 
-The local seed also creates a Nexora staff account for the admin billing workspace:
+The local seed also creates a Wasilio staff account for the admin billing workspace:
 - **Email:** `superadmin@example.com`
 - **Password:** `password`
 
@@ -163,7 +163,7 @@ In production, set `APP_EMAIL_MODE=smtp` and provide SMTP settings:
 
 ```dotenv
 APP_EMAIL_MODE=smtp
-APP_EMAIL_FROM=Nexora <no-reply@example.com>
+APP_EMAIL_FROM=Wasilio <no-reply@example.com>
 APP_SUPPORT_CONTACT=support@example.com
 APP_FRONTEND_BASE_URL=https://app.example.com
 SMTP_HOST=smtp.example.com
@@ -209,7 +209,7 @@ This is intentionally manual-first for Moroccan pilot operations. Online payment
 **Production Compose:**
 Use the production override and provide `JWT_SECRET`, database credentials, CORS origins, and the onboarding toggle from deployment secrets/configuration. This configuration runs only Flyway migrations (`db/migration`) and excludes the development seed (`db/seed`).
 
-For the first production deployment, create the initial Nexora staff account with the explicit super-admin bootstrap variables. The bootstrap is one-time: if a `SUPER_ADMIN` already exists, startup leaves existing credentials unchanged.
+For the first production deployment, create the initial Wasilio staff account with the explicit super-admin bootstrap variables. The bootstrap is one-time: if a `SUPER_ADMIN` already exists, startup leaves existing credentials unchanged.
 
 ```bash
 POSTGRES_USER="<production-user>" \
@@ -222,7 +222,7 @@ VITE_PUBLIC_SUPPORT_EMAIL="support@example.com" \
 VITE_PUBLIC_WHATSAPP_URL="https://wa.me/212600000000" \
 VITE_PUBLIC_META_PIXEL_ID="" \
 APP_EMAIL_MODE="smtp" \
-APP_EMAIL_FROM="Nexora <no-reply@example.com>" \
+APP_EMAIL_FROM="Wasilio <no-reply@example.com>" \
 APP_SUPPORT_CONTACT="support@example.com" \
 SMTP_HOST="smtp.example.com" \
 SMTP_PORT="587" \
@@ -234,7 +234,7 @@ APP_ONBOARDING_ENABLED="false" \
 APP_SUPER_ADMIN_BOOTSTRAP_ENABLED="true" \
 APP_SUPER_ADMIN_EMAIL="owner@example.com" \
 APP_SUPER_ADMIN_PASSWORD="<strong-password-with-upper-lower-number-symbol>" \
-APP_SUPER_ADMIN_TENANT_NAME="Nexora Internal" \
+APP_SUPER_ADMIN_TENANT_NAME="Wasilio Internal" \
 docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 ```
 
@@ -249,7 +249,7 @@ Use the backup helper from the deployment host after the production Compose stac
 ```bash
 POSTGRES_USER="<production-user>" \
 POSTGRES_DB="nexora" \
-BACKUP_DIR="/var/backups/nexora" \
+BACKUP_DIR="/var/backups/wasilio" \
 BACKUP_RETENTION_DAYS="14" \
 ./scripts/backup-postgres.sh
 ```

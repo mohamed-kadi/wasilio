@@ -54,7 +54,7 @@ class MarketingLeadIntegrationTest {
 
         transactionTemplate.executeWithoutResult(status -> {
             cleanDatabase();
-            entityManager.persist(new Tenant(internalTenantId, "Nexora Internal"));
+            entityManager.persist(new Tenant(internalTenantId, "Wasilio Internal"));
             entityManager.persist(new User(
                     UUID.randomUUID(),
                     "superadmin@example.com",

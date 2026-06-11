@@ -1,6 +1,6 @@
 # DDD Boundaries
 
-Nexora currently uses a modular monolith rather than separate deployable services. Bounded contexts are expressed through packages, services, repositories, and database ownership rules.
+Wasilio currently uses a modular monolith rather than separate deployable services. Bounded contexts are expressed through packages, services, repositories, and database ownership rules.
 
 ## Current Contexts
 
@@ -82,7 +82,7 @@ Primary code:
 
 ### Admin Billing
 
-Owns Nexora-side tenant administration, launch-readiness subscription status, manual payment records, and receipt records. These records are operational/commercial data and do not affect order lifecycle truth.
+Owns Wasilio-side tenant administration, launch-readiness subscription status, manual payment records, and receipt records. These records are operational/commercial data and do not affect order lifecycle truth.
 
 Primary code:
 

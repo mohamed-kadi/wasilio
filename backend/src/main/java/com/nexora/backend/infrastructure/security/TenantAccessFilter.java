@@ -85,7 +85,7 @@ public class TenantAccessFilter extends OncePerRequestFilter {
     private void writeBlockedTenantProblem(HttpServletResponse response, TenantStatus status) throws IOException {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.FORBIDDEN,
-                "This tenant account is " + status.name().toLowerCase() + ". Please contact Nexora support or settle the outstanding payment."
+                "This tenant account is " + status.name().toLowerCase() + ". Please contact Wasilio support or settle the outstanding payment."
         );
         problem.setTitle("Tenant account blocked");
         problem.setProperty("error", HttpStatus.FORBIDDEN.getReasonPhrase());

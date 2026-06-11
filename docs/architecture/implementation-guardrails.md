@@ -4,7 +4,7 @@ This document is the architecture checklist for hardening existing workflows and
 
 ## Architectural Shape
 
-Nexora is a modular monolith:
+Wasilio is a modular monolith:
 
 - Spring Boot backend owns business workflows and persistence.
 - PostgreSQL stores tenants, users, domain events, projections, and operational records.
@@ -133,7 +133,7 @@ Recommended shape for Risk Scoring v1:
 - Never let a score silently mutate lifecycle state.
 - If a score should block dispatch, expose that as an explicit workflow decision that an operator can accept or override with audit trail.
 
-This lets Nexora become intelligent without corrupting the event-sourced order lifecycle.
+This lets Wasilio become intelligent without corrupting the event-sourced order lifecycle.
 
 ## When To Add A New Module
 

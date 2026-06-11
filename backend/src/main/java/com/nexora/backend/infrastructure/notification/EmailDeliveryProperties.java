@@ -11,8 +11,8 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "app.email")
 public class EmailDeliveryProperties {
     private Mode mode = Mode.LOG;
-    private String from = "Nexora <no-reply@nexora.local>";
-    private String supportContact = "support@nexora.local";
+    private String from = "Wasilio <no-reply@wasilio.local>";
+    private String supportContact = "support@wasilio.local";
 
     public enum Mode {
         LOG,

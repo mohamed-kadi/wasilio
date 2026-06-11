@@ -26,7 +26,7 @@ public class SuperAdminBootstrapRunner implements ApplicationRunner {
     @Value("${app.super-admin.bootstrap.password:}")
     private String password;
 
-    @Value("${app.super-admin.bootstrap.tenant-name:Nexora Internal}")
+    @Value("${app.super-admin.bootstrap.tenant-name:Wasilio Internal}")
     private String tenantName;
 
     @Override

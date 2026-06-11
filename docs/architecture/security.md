@@ -1,6 +1,6 @@
 # Security
 
-Nexora uses JWT authentication, role-based authorization, tenant-scoped principals, explicit CORS configuration, and basic abuse protection.
+Wasilio uses JWT authentication, role-based authorization, tenant-scoped principals, explicit CORS configuration, and basic abuse protection.
 
 ## Authentication
 

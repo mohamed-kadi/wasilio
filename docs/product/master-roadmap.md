@@ -1,6 +1,6 @@
 # Master Roadmap
 
-This roadmap documents Nexora from the initial foundation through the planned production and SaaS phases. Future engineers should use it to understand what has already been implemented, how the system evolved, what remains, and which documents provide deeper technical context.
+This roadmap documents Wasilio from the initial foundation through the planned production and SaaS phases. Future engineers should use it to understand what has already been implemented, how the system evolved, what remains, and which documents provide deeper technical context.
 
 ## How To Use This Roadmap
 
@@ -25,7 +25,7 @@ Primary supporting documents:
 
 ### Phase 1: Foundation
 
-Goal: establish Nexora as a deterministic multi-tenant operational platform rather than a CRUD prototype.
+Goal: establish Wasilio as a deterministic multi-tenant operational platform rather than a CRUD prototype.
 
 Implemented:
 
@@ -165,7 +165,7 @@ How it was built:
 
 ## Current State
 
-Nexora is no longer a prototype or MVP skeleton. The platform now has the core operational shape of a production order management system for COD and delivery operations.
+Wasilio is no longer a prototype or MVP skeleton. The platform now has the core operational shape of a production order management system for COD and delivery operations.
 
 Completed capabilities include:
 
@@ -211,11 +211,11 @@ Original operations-completion recommendation:
 
 After those batches, pause feature work and perform a full architecture audit before continuing into monetization, integrations, or enterprise hardening.
 
-Reason: at that point Nexora should be usable by a real small-to-medium delivery operation. Work after that is primarily scale, commercial packaging, reliability, and enterprise hardening.
+Reason: at that point Wasilio should be usable by a real small-to-medium delivery operation. Work after that is primarily scale, commercial packaging, reliability, and enterprise hardening.
 
 Launch-readiness pivot recommendation:
 
-If the immediate goal is to publish, pilot, or sell Nexora, temporarily follow `docs/product/launch-readiness-pivot.md` before returning to the operations-completion sequence. The launch path prioritizes internal admin, subscription status, manual Moroccan payment tracking, receipts, public landing/lead capture, SEO, and production trust hardening.
+If the immediate goal is to publish, pilot, or sell Wasilio, temporarily follow `docs/product/launch-readiness-pivot.md` before returning to the operations-completion sequence. The launch path prioritizes internal admin, subscription status, manual Moroccan payment tracking, receipts, public landing/lead capture, SEO, and production trust hardening.
 
 ## Phase 2: Operations Completion
 
@@ -371,7 +371,7 @@ Frontend scope:
 
 ### Batch 3: Audit Center
 
-Nexora already has domain events and operational records. This batch exposes that history for administrative review.
+Wasilio already has domain events and operational records. This batch exposes that history for administrative review.
 
 Backend scope:
 

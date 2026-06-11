@@ -1,6 +1,6 @@
 # Event Sourcing
 
-Nexora uses event sourcing for order lifecycle state. The `domain_events` table is the authoritative write-side record of order state changes.
+Wasilio uses event sourcing for order lifecycle state. The `domain_events` table is the authoritative write-side record of order state changes.
 
 ## Event Append Flow
 

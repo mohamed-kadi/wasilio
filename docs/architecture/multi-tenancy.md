@@ -1,6 +1,6 @@
 # Multi-Tenancy
 
-Nexora uses row-level tenant isolation in a single PostgreSQL database. Tenant identity is explicit in domain entities, domain events, projections, and operational records.
+Wasilio uses row-level tenant isolation in a single PostgreSQL database. Tenant identity is explicit in domain entities, domain events, projections, and operational records.
 
 ## Tenant Identity
 

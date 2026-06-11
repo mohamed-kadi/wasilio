@@ -1,5 +1,5 @@
 INSERT INTO tenants (id, name, status)
-VALUES ('00000000-0000-0000-0000-000000000099', 'Nexora Internal', 'ACTIVE')
+VALUES ('00000000-0000-0000-0000-000000000099', 'Wasilio Internal', 'ACTIVE')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO users (id, email, password_hash, role, tenant_id)

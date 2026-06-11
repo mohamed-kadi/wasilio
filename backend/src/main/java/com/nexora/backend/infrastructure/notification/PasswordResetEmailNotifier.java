@@ -32,7 +32,7 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(properties.getFrom());
         message.setTo(email);
-        message.setSubject("Reset your Nexora password");
+        message.setSubject("Reset your Wasilio password");
         message.setText(buildBody(resetUrl, expiresAt));
         mailSender.send(message);
 
@@ -43,7 +43,7 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
         return """
                 Hello,
 
-                We received a request to reset your Nexora password.
+                We received a request to reset your Wasilio password.
 
                 Open this link to choose a new password:
                 %s
@@ -52,7 +52,7 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
 
                 If you did not request this, ignore this email or contact %s.
 
-                Nexora
+                Wasilio
                 """.formatted(resetUrl, expiresAt, properties.getSupportContact());
     }
 }

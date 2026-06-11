@@ -23,9 +23,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @TestPropertySource(properties = {
         "app.super-admin.bootstrap.enabled=true",
-        "app.super-admin.bootstrap.email=Owner@Nexora.test",
+        "app.super-admin.bootstrap.email=Owner@Wasilio.test",
         "app.super-admin.bootstrap.password=Str0ng!BootstrapPassword",
-        "app.super-admin.bootstrap.tenant-name=Nexora Internal Test"
+        "app.super-admin.bootstrap.tenant-name=Wasilio Internal Test"
 })
 class SuperAdminBootstrapIntegrationTest {
 
@@ -45,7 +45,7 @@ class SuperAdminBootstrapIntegrationTest {
         MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new AuthController.LoginRequest(
-                        "owner@nexora.test",
+                        "owner@wasilio.test",
                         "Str0ng!BootstrapPassword"
                 ))))
                 .andExpect(status().isOk())
