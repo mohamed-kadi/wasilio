@@ -1,85 +1,79 @@
-# Wasilio - COD E-Commerce Operations SaaS
+# Wasilio
 
-Wasilio is a multi-tenant operational platform designed for COD (Cash-on-Delivery) e-commerce merchants in Morocco. It replaces manual WhatsApp and Excel tracking with a deterministic, event-driven SaaS system.
+Wasilio is a multi-tenant COD operations platform for Moroccan e-commerce merchants. It helps teams manage order confirmation, callbacks, courier workflows, delivery outcomes, manual payments, receipts, and pilot lead follow-up.
 
-## Architecture
+## Start Here
 
-Wasilio is built as a **Modular Monolith** using **Domain-Driven Design (DDD)** and an **Event-Driven Architecture**.
+For most local testing, use **Docker Compose**. It runs PostgreSQL, the Spring Boot backend, and the Vite-built frontend together.
 
-- **Domain Layer:** Contains business rules, entities (`Tenant`, `User`, `Order`), value objects (`Address`, `Customer`), and immutable domain events.
-- **Application Layer:** Orchestrates use cases (e.g., `OrderLifecycleService`), appending events and acting as the boundary for transactions.
-- **Infrastructure Layer:** Handles PostgreSQL persistence, JWT security, and publishing events via Spring ApplicationEventPublisher.
-- **API Layer:** Exposes thin REST controllers for external integrations and the frontend dashboard.
+You need Docker Desktop running before Docker commands will work on macOS or Windows. On Linux, the Docker daemon must be running.
 
-## Domain Model & Event Sourcing Strategy
+Prerequisites:
 
-The source of truth for the system is the **Domain Events**. No state change occurs without an event being appended to the `domain_events` table. 
-
-### Event Projection Strategy
-The `orders` table acts strictly as a **read model / projection**. When a domain event is appended (e.g., `OrderCreated`, `OrderConfirmed`), a projection listener catches it and updates the `orders` read model, providing optimized query performance without sacrificing the audit log.
-
-### Multi-Tenancy
-Strict tenant data isolation is enforced. Every domain entity and event requires a `tenantId`. All queries filter by this ID to ensure data security.
-
-## Documentation
-
-The full engineering documentation set starts at [docs/phases/documentation-index.md](docs/phases/documentation-index.md).
-
-- [System overview](docs/architecture/system-overview.md)
-- [DDD boundaries](docs/architecture/ddd-boundaries.md)
-- [Event sourcing](docs/architecture/event-sourcing.md)
-- [Multi-tenancy](docs/architecture/multi-tenancy.md)
-- [Security](docs/architecture/security.md)
-- [Frontend architecture](docs/architecture/frontend-architecture.md)
-- [Product vision](docs/product/vision.md)
-- [Master roadmap](docs/product/master-roadmap.md)
-- [Roadmap](docs/product/roadmap.md)
-- [Order lifecycle](docs/product/order-lifecycle.md)
-- [Confirmation workflow](docs/product/confirmation-workflow.md)
-- [Callback workflow](docs/product/callback-workflow.md)
-- [Architecture decision records](docs/decisions/ADR-001-modular-monolith.md)
-- [Phase history](docs/phases/documentation-index.md)
-- [Audit archive](docs/audits/audit-003-current-readiness.md)
-- [Technical debt register](docs/technical-debt.md)
-- [Operations runbook](docs/operations.md)
-
-## Order Lifecycle
-
-The system enforces strict determinism. Invalid state transitions throw illegal state exceptions.
-
-**Core Workflow:**
-`CREATED` → `CONFIRMATION_REQUESTED` → `CONFIRMED` or `REJECTED` → `ASSIGNED_TO_COURIER` → `PICKED_UP` → `DELIVERED` or `FAILED`.
-
-## Local Setup
-
-### Prerequisites
-- Docker and Docker Compose
-- Java 17
-- Node.js 20.19+ (Vite 8 requires 20.19+)
-
-### Choose One Local Run Mode
-
-Use **Docker Compose** when you want the full app with PostgreSQL, backend, and frontend in one command. This is the recommended path for testing the product locally.
-
-Use **manual running** when you are actively developing backend or frontend code and want hot reload or direct Maven/Vite logs. In manual mode, run PostgreSQL with Docker, then start the backend and frontend from your terminal.
-
-Do not run the Docker backend and the manual backend at the same time on the same host port. Both default to `8080`.
-
-### Running With Docker Compose
+- Docker Desktop or Docker Engine with Docker Compose v2 (`docker compose`)
+- Java 17, only for manual backend development and `mvn test`
+- Node.js 20.19 or newer, only for manual frontend development and smoke tests
 
 ```bash
 cp .env.example .env
-docker-compose up --build
+docker compose up --build
 ```
 
-Default local URLs:
+Open:
 
-- **Public landing page:** [http://localhost](http://localhost)
-- **Merchant dashboard:** [http://localhost/app](http://localhost/app)
-- **Backend API:** [http://localhost:8080](http://localhost:8080)
-- **PostgreSQL:** `localhost:5432`
+- Public landing page: http://localhost
+- Merchant app: http://localhost/app
+- Staff admin: http://localhost/admin/billing
+- Backend API: http://localhost:8080
+- PostgreSQL: `localhost:5432`
 
-If Docker fails with `bind: address already in use`, another local process is already using one of those host ports. Either stop that process or change the host port in `.env`:
+Local seeded logins:
+
+| Role | Email | Password | Where to go |
+| --- | --- | --- | --- |
+| Merchant | `admin@example.com` | `password` | `/app` |
+| Wasilio staff / super-admin | `superadmin@example.com` | `password` | `/admin/billing` |
+
+Local signup is also enabled in Docker Compose. You can create another merchant tenant at http://localhost/signup.
+
+## Stop, Restart, And Reset
+
+Stop the stack:
+
+```bash
+docker compose down
+```
+
+Restart after code or env changes:
+
+```bash
+docker compose up --build
+```
+
+Reset the local database completely:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+This deletes the local PostgreSQL Docker volume and recreates seed accounts. Do not run `down -v` against production data.
+
+## If Ports Are Busy
+
+The default Docker ports are:
+
+- frontend: `80`
+- backend: `8080`
+- postgres: `5432`
+
+Check what is using a port:
+
+```bash
+lsof -nP -iTCP:8080 -sTCP:LISTEN
+```
+
+Either stop that process or change host ports in `.env`:
 
 ```dotenv
 FRONTEND_PORT=8081
@@ -87,129 +81,200 @@ BACKEND_PORT=8082
 POSTGRES_PORT=5433
 ```
 
-Then restart Compose:
+Then run:
 
 ```bash
-docker-compose up --build
+docker compose up --build
 ```
 
-With the example overrides above, open:
+With those overrides, open:
 
-- **Public landing page:** `http://localhost:8081`
-- **Merchant dashboard:** `http://localhost:8081/app`
-- **Backend API:** `http://localhost:8082`
+- public landing page: http://localhost:8081
+- merchant app: http://localhost:8081/app
+- backend API: http://localhost:8082
 
-To see what is using a port on macOS/Linux:
+## Manual Development Mode
+
+Use this mode when you want backend or frontend hot reload and direct terminal logs. Keep Docker running only for PostgreSQL.
+
+First stop Docker backend/frontend if the full stack is running:
 
 ```bash
-lsof -nP -iTCP:8080 -sTCP:LISTEN
+docker compose stop backend frontend
 ```
 
-**Local Development Bootstrap User:**
-The default Compose stack loads `docker-compose.yml` plus `docker-compose.override.yml`. The override is local-development only and configures Flyway to load the development database seed (`db/seed`).
-You can log in to the system with the following credentials:
-- **Email:** `admin@example.com`
-- **Password:** `password`
-
-The local seed also creates a Wasilio staff account for the admin billing workspace:
-- **Email:** `superadmin@example.com`
-- **Password:** `password`
-
-The local override also enables public tenant onboarding. Use [http://localhost/signup](http://localhost/signup) to create a real tenant and first ADMIN user without relying on the seed account.
-
-The local override sets `SPRING_FLYWAY_OUT_OF_ORDER=true` because the development seed is versioned as `V999`. This lets an existing local database volume accept newer app migrations that were added after the seed had already run. Production compose does not enable this.
-
-### Tenant Onboarding
-
-Tenant onboarding creates the merchant workspace context, tenant row, and first ADMIN user atomically.
-
-```http
-POST /api/onboarding/tenants
-Content-Type: application/json
-
-{
-  "tenantName": "Atlas Shop",
-  "adminName": "Admin User",
-  "adminEmail": "admin@example.com",
-  "password": "Str0ng!Password"
-}
-```
-
-Public onboarding is disabled by default unless `APP_ONBOARDING_ENABLED=true` is configured. Keep the development seed limited to local development; production compose loads only `db/migration` and does not load `db/seed`.
-
-### Abuse Protection
-
-The backend applies basic in-memory throttling to `POST /api/auth/login`, `POST /api/auth/password-reset/request`, and `POST /api/onboarding/tenants`.
-
-- Login throttling tracks failed attempts by normalized email and remote IP.
-- Password reset throttling tracks reset requests by normalized email and remote IP.
-- Onboarding throttling tracks valid onboarding attempts by admin email and remote IP.
-- Throttled requests return `429 Too Many Requests` with `Retry-After`.
-- Security-sensitive login and onboarding outcomes are logged through the `security.audit` logger with correlation ID, email, tenant ID when available, and remote IP.
-
-The in-memory limiter is single-node only. Use Redis or another shared rate-limit store before running multiple backend instances.
-
-### Password Reset Email Delivery
-
-Password reset is available from [http://localhost/forgot-password](http://localhost/forgot-password).
-
-Local Docker uses `APP_EMAIL_MODE=log`, so reset links are printed in backend logs:
+Start PostgreSQL:
 
 ```bash
-docker-compose logs -f backend
+docker compose up postgres -d
 ```
 
-In production, set `APP_EMAIL_MODE=smtp` and provide SMTP settings:
+Start backend:
 
-```dotenv
-APP_EMAIL_MODE=smtp
-APP_EMAIL_FROM=Wasilio <no-reply@example.com>
-APP_SUPPORT_CONTACT=support@example.com
-APP_FRONTEND_BASE_URL=https://app.example.com
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_USERNAME=...
-SMTP_PASSWORD=...
-SMTP_AUTH=true
-SMTP_STARTTLS_ENABLE=true
+```bash
+cd backend
+export JWT_SECRET="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+export SPRING_DATASOURCE_URL="jdbc:postgresql://localhost:5432/nexora"
+export SPRING_DATASOURCE_USERNAME="postgres"
+export SPRING_DATASOURCE_PASSWORD="password"
+export SPRING_FLYWAY_LOCATIONS="classpath:db/migration,classpath:db/seed"
+export SPRING_FLYWAY_OUT_OF_ORDER="true"
+export APP_ONBOARDING_ENABLED="true"
+export APP_SECURITY_THROTTLING_ENABLED="true"
+mvn spring-boot:run
 ```
 
-The reset response is intentionally generic. If an email does not belong to a user, the API still returns success and does not send a link.
+Start frontend in another terminal:
 
-### Public Landing And Lead Capture
+```bash
+cd frontend
+npm install
+npm run dev -- --host 127.0.0.1 --port 5173 --strictPort
+```
 
-The public landing page is available at [http://localhost](http://localhost). Anonymous visitors can request a pilot demo with contact name, store name, phone or WhatsApp number, city, order volume, message, and campaign source.
+Manual local URLs:
 
-Lead capture writes to `marketing_leads` through `POST /api/marketing/leads`. Super-admin users can review captured demo requests from the Leads tab in [http://localhost/admin/billing](http://localhost/admin/billing).
+- Public landing page: http://localhost:5173
+- Merchant app: http://localhost:5173/app
+- Staff admin: http://localhost:5173/admin/billing
+- Backend API: http://localhost:8080
+- PostgreSQL: `localhost:5432`
 
-### COD Confirmation Operations
+Do not run the Docker backend and manual backend at the same time. Both use backend port `8080` by default.
 
-The confirmation queue is available at [http://localhost/app/confirmations](http://localhost/app/confirmations) in the frontend. It lists tenant-scoped orders in `CREATED` or `CONFIRMATION_REQUESTED`, with status, date range, customer name/phone search, and pagination filters.
+## Smoke Tests And Checks
 
-Confirmation attempts are recorded per order with an outcome and note. `CONFIRMED` and `REJECTED` attempts append the matching order lifecycle event and finalize the order into `CONFIRMED` or `REJECTED`. `NO_ANSWER`, `CALL_BACK_LATER`, and `WRONG_NUMBER` keep the order in the queue for follow-up.
+Backend tests:
 
-`CALL_BACK_LATER` requires a future callback time. Scheduled callbacks appear in the follow-up callbacks section with due, overdue, and upcoming views. Recording a final `CONFIRMED` or `REJECTED` attempt closes any pending callbacks for that order.
+```bash
+cd backend
+mvn test
+```
 
-### Admin Billing Operations
+Frontend build and lint:
 
-The admin billing workspace is available at [http://localhost/admin/billing](http://localhost/admin/billing) for users with `SUPER_ADMIN`.
+```bash
+cd frontend
+npm run build
+npm run lint
+```
 
-It supports the first launch-readiness billing workflow:
+Frontend smoke tests:
 
-- View tenants.
-- Set tenant status.
-- Create subscription plans.
-- Assign or update a tenant subscription.
-- Record manual payments such as cash or bank transfer.
-- Generate, review, and print receipt records.
-- Review public demo requests from captured marketing leads.
+```bash
+cd frontend
+npx playwright install chromium
+npm run smoke
+```
 
-This is intentionally manual-first for Moroccan pilot operations. Online payment gateways, PDF rendering, tax accounting, and automated suspension rules are not implemented yet.
+The smoke suite defaults to port `5173`. It starts Vite with `--strictPort` unless a server is already running there. If a stale local server is blocking the port, stop it first:
 
-**Production Compose:**
-Use the production override and provide `JWT_SECRET`, database credentials, CORS origins, and the onboarding toggle from deployment secrets/configuration. This configuration runs only Flyway migrations (`db/migration`) and excludes the development seed (`db/seed`).
+```bash
+lsof -nP -iTCP:5173 -sTCP:LISTEN
+kill <PID>
+```
 
-For the first production deployment, create the initial Wasilio staff account with the explicit super-admin bootstrap variables. The bootstrap is one-time: if a `SUPER_ADMIN` already exists, startup leaves existing credentials unchanged.
+Current smoke coverage verifies:
+
+- French-first landing lead capture with campaign source.
+- Super-admin marketing lead follow-up update.
+- Two tabs in one browser can keep different signed-in users.
+
+## What The Main Screens Do
+
+- `/`: public landing page in French, Arabic, and English.
+- `/signup`: public tenant onboarding in local development.
+- `/login`: login.
+- `/app`: merchant dashboard.
+- `/app/orders`: order list and order search.
+- `/app/confirmations`: confirmation queue and scheduled callbacks.
+- `/app/couriers`: courier management and delivery queues.
+- `/admin/billing`: Wasilio staff workspace for tenants, plans, subscriptions, manual payments, receipts, and marketing lead follow-up.
+
+## Password Reset In Local Docker
+
+Password reset is available at http://localhost/forgot-password.
+
+Local Docker uses `APP_EMAIL_MODE=log`, so reset links appear in backend logs:
+
+```bash
+docker compose logs -f backend
+```
+
+## API Overview
+
+Base URL: `/api`
+
+Public:
+
+- `POST /api/onboarding/tenants` - create a tenant and first admin when onboarding is enabled.
+- `POST /api/marketing/leads` - capture a public pilot/demo request.
+- `POST /api/auth/login` - login.
+- `POST /api/auth/password-reset/request` - request password reset.
+- `POST /api/auth/password-reset/confirm` - confirm password reset.
+
+Merchant:
+
+- `GET /api/orders`
+- `POST /api/orders`
+- `GET /api/orders/{id}`
+- `GET /api/orders/{id}/events`
+- `GET /api/orders/{id}/timeline`
+- `POST /api/orders/{id}/request-confirmation`
+- `POST /api/orders/{id}/confirm`
+- `POST /api/orders/{id}/reject`
+- `POST /api/orders/{id}/assign-courier`
+- `POST /api/orders/{id}/pick-up`
+- `POST /api/orders/{id}/deliver`
+- `POST /api/orders/{id}/fail`
+- `GET /api/confirmations/queue`
+- `GET /api/confirmations/callbacks`
+- `POST /api/orders/{id}/confirmation-attempts`
+- `GET /api/orders/{id}/confirmation-attempts`
+- `POST /api/confirmations/callbacks/{callbackId}/resolve`
+
+Super-admin:
+
+- `GET /api/admin/tenants`
+- `GET /api/admin/tenants/{tenantId}`
+- `PATCH /api/admin/tenants/{tenantId}/status`
+- `GET /api/admin/plans`
+- `POST /api/admin/plans`
+- `POST /api/admin/tenants/{tenantId}/subscription`
+- `POST /api/admin/tenants/{tenantId}/payments`
+- `GET /api/admin/tenants/{tenantId}/payments/{paymentId}/receipt`
+- `GET /api/marketing/leads`
+- `PATCH /api/marketing/leads/{leadId}/follow-up`
+
+Health:
+
+- `GET /actuator/health`
+- `GET /actuator/health/liveness`
+- `GET /actuator/health/readiness`
+
+## Local Vs Production Compose
+
+Local Docker Compose automatically uses `docker-compose.override.yml`. That override:
+
+- uses local database credentials from `.env`
+- loads Flyway migrations and development seed data
+- enables public signup
+- enables local CORS origins
+- logs email instead of sending SMTP
+
+Production must use the production overlay:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+```
+
+Production compose:
+
+- requires database credentials, JWT secret, CORS origins, frontend URL, email settings, and public Vite values
+- runs only `db/migration`
+- excludes `db/seed`, so `admin@example.com` and `superadmin@example.com` are not created
+
+For the first production deployment, create the initial Wasilio staff account with explicit bootstrap variables:
 
 ```bash
 POSTGRES_USER="<production-user>" \
@@ -233,18 +298,33 @@ SMTP_STARTTLS_ENABLE="true" \
 APP_ONBOARDING_ENABLED="false" \
 APP_SUPER_ADMIN_BOOTSTRAP_ENABLED="true" \
 APP_SUPER_ADMIN_EMAIL="owner@example.com" \
-APP_SUPER_ADMIN_PASSWORD="<strong-password-with-upper-lower-number-symbol>" \
+APP_SUPER_ADMIN_PASSWORD="<strong-password>" \
 APP_SUPER_ADMIN_TENANT_NAME="Wasilio Internal" \
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 ```
 
-After the first successful login, set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false` and redeploy. Keep `APP_SUPER_ADMIN_PASSWORD` only in deployment secrets, never in the repository or shell history for shared machines.
+After the first successful staff login, set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false` and redeploy.
 
-Set `APP_ONBOARDING_ENABLED=true` only during a controlled signup window or when the deployment is intentionally self-serve. Set it to `false` after the first tenant is created for closed/private deployments.
+## Production Checklist
 
-### Production Backups
+Before publishing a trial-client campaign:
 
-Use the backup helper from the deployment host after the production Compose stack is running:
+- Register and configure the real domain.
+- Update `VITE_PUBLIC_SITE_URL`.
+- Update `frontend/public/sitemap.xml`.
+- Set real `VITE_PUBLIC_SUPPORT_EMAIL`.
+- Set real `VITE_PUBLIC_WHATSAPP_URL`.
+- Set `VITE_PUBLIC_META_PIXEL_ID` only if Meta Pixel is ready.
+- Set SMTP values and verify password reset.
+- Verify `/terms`, `/privacy`, and `/payment-refund-policy`.
+- Submit a test landing lead with `utm_source=smoke`.
+- Confirm the lead appears in `/admin/billing` and follow-up status can be updated.
+- Run `mvn test`, `npm run build`, `npm run lint`, and `npm run smoke`.
+- Capture a database backup.
+
+## Backups
+
+Run the backup helper from the deployment host after the production Compose stack is running:
 
 ```bash
 POSTGRES_USER="<production-user>" \
@@ -254,97 +334,18 @@ BACKUP_RETENTION_DAYS="14" \
 ./scripts/backup-postgres.sh
 ```
 
-The script creates a timestamped custom-format PostgreSQL dump and verifies the backup catalog with `pg_restore --list`. Store successful backup artifacts outside the application host with encryption at rest.
+The database name is still `nexora` internally. That is a technical identifier and does not affect public Wasilio branding.
 
-### Running Manually For Development
+## Documentation
 
-1. **Start Database:**
-```bash
-docker-compose up postgres -d
-```
+Detailed documentation starts at [docs/phases/documentation-index.md](docs/phases/documentation-index.md).
 
-2. **Run Backend:**
-```bash
-cd backend
-export JWT_SECRET="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
-export SPRING_FLYWAY_LOCATIONS="classpath:db/migration,classpath:db/seed"
-export APP_ONBOARDING_ENABLED="true"
-export APP_SECURITY_THROTTLING_ENABLED="true"
-mvn spring-boot:run
-```
+Useful references:
 
-3. **Run Frontend:**
-```bash
-cd frontend
-nvm use 20.19.0 || nvm install 20.19.0
-npm ci
-npm run dev
-```
-
-Manual local URLs:
-
-- **Public landing page:** [http://localhost:5173](http://localhost:5173)
-- **Merchant dashboard:** [http://localhost:5173/app](http://localhost:5173/app)
-- **Backend API:** [http://localhost:8080](http://localhost:8080)
-- **PostgreSQL:** `localhost:5432`
-
-If you previously started the full Docker stack, stop the Docker backend/frontend before manual development:
-
-```bash
-docker-compose stop backend frontend
-```
-
-## API Overview
-
-Base URL: `/api`
-
-- `POST /api/onboarding/tenants` - Create a tenant and first ADMIN user when onboarding is enabled
-- `POST /api/marketing/leads` - Capture a public pilot/demo request
-- `GET /api/marketing/leads` - Super-admin lead list for pilot follow-up
-- `GET /api/confirmations/queue` - List orders awaiting COD confirmation
-- `GET /api/confirmations/callbacks` - List scheduled confirmation callbacks
-- `POST /api/confirmations/callbacks/{callbackId}/resolve` - Resolve a scheduled confirmation callback
-- `POST /api/orders/{id}/confirmation-attempts` - Record a confirmation attempt
-- `GET /api/orders/{id}/confirmation-attempts` - List confirmation attempts for an order
-- `POST /api/orders` - Create a new order
-- `POST /api/orders/{id}/request-confirmation` - Request order confirmation
-- `POST /api/orders/{id}/confirm` - Confirm order
-- `POST /api/orders/{id}/reject` - Reject order
-- `POST /api/orders/{id}/assign-courier` - Assign to a courier
-- `POST /api/orders/{id}/pick-up` - Mark picked up
-- `POST /api/orders/{id}/deliver` - Mark delivered
-- `POST /api/orders/{id}/fail` - Mark failed
-- `GET /api/orders` - List all orders
-- `GET /api/orders/{id}` - Get order details
-- `GET /api/orders/{id}/events` - Get event timeline
-- `GET /api/orders/{id}/timeline` - Get unified lifecycle and operational timeline
-- `GET /api/admin/tenants` - Super-admin tenant list
-- `GET /api/admin/tenants/{tenantId}` - Super-admin tenant billing detail
-- `PATCH /api/admin/tenants/{tenantId}/status` - Update tenant status
-- `GET /api/admin/plans` - List subscription plans
-- `POST /api/admin/plans` - Create a subscription plan
-- `POST /api/admin/tenants/{tenantId}/subscription` - Create or update tenant subscription
-- `POST /api/admin/tenants/{tenantId}/payments` - Record manual tenant payment
-- `GET /api/admin/tenants/{tenantId}/payments/{paymentId}/receipt` - Retrieve printable receipt details
-
-## Publication Checklist
-
-Before the first public trial-client campaign, set real values for:
-
-- `APP_FRONTEND_BASE_URL`
-- `VITE_PUBLIC_SITE_URL`
-- `VITE_PUBLIC_SUPPORT_EMAIL`
-- `VITE_PUBLIC_WHATSAPP_URL`
-- `VITE_PUBLIC_META_PIXEL_ID` if Meta Pixel is enabled
-- `CORS_ALLOWED_ORIGINS`
-
-The public site includes runtime page metadata, Open Graph tags, `robots.txt`, `sitemap.xml`, legal policy pages, and lead capture. Update `frontend/public/sitemap.xml` with the final production domain before publishing.
-
-Run the frontend launch smoke suite before publishing UI changes:
-
-```bash
-cd frontend
-npm run smoke
-```
-
-The current smoke suite starts Vite locally, verifies landing-page lead capture, and verifies that two tabs in the same browser can keep different signed-in users. Run `npx playwright install chromium` once on new developer or CI machines before the first smoke run.
+- [Operations runbook](docs/operations.md)
+- [System overview](docs/architecture/system-overview.md)
+- [Security](docs/architecture/security.md)
+- [Frontend architecture](docs/architecture/frontend-architecture.md)
+- [Launch readiness pivot](docs/product/launch-readiness-pivot.md)
+- [Technical debt register](docs/technical-debt.md)
+- [Brand direction](docs/product/brand-direction.md)

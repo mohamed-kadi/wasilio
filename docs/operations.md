@@ -82,6 +82,7 @@ Lead capture flow:
 - Anonymous visitors submit `POST /api/marketing/leads`.
 - Campaign fields preserve `utm_*`, `fbclid`, `gclid`, `ref`, and browser referrer up to the stored field length.
 - Super-admin users review leads in the Admin Billing Leads tab.
+- Super-admin users can update lead status, next follow-up timestamp, and internal notes.
 - Meta Pixel is loaded only when `VITE_PUBLIC_META_PIXEL_ID` is configured.
 
 Before publishing, update `frontend/public/sitemap.xml` with the final production domain and verify that legal pages are reachable:
@@ -97,14 +98,15 @@ Run this checklist after every production deployment and before sending paid tra
 1. Run `cd frontend && npm run smoke` before publishing frontend changes. On a fresh machine, run `npx playwright install chromium` once first.
 2. Open `/` and confirm the public landing page renders with the final brand, support email, WhatsApp link, and no development placeholder contact values.
 3. Submit a demo request with a test `utm_source=smoke` URL and confirm it appears in `/admin/billing` under Leads.
-4. Open `/robots.txt` and `/sitemap.xml` and confirm they are reachable.
-5. Open `/terms`, `/privacy`, and `/payment-refund-policy`.
-6. Log in as `SUPER_ADMIN`, open `/admin/billing`, and confirm tenants, plans, payments, receipts, and leads load.
-7. Log in as a merchant, open `/app`, create a test order, request confirmation, record a confirmation attempt, and verify the order timeline.
-8. Request a password reset and confirm the email delivery mode sends or logs the expected reset link.
-9. Verify `/actuator/health/readiness` returns healthy through the production ingress.
-10. Confirm production compose uses only `classpath:db/migration` and that seed accounts are not present.
-11. Capture a fresh database backup and record the backup artifact name for the deployment.
+4. Update that lead to `CONTACTED`, add an internal note, and confirm the change persists after refresh.
+5. Open `/robots.txt` and `/sitemap.xml` and confirm they are reachable.
+6. Open `/terms`, `/privacy`, and `/payment-refund-policy`.
+7. Log in as `SUPER_ADMIN`, open `/admin/billing`, and confirm tenants, plans, payments, receipts, and leads load.
+8. Log in as a merchant, open `/app`, create a test order, request confirmation, record a confirmation attempt, and verify the order timeline.
+9. Request a password reset and confirm the email delivery mode sends or logs the expected reset link.
+10. Verify `/actuator/health/readiness` returns healthy through the production ingress.
+11. Confirm production compose uses only `classpath:db/migration` and that seed accounts are not present.
+12. Capture a fresh database backup and record the backup artifact name for the deployment.
 
 ## Abuse Protection And Security Audit Logs
 

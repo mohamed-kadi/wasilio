@@ -1,6 +1,6 @@
 # Frontend Architecture
 
-The frontend is a Vite React application under `frontend`. It provides the merchant operations dashboard for login, signup, order management, and confirmation operations.
+The frontend is a Vite React application under `frontend`. It provides the public landing page, merchant operations dashboard, and Wasilio staff admin workspace.
 
 ## Stack
 
@@ -25,24 +25,34 @@ The frontend is a Vite React application under `frontend`. It provides the merch
 
 Public routes:
 
+- `/`
 - `/login`
 - `/signup`
+- `/forgot-password`
+- `/reset-password`
+- `/terms`
+- `/privacy`
+- `/payment-refund-policy`
 
-Protected routes:
+Merchant protected routes under `/app`:
 
-- `/`
-- `/orders`
-- `/orders/new`
-- `/orders/:id`
-- `/confirmations`
-- `/couriers`
-- `/couriers/:id`
-- `/couriers/assignment`
-- `/couriers/pickup`
-- `/couriers/delivery`
-- `/couriers/performance`
+- `/app`
+- `/app/orders`
+- `/app/orders/new`
+- `/app/orders/:id`
+- `/app/confirmations`
+- `/app/couriers`
+- `/app/couriers/:id`
+- `/app/couriers/assignment`
+- `/app/couriers/pickup`
+- `/app/couriers/delivery`
+- `/app/couriers/performance`
 
-`ProtectedApp` redirects unauthenticated users to `/login` and keeps the authenticated dashboard shell around protected pages.
+Staff protected routes:
+
+- `/admin/billing`
+
+`ProtectedApp` redirects unauthenticated users to `/login` and keeps the authenticated dashboard shell around protected merchant pages. Super-admin users are redirected to `/admin/billing`.
 
 ## Data Fetching
 
@@ -52,6 +62,14 @@ TanStack Query is used for server reads and cache invalidation. Mutation flows s
 
 The frontend stores session state in `authStore`. API requests use the stored JWT. Logout clears the session and query cache, then returns the user to `/login`.
 
-## Current Test Gap
+## Tests
 
-The frontend has lint and build scripts but no E2E test suite. Confirmation operations, login redirects, signup, and order lifecycle screens should be covered with Playwright or an equivalent browser test suite before production reliance.
+The frontend has lint, build, and Playwright smoke scripts.
+
+Current smoke coverage verifies:
+
+- public landing lead capture with campaign source
+- super-admin marketing lead follow-up update
+- same-browser auth isolation across tabs
+
+Remaining gaps before heavier production reliance: live-backend login, signup, order creation, confirmation, callbacks, courier operations, and billing flows in CI.

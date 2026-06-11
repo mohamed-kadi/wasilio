@@ -144,7 +144,7 @@ Scope:
 - Product positioning for COD merchants in Morocco.
 - Demo request/contact form.
 - WhatsApp contact link.
-- Lead storage for super-admin follow-up.
+- Lead storage and super-admin follow-up status/notes.
 - Pricing teaser without automatic purchase.
 - Terms, Privacy, and Payment/Refund policy pages.
 - Basic brand assets: logo, colors, favicon.
@@ -243,7 +243,7 @@ Do not call the product publicly ready until these are true:
 - Password reset or invite-based account recovery exists.
 - Critical workflow E2E tests pass.
 - Public site has SEO basics, lead capture, legal pages, and tracking configuration.
-- Brand name, domain, logo, and social handles are decided.
+- Brand name and logo are decided; final domain registration and social handles are still external tasks.
 - Support process is documented.
 
 ## Recommended Immediate Next Implementation
