@@ -115,6 +115,30 @@ class MarketingLeadIntegrationTest {
                 .andExpect(jsonPath("$.status").value("CONTACTED"))
                 .andExpect(jsonPath("$.nextFollowUpAt").value("2026-06-12T14:30:00Z"))
                 .andExpect(jsonPath("$.internalNotes").value("Reached on WhatsApp. Interested in a guided pilot."));
+
+        mockMvc.perform(post("/api/marketing/leads/{leadId}/convert-to-tenant", leadId)
+                .header("Authorization", "Bearer " + login("superadmin@example.com"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "tenantName": "Casa Beauty Pilot",
+                          "adminName": "Sara Admin",
+                          "adminEmail": "sara.admin@example.com",
+                          "password": "PilotPass123!",
+                          "internalNotes": "Converted after qualification call. Free guided onboarding offered."
+                        }
+                        """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.lead.status").value("ONBOARDED"))
+                .andExpect(jsonPath("$.lead.convertedTenantId").exists())
+                .andExpect(jsonPath("$.lead.convertedAt").exists())
+                .andExpect(jsonPath("$.tenant.tenantName").value("Casa Beauty Pilot"))
+                .andExpect(jsonPath("$.tenant.adminEmail").value("sara.admin@example.com"));
+
+        mockMvc.perform(get("/api/admin/tenants")
+                .header("Authorization", "Bearer " + login("superadmin@example.com")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.name == 'Casa Beauty Pilot')].status").value("TRIALING"));
     }
 
     private String login(String email) throws Exception {

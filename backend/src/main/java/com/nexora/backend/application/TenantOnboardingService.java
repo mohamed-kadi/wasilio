@@ -2,6 +2,7 @@ package com.nexora.backend.application;
 
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
+import com.nexora.backend.domain.model.TenantStatus;
 import com.nexora.backend.domain.model.User;
 import com.nexora.backend.domain.repository.TenantRepository;
 import com.nexora.backend.domain.repository.UserRepository;
@@ -38,6 +39,15 @@ public class TenantOnboardingService {
             throw new AccessDeniedException("Tenant onboarding is disabled");
         }
 
+        return createTenant(command, TenantStatus.ACTIVE);
+    }
+
+    @Transactional
+    public TenantOnboardingResult onboardTenantFromStaff(TenantOnboardingCommand command) {
+        return createTenant(command, TenantStatus.TRIALING);
+    }
+
+    private TenantOnboardingResult createTenant(TenantOnboardingCommand command, TenantStatus initialStatus) {
         String tenantName = normalizeDisplayName(command.tenantName(), "tenant name");
         String adminName = normalizeDisplayName(command.adminName(), "admin name");
         String adminEmail = normalizeEmail(command.adminEmail());
@@ -55,7 +65,9 @@ public class TenantOnboardingService {
         UUID adminUserId = UUID.randomUUID();
 
         try {
-            tenantRepository.saveAndFlush(new Tenant(tenantId, tenantName));
+            Tenant tenant = new Tenant(tenantId, tenantName);
+            tenant.setStatus(initialStatus);
+            tenantRepository.saveAndFlush(tenant);
             userRepository.saveAndFlush(new User(
                     adminUserId,
                     adminEmail,

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import {
   createSubscriptionPlan,
+  convertMarketingLeadToTenant,
   fetchAdminTenant,
   fetchAdminTenants,
   fetchMarketingLeads,
@@ -247,6 +248,21 @@ export default function AdminBilling() {
     },
   });
 
+  const leadConversionMutation = useMutation({
+    mutationFn: (payload: { leadId: string; tenantName: string; adminName: string; adminEmail: string; password: string; internalNotes?: string }) =>
+      convertMarketingLeadToTenant(payload.leadId, {
+        tenantName: payload.tenantName,
+        adminName: payload.adminName,
+        adminEmail: payload.adminEmail,
+        password: payload.password,
+        internalNotes: payload.internalNotes,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['marketing-leads'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-tenants'] });
+    },
+  });
+
   const receiptQuery = useQuery({
     queryKey: ['tenant-payment-receipt', effectiveTenantId, receiptPaymentId],
     queryFn: () => fetchTenantPaymentReceipt(effectiveTenantId, receiptPaymentId),
@@ -264,6 +280,7 @@ export default function AdminBilling() {
     paymentMutation.error ??
     planMutation.error ??
     leadFollowUpMutation.error ??
+    leadConversionMutation.error ??
     receiptQuery.error;
 
   async function refreshTenantData() {
@@ -580,7 +597,9 @@ export default function AdminBilling() {
                 leads={leads}
                 isLoading={leadsQuery.isLoading}
                 updatingLeadId={leadFollowUpMutation.variables?.leadId}
+                convertingLeadId={leadConversionMutation.variables?.leadId}
                 onUpdate={(payload) => leadFollowUpMutation.mutate(payload)}
+                onConvert={(payload) => leadConversionMutation.mutate(payload)}
               />
             )}
           </main>
@@ -594,12 +613,16 @@ function LeadList({
   leads,
   isLoading,
   updatingLeadId,
+  convertingLeadId,
   onUpdate,
+  onConvert,
 }: {
   leads: MarketingLead[];
   isLoading: boolean;
   updatingLeadId?: string;
+  convertingLeadId?: string;
   onUpdate: (payload: { leadId: string; status: MarketingLeadStatus; nextFollowUpAt?: string; internalNotes?: string }) => void;
+  onConvert: (payload: { leadId: string; tenantName: string; adminName: string; adminEmail: string; password: string; internalNotes?: string }) => void;
 }) {
   return (
     <section className="mt-6 rounded-lg border border-gray-200 bg-white">
@@ -609,7 +632,14 @@ function LeadList({
       </div>
       <div className="divide-y divide-gray-100">
         {leads.map((lead) => (
-          <LeadCard key={lead.leadId} lead={lead} isUpdating={updatingLeadId === lead.leadId} onUpdate={onUpdate} />
+          <LeadCard
+            key={lead.leadId}
+            lead={lead}
+            isUpdating={updatingLeadId === lead.leadId}
+            isConverting={convertingLeadId === lead.leadId}
+            onUpdate={onUpdate}
+            onConvert={onConvert}
+          />
         ))}
         {isLoading && <p className="p-5 text-sm text-gray-500">Loading leads...</p>}
         {!isLoading && !leads.length && <p className="p-5 text-sm text-gray-500">No demo requests captured yet.</p>}
@@ -621,15 +651,25 @@ function LeadList({
 function LeadCard({
   lead,
   isUpdating,
+  isConverting,
   onUpdate,
+  onConvert,
 }: {
   lead: MarketingLead;
   isUpdating: boolean;
+  isConverting: boolean;
   onUpdate: (payload: { leadId: string; status: MarketingLeadStatus; nextFollowUpAt?: string; internalNotes?: string }) => void;
+  onConvert: (payload: { leadId: string; tenantName: string; adminName: string; adminEmail: string; password: string; internalNotes?: string }) => void;
 }) {
   const [status, setStatus] = useState<MarketingLeadStatus>(lead.status);
   const [nextFollowUpAt, setNextFollowUpAt] = useState(toDateTimeLocal(lead.nextFollowUpAt));
   const [internalNotes, setInternalNotes] = useState(lead.internalNotes ?? '');
+  const [showConversion, setShowConversion] = useState(false);
+  const [tenantName, setTenantName] = useState(lead.storeName);
+  const [adminName, setAdminName] = useState(lead.contactName);
+  const [adminEmail, setAdminEmail] = useState(lead.email ?? '');
+  const [password, setPassword] = useState('');
+  const [conversionNotes, setConversionNotes] = useState('Qualified for guided pilot onboarding.');
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -640,6 +680,20 @@ function LeadCard({
       internalNotes: internalNotes || undefined,
     });
   }
+
+  function handleConvert(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onConvert({
+      leadId: lead.leadId,
+      tenantName,
+      adminName,
+      adminEmail,
+      password,
+      internalNotes: conversionNotes || undefined,
+    });
+  }
+
+  const isConverted = Boolean(lead.convertedTenantId);
 
   return (
     <article className="grid grid-cols-1 gap-5 p-5 xl:grid-cols-[1fr_360px]">
@@ -655,10 +709,13 @@ function LeadCard({
         <div className="mt-3 grid gap-1 text-xs text-gray-500 sm:grid-cols-2">
           <p>Captured: <span className="font-medium text-gray-700">{formatDateTime(lead.createdAt)}</span></p>
           <p>Next follow-up: <span className="font-medium text-gray-700">{formatDateTime(lead.nextFollowUpAt)}</span></p>
+          {lead.convertedAt && <p>Converted: <span className="font-medium text-gray-700">{formatDateTime(lead.convertedAt)}</span></p>}
+          {lead.convertedTenantId && <p>Tenant ID: <span className="font-medium text-gray-700">{lead.convertedTenantId}</span></p>}
           {lead.campaignSource && <p className="sm:col-span-2">Source: <span className="font-medium text-gray-700">{lead.campaignSource}</span></p>}
         </div>
       </div>
 
+      <div className="space-y-3">
       <form onSubmit={handleSubmit} className="rounded-md border border-gray-200 bg-gray-50 p-4">
         <div className="grid gap-3">
           <label>
@@ -706,7 +763,81 @@ function LeadCard({
           </a>
         </div>
       </form>
+      {!isConverted && (
+        <div className="rounded-md border border-gray-200 bg-white p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h5 className="text-sm font-semibold text-gray-900">Guided pilot conversion</h5>
+              <p className="mt-1 text-xs leading-5 text-gray-600">Create a trial tenant and first admin from this qualified lead.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowConversion((current) => !current)}
+              className="rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              {showConversion ? 'Hide' : 'Convert'}
+            </button>
+          </div>
+          {showConversion && (
+            <form onSubmit={handleConvert} className="mt-4 grid gap-3">
+              <FieldInput label="Tenant name" value={tenantName} onChange={setTenantName} />
+              <FieldInput label="Admin name" value={adminName} onChange={setAdminName} />
+              <FieldInput label="Admin email" value={adminEmail} onChange={setAdminEmail} type="email" />
+              <FieldInput label="Initial password" value={password} onChange={setPassword} type="password" />
+              <label>
+                <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Conversion notes</span>
+                <textarea
+                  rows={3}
+                  value={conversionNotes}
+                  onChange={(event) => setConversionNotes(event.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </label>
+              <p className="text-xs leading-5 text-gray-500">Password must be at least 12 characters and include uppercase, lowercase, number, and symbol. Share it with the merchant through your agreed channel.</p>
+              <button
+                type="submit"
+                disabled={isConverting}
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+              >
+                <PlusCircle size={16} />
+                {isConverting ? 'Converting' : 'Create trial tenant'}
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+      {isConverted && (
+        <div className="rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+          Lead converted to a trial tenant. Continue setup from the Tenants or Billing tab.
+        </div>
+      )}
+      </div>
     </article>
+  );
+}
+
+function FieldInput({
+  label,
+  value,
+  onChange,
+  type = 'text',
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+}) {
+  return (
+    <label>
+      <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">{label}</span>
+      <input
+        type={type}
+        required
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </label>
   );
 }
 

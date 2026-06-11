@@ -79,6 +79,8 @@ export async function installMockApi(page: Page) {
           status: 'NEW',
           nextFollowUpAt: null,
           internalNotes: null,
+          convertedTenantId: null,
+          convertedAt: null,
           ...body,
         }),
       });

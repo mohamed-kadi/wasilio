@@ -63,7 +63,7 @@ const copy = {
     contactEyebrow: 'Acquisition client pilote',
     contactTitle: 'Demander une demo Wasilio.',
     contactText:
-      'Partagez votre boutique et votre volume. Nous verifierons le fit, puis nous planifierons une demonstration courte.',
+      'Partagez votre boutique et votre volume. Les marchands pilotes qualifies peuvent recevoir une configuration accompagnee, des conditions de lancement preferentielles et une revue de leur workflow COD.',
     bullets: [
       'Aucun paiement en ligne requis pour la premiere discussion.',
       'Compatible avec facturation cash ou virement.',
@@ -80,6 +80,7 @@ const copy = {
       challenge: 'Qu est-ce qui complique votre workflow COD aujourd hui ?',
       submit: 'Demander la demo',
       sending: 'Envoi en cours',
+      approvedSignup: 'Deja approuve ? Creer votre espace',
     },
     orderVolumes: ['Moins de 100/mois', '100-500/mois', '500-1 500/mois', '1 500+/mois'],
     footer: '© 2026 Wasilio. Logiciel operations COD pour pilotes marchands controles.',
@@ -131,7 +132,7 @@ const copy = {
     ],
     contactEyebrow: 'اكتساب عميل تجريبي',
     contactTitle: 'اطلب تجربة Wasilio.',
-    contactText: 'شاركنا معلومات المتجر وحجم الطلبات. سنراجع الملاءمة ثم نحدد موعد تجربة قصيرة.',
+    contactText: 'شاركنا معلومات المتجر وحجم الطلبات. التجار المؤهلون للتجربة يمكنهم الحصول على اعداد مرفق، شروط انطلاق خاصة، ومراجعة لمسار COD.',
     bullets: [
       'لا حاجة لأي أداء أونلاين في أول محادثة.',
       'يدعم الفوترة بالكاش او التحويل البنكي.',
@@ -148,6 +149,7 @@ const copy = {
       challenge: 'ما الذي يصعب عليك في مسار COD اليوم؟',
       submit: 'اطلب التجربة',
       sending: 'جار الارسال',
+      approvedSignup: 'تمت الموافقة؟ انشئ مساحة العمل',
     },
     orderVolumes: ['اقل من 100/شهر', '100-500/شهر', '500-1,500/شهر', '+1,500/شهر'],
     footer: '© 2026 Wasilio. برنامج عمليات COD لتجارب تجار مضبوطة.',
@@ -199,7 +201,8 @@ const copy = {
     ],
     contactEyebrow: 'Trial client acquisition',
     contactTitle: 'Request a Wasilio pilot demo.',
-    contactText: 'Share your store details and order volume. We will review fit, then schedule a short walkthrough.',
+    contactText:
+      'Share your store details and order volume. Qualified pilot merchants may receive guided setup, preferential launch terms, and a review of their COD workflow.',
     bullets: [
       'No online payment required for the first pilot discussion.',
       'Works with cash and bank-transfer billing.',
@@ -216,6 +219,7 @@ const copy = {
       challenge: 'What is hard about your current COD workflow?',
       submit: 'Request demo',
       sending: 'Sending request',
+      approvedSignup: 'Already approved? Create your workspace',
     },
     orderVolumes: orderVolumeValues,
     footer: '© 2026 Wasilio. COD operations software for controlled merchant pilots.',
@@ -262,6 +266,7 @@ interface LandingCopy {
     challenge: string;
     submit: string;
     sending: string;
+    approvedSignup: string;
   };
   orderVolumes: string[];
   footer: string;
@@ -519,6 +524,9 @@ export default function LandingPage() {
               <ClipboardList size={17} />
               {loading ? content.form.sending : content.form.submit}
             </button>
+            <Link to="/signup" className="mt-3 block text-center text-sm font-medium text-gray-600 hover:text-gray-950">
+              {content.form.approvedSignup}
+            </Link>
           </form>
         </div>
       </section>

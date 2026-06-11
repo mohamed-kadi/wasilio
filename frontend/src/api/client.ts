@@ -412,6 +412,8 @@ export interface MarketingLead {
   status: MarketingLeadStatus;
   nextFollowUpAt?: string;
   internalNotes?: string;
+  convertedTenantId?: string;
+  convertedAt?: string;
   createdAt: string;
 }
 
@@ -419,6 +421,19 @@ export interface MarketingLeadFollowUpPayload {
   status: MarketingLeadStatus;
   nextFollowUpAt?: string;
   internalNotes?: string;
+}
+
+export interface MarketingLeadConversionPayload {
+  tenantName: string;
+  adminName: string;
+  adminEmail: string;
+  password: string;
+  internalNotes?: string;
+}
+
+export interface MarketingLeadConversionResponse {
+  lead: MarketingLead;
+  tenant: TenantOnboardingResponse;
 }
 
 interface RequestOptions extends RequestInit {
@@ -475,6 +490,16 @@ export async function updateMarketingLeadFollowUp(
 ): Promise<MarketingLead> {
   return apiRequest<MarketingLead>(`/marketing/leads/${leadId}/follow-up`, {
     method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function convertMarketingLeadToTenant(
+  leadId: string,
+  data: MarketingLeadConversionPayload,
+): Promise<MarketingLeadConversionResponse> {
+  return apiRequest<MarketingLeadConversionResponse>(`/marketing/leads/${leadId}/convert-to-tenant`, {
+    method: 'POST',
     body: JSON.stringify(data),
   });
 }

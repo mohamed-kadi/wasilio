@@ -59,6 +59,12 @@ public class MarketingLead {
     @Column(length = 2000)
     private String internalNotes;
 
+    @Column
+    private UUID convertedTenantId;
+
+    @Column
+    private Instant convertedAt;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -88,6 +94,8 @@ public class MarketingLead {
                 MarketingLeadStatus.NEW,
                 null,
                 null,
+                null,
+                null,
                 now
         );
     }
@@ -96,6 +104,23 @@ public class MarketingLead {
         this.status = status;
         this.nextFollowUpAt = nextFollowUpAt;
         this.internalNotes = emptyToNull(internalNotes);
+    }
+
+    public void markConverted(UUID tenantId, String note) {
+        this.status = MarketingLeadStatus.ONBOARDED;
+        this.convertedTenantId = tenantId;
+        this.convertedAt = Instant.now();
+        this.nextFollowUpAt = null;
+        this.internalNotes = appendNote(this.internalNotes, note);
+    }
+
+    private static String appendNote(String existing, String note) {
+        String normalizedNote = emptyToNull(note);
+        if (normalizedNote == null) {
+            return emptyToNull(existing);
+        }
+        String normalizedExisting = emptyToNull(existing);
+        return normalizedExisting == null ? normalizedNote : normalizedExisting + "\n" + normalizedNote;
     }
 
     private static String emptyToNull(String value) {

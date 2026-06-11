@@ -56,6 +56,8 @@ public class MarketingLeadController {
             MarketingLeadStatus status,
             Instant nextFollowUpAt,
             String internalNotes,
+            UUID convertedTenantId,
+            Instant convertedAt,
             Instant createdAt
     ) {
         static LeadResponse from(MarketingLead lead) {
@@ -72,7 +74,21 @@ public class MarketingLeadController {
                     lead.getStatus(),
                     lead.getNextFollowUpAt(),
                     lead.getInternalNotes(),
+                    lead.getConvertedTenantId(),
+                    lead.getConvertedAt(),
                     lead.getCreatedAt()
+            );
+        }
+    }
+
+    public record TenantConversionResponse(
+            LeadResponse lead,
+            OnboardingController.TenantOnboardingResponse tenant
+    ) {
+        static TenantConversionResponse from(MarketingLeadService.LeadTenantConversionResult result) {
+            return new TenantConversionResponse(
+                    LeadResponse.from(result.lead()),
+                    OnboardingController.TenantOnboardingResponse.from(result.tenant())
             );
         }
     }
@@ -80,6 +96,14 @@ public class MarketingLeadController {
     public record UpdateLeadFollowUpRequest(
             @jakarta.validation.constraints.NotNull MarketingLeadStatus status,
             Instant nextFollowUpAt,
+            @Size(max = 2000) String internalNotes
+    ) {}
+
+    public record ConvertLeadToTenantRequest(
+            @NotBlank @Size(min = 2, max = 120) String tenantName,
+            @NotBlank @Size(min = 2, max = 120) String adminName,
+            @NotBlank @Email @Size(max = 255) String adminEmail,
+            @NotBlank @Size(min = 12, max = 128) String password,
             @Size(max = 2000) String internalNotes
     ) {}
 
@@ -122,5 +146,24 @@ public class MarketingLeadController {
                 request.internalNotes()
         ));
         return ResponseEntity.ok(LeadResponse.from(lead));
+    }
+
+    @PostMapping("/{leadId}/convert-to-tenant")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<TenantConversionResponse> convertToTenant(
+            @PathVariable UUID leadId,
+            @Valid @RequestBody ConvertLeadToTenantRequest request
+    ) {
+        MarketingLeadService.LeadTenantConversionResult result = marketingLeadService.convertToTenant(
+                leadId,
+                new MarketingLeadService.ConvertLeadToTenantCommand(
+                        request.tenantName(),
+                        request.adminName(),
+                        request.adminEmail(),
+                        request.password(),
+                        request.internalNotes()
+                )
+        );
+        return ResponseEntity.status(HttpStatus.CREATED).body(TenantConversionResponse.from(result));
     }
 }

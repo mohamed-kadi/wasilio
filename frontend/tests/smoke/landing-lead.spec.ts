@@ -16,6 +16,8 @@ test('public landing captures a demo lead with campaign source', async ({ page }
         status: 'NEW',
         nextFollowUpAt: null,
         internalNotes: null,
+        convertedTenantId: null,
+        convertedAt: null,
         ...leadRequests[0],
       }),
     });

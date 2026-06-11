@@ -15,6 +15,7 @@ import java.util.UUID;
 public class MarketingLeadService {
 
     private final MarketingLeadRepository marketingLeadRepository;
+    private final TenantOnboardingService tenantOnboardingService;
 
     public record CaptureLeadCommand(
             String contactName,
@@ -32,6 +33,19 @@ public class MarketingLeadService {
             MarketingLeadStatus status,
             java.time.Instant nextFollowUpAt,
             String internalNotes
+    ) {}
+
+    public record ConvertLeadToTenantCommand(
+            String tenantName,
+            String adminName,
+            String adminEmail,
+            String password,
+            String internalNotes
+    ) {}
+
+    public record LeadTenantConversionResult(
+            MarketingLead lead,
+            TenantOnboardingService.TenantOnboardingResult tenant
     ) {}
 
     @Transactional
@@ -66,5 +80,31 @@ public class MarketingLeadService {
                 command.internalNotes()
         );
         return marketingLeadRepository.save(lead);
+    }
+
+    @Transactional
+    public LeadTenantConversionResult convertToTenant(UUID leadId, ConvertLeadToTenantCommand command) {
+        MarketingLead lead = marketingLeadRepository.findById(leadId)
+                .orElseThrow(() -> new IllegalArgumentException("Marketing lead not found"));
+
+        if (lead.getConvertedTenantId() != null) {
+            throw new IllegalStateException("Marketing lead is already converted to a tenant");
+        }
+
+        TenantOnboardingService.TenantOnboardingResult tenant = tenantOnboardingService.onboardTenantFromStaff(
+                new TenantOnboardingService.TenantOnboardingCommand(
+                        command.tenantName(),
+                        command.adminName(),
+                        command.adminEmail(),
+                        command.password()
+                )
+        );
+
+        String note = command.internalNotes();
+        if (note == null || note.isBlank()) {
+            note = "Converted to tenant " + tenant.tenantName() + ".";
+        }
+        lead.markConverted(tenant.tenantId(), note);
+        return new LeadTenantConversionResult(marketingLeadRepository.save(lead), tenant);
     }
 }

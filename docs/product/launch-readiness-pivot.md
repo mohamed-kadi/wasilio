@@ -144,7 +144,7 @@ Scope:
 - Product positioning for COD merchants in Morocco.
 - Demo request/contact form.
 - WhatsApp contact link.
-- Lead storage and super-admin follow-up status/notes.
+- Lead storage, super-admin follow-up status/notes, and lead-to-tenant conversion for guided pilots.
 - Pricing teaser without automatic purchase.
 - Terms, Privacy, and Payment/Refund policy pages.
 - Basic brand assets: logo, colors, favicon.

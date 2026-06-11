@@ -83,6 +83,7 @@ Lead capture flow:
 - Campaign fields preserve `utm_*`, `fbclid`, `gclid`, `ref`, and browser referrer up to the stored field length.
 - Super-admin users review leads in the Admin Billing Leads tab.
 - Super-admin users can update lead status, next follow-up timestamp, and internal notes.
+- Super-admin users can convert qualified leads into `TRIALING` tenants with a first merchant admin account.
 - Meta Pixel is loaded only when `VITE_PUBLIC_META_PIXEL_ID` is configured.
 
 Before publishing, update `frontend/public/sitemap.xml` with the final production domain and verify that legal pages are reachable:

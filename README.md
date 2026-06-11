@@ -318,7 +318,7 @@ Before publishing a trial-client campaign:
 - Set SMTP values and verify password reset.
 - Verify `/terms`, `/privacy`, and `/payment-refund-policy`.
 - Submit a test landing lead with `utm_source=smoke`.
-- Confirm the lead appears in `/admin/billing` and follow-up status can be updated.
+- Confirm the lead appears in `/admin/billing`, follow-up status can be updated, and qualified leads can be converted into trial tenants.
 - Run `mvn test`, `npm run build`, `npm run lint`, and `npm run smoke`.
 - Capture a database backup.
 
@@ -347,5 +347,6 @@ Useful references:
 - [Security](docs/architecture/security.md)
 - [Frontend architecture](docs/architecture/frontend-architecture.md)
 - [Launch readiness pivot](docs/product/launch-readiness-pivot.md)
+- [Pilot acquisition workflow](docs/product/pilot-acquisition-workflow.md)
 - [Technical debt register](docs/technical-debt.md)
 - [Brand direction](docs/product/brand-direction.md)
