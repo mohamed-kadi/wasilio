@@ -19,17 +19,18 @@ test('public landing captures a demo lead with campaign source', async ({ page }
   });
 
   await page.goto('/?utm_source=facebook&utm_campaign=pilot');
-  await expect(page.getByRole('heading', { name: /Wasilio turns WhatsApp/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Wasilio aide votre equipe/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'العربية' })).toBeVisible();
 
-  await page.getByLabel('Contact name').fill('Sara Admin');
-  await page.getByLabel('Store name').fill('Casa Beauty');
-  await page.getByLabel('Phone / WhatsApp').fill('+212600000001');
+  await page.getByLabel('Nom du contact').fill('Sara Admin');
+  await page.getByLabel('Nom de la boutique').fill('Casa Beauty');
+  await page.getByLabel('Telephone / WhatsApp').fill('+212600000001');
   await page.getByLabel('Email').fill('sara@example.com');
-  await page.getByLabel('City').fill('Casablanca');
-  await page.getByLabel('What is hard about your current COD workflow?').fill('Callbacks are hard to track.');
-  await page.getByRole('button', { name: /request demo/i }).click();
+  await page.getByLabel('Ville').fill('Casablanca');
+  await page.getByLabel('Qu est-ce qui complique votre workflow COD aujourd hui ?').fill('Callbacks are hard to track.');
+  await page.getByRole('button', { name: /demander la demo/i }).click();
 
-  await expect(page.getByText(/Demo request received/i)).toBeVisible();
+  await expect(page.getByText(/Demande recue/i)).toBeVisible();
   expect(leadRequests).toHaveLength(1);
   expect(leadRequests[0]).toMatchObject({
     contactName: 'Sara Admin',
