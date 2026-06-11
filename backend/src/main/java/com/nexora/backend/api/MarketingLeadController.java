@@ -2,6 +2,7 @@ package com.nexora.backend.api;
 
 import com.nexora.backend.application.MarketingLeadService;
 import com.nexora.backend.domain.model.MarketingLead;
+import com.nexora.backend.domain.model.MarketingLeadStatus;
 import com.nexora.backend.infrastructure.security.ClientIpResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -13,6 +14,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -50,6 +53,9 @@ public class MarketingLeadController {
             String monthlyOrderVolume,
             String message,
             String campaignSource,
+            MarketingLeadStatus status,
+            Instant nextFollowUpAt,
+            String internalNotes,
             Instant createdAt
     ) {
         static LeadResponse from(MarketingLead lead) {
@@ -63,10 +69,19 @@ public class MarketingLeadController {
                     lead.getMonthlyOrderVolume(),
                     lead.getMessage(),
                     lead.getCampaignSource(),
+                    lead.getStatus(),
+                    lead.getNextFollowUpAt(),
+                    lead.getInternalNotes(),
                     lead.getCreatedAt()
             );
         }
     }
+
+    public record UpdateLeadFollowUpRequest(
+            @jakarta.validation.constraints.NotNull MarketingLeadStatus status,
+            Instant nextFollowUpAt,
+            @Size(max = 2000) String internalNotes
+    ) {}
 
     @PostMapping
     public ResponseEntity<LeadResponse> captureLead(
@@ -93,5 +108,19 @@ public class MarketingLeadController {
         return ResponseEntity.ok(marketingLeadService.listLeads().stream()
                 .map(LeadResponse::from)
                 .toList());
+    }
+
+    @PatchMapping("/{leadId}/follow-up")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public ResponseEntity<LeadResponse> updateFollowUp(
+            @PathVariable UUID leadId,
+            @Valid @RequestBody UpdateLeadFollowUpRequest request
+    ) {
+        MarketingLead lead = marketingLeadService.updateFollowUp(leadId, new MarketingLeadService.UpdateLeadFollowUpCommand(
+                request.status(),
+                request.nextFollowUpAt(),
+                request.internalNotes()
+        ));
+        return ResponseEntity.ok(LeadResponse.from(lead));
     }
 }

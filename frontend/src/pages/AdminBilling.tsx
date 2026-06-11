@@ -25,11 +25,13 @@ import {
   fetchTenantPaymentReceipt,
   getErrorMessage,
   recordTenantPayment,
+  updateMarketingLeadFollowUp,
   updateAdminTenantStatus,
   upsertTenantSubscription,
   type AdminTenantDetail,
   type AdminTenantSummary,
   type MarketingLead,
+  type MarketingLeadStatus,
   type PaymentMethod,
   type SubscriptionStatus,
   type TenantPayment,
@@ -40,6 +42,7 @@ import {
 const tenantStatuses: TenantStatus[] = ['ACTIVE', 'TRIALING', 'OVERDUE', 'SUSPENDED', 'DISABLED'];
 const subscriptionStatuses: SubscriptionStatus[] = ['TRIALING', 'ACTIVE', 'OVERDUE', 'SUSPENDED', 'CANCELED'];
 const paymentMethods: PaymentMethod[] = ['CASH', 'BANK_TRANSFER', 'CHECK', 'OTHER'];
+const marketingLeadStatuses: MarketingLeadStatus[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'REJECTED', 'ONBOARDED'];
 const blockedStatuses: TenantStatus[] = ['OVERDUE', 'SUSPENDED', 'DISABLED'];
 type WorkspaceTab = 'tenants' | 'billing' | 'payments' | 'plans' | 'leads';
 
@@ -232,6 +235,18 @@ export default function AdminBilling() {
     },
   });
 
+  const leadFollowUpMutation = useMutation({
+    mutationFn: (payload: { leadId: string; status: MarketingLeadStatus; nextFollowUpAt?: string; internalNotes?: string }) =>
+      updateMarketingLeadFollowUp(payload.leadId, {
+        status: payload.status,
+        nextFollowUpAt: payload.nextFollowUpAt,
+        internalNotes: payload.internalNotes,
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['marketing-leads'] });
+    },
+  });
+
   const receiptQuery = useQuery({
     queryKey: ['tenant-payment-receipt', effectiveTenantId, receiptPaymentId],
     queryFn: () => fetchTenantPaymentReceipt(effectiveTenantId, receiptPaymentId),
@@ -248,6 +263,7 @@ export default function AdminBilling() {
     subscriptionMutation.error ??
     paymentMutation.error ??
     planMutation.error ??
+    leadFollowUpMutation.error ??
     receiptQuery.error;
 
   async function refreshTenantData() {
@@ -560,7 +576,12 @@ export default function AdminBilling() {
             )}
 
             {activeTab === 'leads' && (
-              <LeadList leads={leads} isLoading={leadsQuery.isLoading} />
+              <LeadList
+                leads={leads}
+                isLoading={leadsQuery.isLoading}
+                updatingLeadId={leadFollowUpMutation.variables?.leadId}
+                onUpdate={(payload) => leadFollowUpMutation.mutate(payload)}
+              />
             )}
           </main>
         </div>
@@ -569,7 +590,17 @@ export default function AdminBilling() {
   );
 }
 
-function LeadList({ leads, isLoading }: { leads: MarketingLead[]; isLoading: boolean }) {
+function LeadList({
+  leads,
+  isLoading,
+  updatingLeadId,
+  onUpdate,
+}: {
+  leads: MarketingLead[];
+  isLoading: boolean;
+  updatingLeadId?: string;
+  onUpdate: (payload: { leadId: string; status: MarketingLeadStatus; nextFollowUpAt?: string; internalNotes?: string }) => void;
+}) {
   return (
     <section className="mt-6 rounded-lg border border-gray-200 bg-white">
       <div className="border-b border-gray-200 p-5">
@@ -578,30 +609,117 @@ function LeadList({ leads, isLoading }: { leads: MarketingLead[]; isLoading: boo
       </div>
       <div className="divide-y divide-gray-100">
         {leads.map((lead) => (
-          <article key={lead.leadId} className="grid grid-cols-1 gap-4 p-5 lg:grid-cols-[1fr_220px]">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h4 className="font-semibold text-gray-900">{lead.storeName}</h4>
-                {lead.city && <span className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">{lead.city}</span>}
-                {lead.monthlyOrderVolume && <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{lead.monthlyOrderVolume}</span>}
-              </div>
-              <p className="mt-2 text-sm text-gray-700">{lead.contactName} · {lead.phone}{lead.email ? ` · ${lead.email}` : ''}</p>
-              {lead.message && <p className="mt-2 text-sm leading-6 text-gray-600">{lead.message}</p>}
-              {lead.campaignSource && <p className="mt-2 text-xs text-gray-500">Source: {lead.campaignSource}</p>}
-            </div>
-            <div className="text-sm text-gray-600 lg:text-right">
-              <p className="font-medium text-gray-900">{formatDateTime(lead.createdAt)}</p>
-              <a href={`tel:${lead.phone}`} className="mt-3 inline-flex rounded-md border border-gray-200 px-3 py-2 font-medium text-gray-700 hover:bg-gray-50">
-                Call lead
-              </a>
-            </div>
-          </article>
+          <LeadCard key={lead.leadId} lead={lead} isUpdating={updatingLeadId === lead.leadId} onUpdate={onUpdate} />
         ))}
         {isLoading && <p className="p-5 text-sm text-gray-500">Loading leads...</p>}
         {!isLoading && !leads.length && <p className="p-5 text-sm text-gray-500">No demo requests captured yet.</p>}
       </div>
     </section>
   );
+}
+
+function LeadCard({
+  lead,
+  isUpdating,
+  onUpdate,
+}: {
+  lead: MarketingLead;
+  isUpdating: boolean;
+  onUpdate: (payload: { leadId: string; status: MarketingLeadStatus; nextFollowUpAt?: string; internalNotes?: string }) => void;
+}) {
+  const [status, setStatus] = useState<MarketingLeadStatus>(lead.status);
+  const [nextFollowUpAt, setNextFollowUpAt] = useState(toDateTimeLocal(lead.nextFollowUpAt));
+  const [internalNotes, setInternalNotes] = useState(lead.internalNotes ?? '');
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onUpdate({
+      leadId: lead.leadId,
+      status,
+      nextFollowUpAt: fromDateTimeLocal(nextFollowUpAt),
+      internalNotes: internalNotes || undefined,
+    });
+  }
+
+  return (
+    <article className="grid grid-cols-1 gap-5 p-5 xl:grid-cols-[1fr_360px]">
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="font-semibold text-gray-900">{lead.storeName}</h4>
+          <LeadStatusBadge status={lead.status} />
+          {lead.city && <span className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">{lead.city}</span>}
+          {lead.monthlyOrderVolume && <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{lead.monthlyOrderVolume}</span>}
+        </div>
+        <p className="mt-2 text-sm text-gray-700">{lead.contactName} · {lead.phone}{lead.email ? ` · ${lead.email}` : ''}</p>
+        {lead.message && <p className="mt-2 text-sm leading-6 text-gray-600">{lead.message}</p>}
+        <div className="mt-3 grid gap-1 text-xs text-gray-500 sm:grid-cols-2">
+          <p>Captured: <span className="font-medium text-gray-700">{formatDateTime(lead.createdAt)}</span></p>
+          <p>Next follow-up: <span className="font-medium text-gray-700">{formatDateTime(lead.nextFollowUpAt)}</span></p>
+          {lead.campaignSource && <p className="sm:col-span-2">Source: <span className="font-medium text-gray-700">{lead.campaignSource}</span></p>}
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} className="rounded-md border border-gray-200 bg-gray-50 p-4">
+        <div className="grid gap-3">
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Lead status</span>
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as MarketingLeadStatus)}
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {marketingLeadStatuses.map((leadStatus) => (
+                <option key={leadStatus} value={leadStatus}>{leadStatus}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Next follow-up</span>
+            <input
+              type="datetime-local"
+              value={nextFollowUpAt}
+              onChange={(event) => setNextFollowUpAt(event.target.value)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Internal notes</span>
+            <textarea
+              rows={3}
+              value={internalNotes}
+              onChange={(event) => setInternalNotes(event.target.value)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </label>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="submit"
+            disabled={isUpdating}
+            className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+          >
+            <Save size={16} />
+            {isUpdating ? 'Saving' : 'Save follow-up'}
+          </button>
+          <a href={`tel:${lead.phone}`} className="inline-flex rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Call lead
+          </a>
+        </div>
+      </form>
+    </article>
+  );
+}
+
+function LeadStatusBadge({ status }: { status: MarketingLeadStatus }) {
+  const tones: Record<MarketingLeadStatus, string> = {
+    NEW: 'bg-blue-50 text-blue-700',
+    CONTACTED: 'bg-amber-50 text-amber-700',
+    QUALIFIED: 'bg-green-50 text-green-700',
+    REJECTED: 'bg-gray-100 text-gray-600',
+    ONBOARDED: 'bg-purple-50 text-purple-700',
+  };
+
+  return <span className={`rounded-md px-2 py-1 text-xs font-semibold ${tones[status]}`}>{status}</span>;
 }
 
 function TenantSelector({

@@ -13,6 +13,9 @@ test('public landing captures a demo lead with campaign source', async ({ page }
       body: JSON.stringify({
         leadId: '11111111-1111-1111-1111-111111111111',
         createdAt: new Date().toISOString(),
+        status: 'NEW',
+        nextFollowUpAt: null,
+        internalNotes: null,
         ...leadRequests[0],
       }),
     });

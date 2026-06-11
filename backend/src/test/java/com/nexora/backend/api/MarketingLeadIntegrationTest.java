@@ -20,6 +20,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -68,7 +69,7 @@ class MarketingLeadIntegrationTest {
 
     @Test
     void anonymousVisitorCanSubmitLeadAndSuperAdminCanListIt() throws Exception {
-        mockMvc.perform(post("/api/marketing/leads")
+        MvcResult leadResult = mockMvc.perform(post("/api/marketing/leads")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {
@@ -85,7 +86,11 @@ class MarketingLeadIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.contactName").value("Sara Admin"))
                 .andExpect(jsonPath("$.storeName").value("Casa Beauty"))
-                .andExpect(jsonPath("$.campaignSource").value("utm_source=facebook"));
+                .andExpect(jsonPath("$.campaignSource").value("utm_source=facebook"))
+                .andExpect(jsonPath("$.status").value("NEW"))
+                .andReturn();
+
+        String leadId = objectMapper.readTree(leadResult.getResponse().getContentAsString()).get("leadId").asText();
 
         mockMvc.perform(get("/api/marketing/leads"))
                 .andExpect(status().isUnauthorized());
@@ -95,6 +100,21 @@ class MarketingLeadIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].storeName").value("Casa Beauty"))
                 .andExpect(jsonPath("$[0].phone").value("+212600000001"));
+
+        mockMvc.perform(patch("/api/marketing/leads/{leadId}/follow-up", leadId)
+                .header("Authorization", "Bearer " + login("superadmin@example.com"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "status": "CONTACTED",
+                          "nextFollowUpAt": "2026-06-12T14:30:00Z",
+                          "internalNotes": "Reached on WhatsApp. Interested in a guided pilot."
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONTACTED"))
+                .andExpect(jsonPath("$.nextFollowUpAt").value("2026-06-12T14:30:00Z"))
+                .andExpect(jsonPath("$.internalNotes").value("Reached on WhatsApp. Interested in a guided pilot."));
     }
 
     private String login(String email) throws Exception {

@@ -2,6 +2,8 @@ package com.nexora.backend.domain.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -47,6 +49,16 @@ public class MarketingLead {
     @Column(length = 64)
     private String remoteIp;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 40)
+    private MarketingLeadStatus status;
+
+    @Column
+    private Instant nextFollowUpAt;
+
+    @Column(length = 2000)
+    private String internalNotes;
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -73,8 +85,17 @@ public class MarketingLead {
                 emptyToNull(message),
                 emptyToNull(campaignSource),
                 emptyToNull(remoteIp),
+                MarketingLeadStatus.NEW,
+                null,
+                null,
                 now
         );
+    }
+
+    public void updateFollowUp(MarketingLeadStatus status, Instant nextFollowUpAt, String internalNotes) {
+        this.status = status;
+        this.nextFollowUpAt = nextFollowUpAt;
+        this.internalNotes = emptyToNull(internalNotes);
     }
 
     private static String emptyToNull(String value) {

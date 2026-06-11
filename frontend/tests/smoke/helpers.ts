@@ -76,6 +76,9 @@ export async function installMockApi(page: Page) {
         body: JSON.stringify({
           leadId: '11111111-1111-1111-1111-111111111111',
           createdAt: new Date().toISOString(),
+          status: 'NEW',
+          nextFollowUpAt: null,
+          internalNotes: null,
           ...body,
         }),
       });

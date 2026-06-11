@@ -295,6 +295,8 @@ export type SubscriptionStatus = 'TRIALING' | 'ACTIVE' | 'OVERDUE' | 'SUSPENDED'
 
 export type PaymentMethod = 'CASH' | 'BANK_TRANSFER' | 'CHECK' | 'OTHER';
 
+export type MarketingLeadStatus = 'NEW' | 'CONTACTED' | 'QUALIFIED' | 'REJECTED' | 'ONBOARDED';
+
 export interface SubscriptionPlan {
   planId: string;
   code: string;
@@ -407,7 +409,16 @@ export interface MarketingLead {
   monthlyOrderVolume?: string;
   message?: string;
   campaignSource?: string;
+  status: MarketingLeadStatus;
+  nextFollowUpAt?: string;
+  internalNotes?: string;
   createdAt: string;
+}
+
+export interface MarketingLeadFollowUpPayload {
+  status: MarketingLeadStatus;
+  nextFollowUpAt?: string;
+  internalNotes?: string;
 }
 
 interface RequestOptions extends RequestInit {
@@ -456,6 +467,16 @@ export async function captureMarketingLead(data: MarketingLeadPayload): Promise<
 
 export async function fetchMarketingLeads(): Promise<MarketingLead[]> {
   return apiRequest<MarketingLead[]>('/marketing/leads');
+}
+
+export async function updateMarketingLeadFollowUp(
+  leadId: string,
+  data: MarketingLeadFollowUpPayload,
+): Promise<MarketingLead> {
+  return apiRequest<MarketingLead>(`/marketing/leads/${leadId}/follow-up`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
 }
 
 export async function fetchAdminTenants(): Promise<AdminTenantSummary[]> {
