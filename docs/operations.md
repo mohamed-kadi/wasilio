@@ -43,7 +43,7 @@ Production CORS must be configured with explicit allowed origins. Wildcard origi
 Set `CORS_ALLOWED_ORIGINS` to a comma-separated list, for example:
 
 ```text
-CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+CORS_ALLOWED_ORIGINS=https://wasilio.ma
 ```
 
 Local Docker Compose development defaults are defined in `docker-compose.override.yml` and documented in `.env.example`:
@@ -69,8 +69,8 @@ The public landing page is served at `/`. Authenticated merchant workflows live 
 Production frontend builds require public build-time values:
 
 ```text
-VITE_PUBLIC_SITE_URL=https://app.example.com
-VITE_PUBLIC_SUPPORT_EMAIL=support@example.com
+VITE_PUBLIC_SITE_URL=https://wasilio.ma
+VITE_PUBLIC_SUPPORT_EMAIL=support@wasilio.ma
 VITE_PUBLIC_WHATSAPP_URL=https://wa.me/212600000000
 VITE_PUBLIC_META_PIXEL_ID=
 ```

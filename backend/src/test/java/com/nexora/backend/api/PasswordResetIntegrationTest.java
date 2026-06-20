@@ -26,6 +26,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -102,6 +103,19 @@ class PasswordResetIntegrationTest {
                 .andExpect(jsonPath("$.message").value("If the email exists, a password reset link has been sent."));
 
         verify(passwordResetNotifier, never()).sendPasswordResetLink(any(), any(), any());
+    }
+
+    @Test
+    void requestPasswordReset_returnsGenericMessageWhenNotificationFails() throws Exception {
+        doThrow(new RuntimeException("SMTP failed"))
+                .when(passwordResetNotifier)
+                .sendPasswordResetLink(eq(EMAIL), any(), any());
+
+        mockMvc.perform(post("/api/auth/password-reset/request")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new AuthController.PasswordResetRequest(EMAIL))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("If the email exists, a password reset link has been sent."));
     }
 
     @Test

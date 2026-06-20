@@ -5,6 +5,7 @@ import com.nexora.backend.domain.model.User;
 import com.nexora.backend.domain.repository.PasswordResetTokenRepository;
 import com.nexora.backend.domain.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PasswordResetService {
     private static final Pattern STRONG_PASSWORD = Pattern.compile(
             "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{12,}$"
@@ -88,7 +90,11 @@ public class PasswordResetService {
         );
 
         tokenRepository.save(resetToken);
-        notifier.sendPasswordResetLink(user.getEmail(), buildResetUrl(rawToken), resetToken.getExpiresAt());
+        try {
+            notifier.sendPasswordResetLink(user.getEmail(), buildResetUrl(rawToken), resetToken.getExpiresAt());
+        } catch (RuntimeException ex) {
+            log.error("Password reset notification failed for user {}", user.getId(), ex);
+        }
     }
 
     private String buildResetUrl(String rawToken) {

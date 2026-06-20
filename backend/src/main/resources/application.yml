@@ -20,12 +20,23 @@ spring:
     port: ${SMTP_PORT:1025}
     username: ${SMTP_USERNAME:}
     password: ${SMTP_PASSWORD:}
+    protocol: smtp
+    default-encoding: UTF-8
     properties:
       mail:
+        transport:
+          protocol: smtp
         smtp:
           auth: ${SMTP_AUTH:false}
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+          ssl:
+            trust: ${SMTP_HOST:localhost}
+            protocols: TLSv1.2 TLSv1.3
           starttls:
             enable: ${SMTP_STARTTLS_ENABLE:false}
+            required: ${SMTP_STARTTLS_REQUIRED:${SMTP_STARTTLS_ENABLE:false}}
 
 jwt:
   secret: ${JWT_SECRET}
