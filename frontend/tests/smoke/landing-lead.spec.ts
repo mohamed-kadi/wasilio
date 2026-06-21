@@ -25,7 +25,7 @@ test('public landing captures a demo lead with campaign source', async ({ page }
 
   await page.goto('/?utm_source=facebook&utm_campaign=pilot');
   await expect(page.getByRole('heading', { name: /Arretez de perdre des commandes COD/i })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'العربية' })).toBeVisible();
+  await expect(page.getByLabel('Language')).toBeVisible();
 
   await page.getByLabel('Nom du contact').fill('Sara Admin');
   await page.getByLabel('Nom de la boutique').fill('Casa Beauty');

@@ -556,24 +556,25 @@ export default function LandingPage() {
 }
 
 function LanguageSwitcher({ language, onChange }: { language: Language; onChange: (language: Language) => void }) {
+  const currentLanguage = languages.find((item) => item.code === language) ?? languages[0];
+
   return (
-    <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-1" aria-label="Language selector">
-      <Globe2 size={15} className="mx-1 text-slate-500" />
-      {languages.map((item) => (
-        <button
-          key={item.code}
-          type="button"
-          aria-label={item.label}
-          aria-pressed={language === item.code}
-          onClick={() => onChange(item.code)}
-          className={`rounded px-2 py-1 text-xs font-semibold ${
-            language === item.code ? 'bg-[#0F5B4A] text-white' : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          {item.shortLabel}
-        </button>
-      ))}
-    </div>
+    <label className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+      <Globe2 size={15} className="text-slate-500" />
+      <span className="sr-only">Language</span>
+      <select
+        aria-label="Language"
+        value={currentLanguage.code}
+        onChange={(event) => onChange(event.target.value as Language)}
+        className="max-w-[4.5rem] bg-transparent text-xs font-semibold uppercase text-slate-700 outline-none"
+      >
+        {languages.map((item) => (
+          <option key={item.code} value={item.code}>
+            {item.shortLabel}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
