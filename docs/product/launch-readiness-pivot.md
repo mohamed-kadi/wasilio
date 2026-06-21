@@ -2,6 +2,8 @@
 
 This document captures the temporary product pivot from pure operations workflow completion into commercial launch readiness. The goal is to make Wasilio usable for controlled merchant pilots and eventually public acquisition without losing the original COD operations roadmap.
 
+For the current tactical post-frontend-launch sequence, see `docs/product/next-implementation-plan.md`.
+
 ## Decision
 
 Pause the next operations feature batch briefly and build the minimum commercial/admin foundation needed to publish and sell the product safely.
@@ -33,6 +35,9 @@ Without these, merchants can test the operational app, but the business cannot r
 
 Ready for private demos and controlled pilots:
 
+- Public frontend deployed on Cloudflare Pages at `wasilio.ma`.
+- Domain/DNS configured through Cloudflare.
+- Brevo sender authentication and password-reset email sending verified.
 - Tenant onboarding.
 - Login/authentication.
 - Multi-tenant order operations.
@@ -50,6 +55,8 @@ Ready for private demos and controlled pilots:
 
 Not ready for public paid SaaS:
 
+- Backend hosting is intentionally deferred because no-card free backend options tested so far are blocked.
+- Online frontend is not yet connected to a hosted backend API.
 - Subscription plans are first-slice only.
 - Tenant billing status is first-slice only.
 - Manual cash/bank-transfer tracking is first-slice only.
@@ -248,13 +255,13 @@ Do not call the product publicly ready until these are true:
 
 ## Recommended Immediate Next Implementation
 
-Start with Batch L1 and L2 together as a minimal admin/billing foundation:
+Start with the tactical sequence in `docs/product/next-implementation-plan.md`.
 
-1. Add tenant status and subscription plan tables.
-2. Add manual payment and receipt tables.
-3. Add internal admin endpoints.
-4. Add admin UI for tenant list/detail and record payment.
-5. Add production-safe super-admin bootstrap.
-6. Add receipt detail/print view.
+Immediate order:
 
-This gives the business a way to onboard and charge merchants before investing in full public acquisition.
+1. Polish public landing and acquisition UX.
+2. Polish local core app workflows for demos.
+3. Validate lead capture and campaign attribution.
+4. Add focused smoke/E2E coverage for changed public and demo flows.
+
+The earlier L1/L2 admin and manual billing foundation has a first slice implemented. Do not resume backend hosting, production bootstrap, or backup automation until there is pilot/client demand or a card-verified hosting account is acceptable.

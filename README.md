@@ -2,6 +2,8 @@
 
 Wasilio is a multi-tenant COD operations platform for Moroccan e-commerce merchants. It helps teams manage order confirmation, callbacks, courier workflows, delivery outcomes, manual payments, receipts, and pilot lead follow-up.
 
+Current public deployment status: the frontend is live on Cloudflare Pages at `wasilio.ma`. The hosted backend is intentionally deferred while product UX, acquisition readiness, and local demo workflows are polished. See [docs/product/next-implementation-plan.md](docs/product/next-implementation-plan.md).
+
 ## Start Here
 
 For most local testing, use **Docker Compose**. It runs PostgreSQL, the Spring Boot backend, and the Vite-built frontend together.
@@ -309,9 +311,9 @@ After the first successful staff login, set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=f
 
 Before publishing a trial-client campaign:
 
-- Register and configure the real domain.
-- Update `VITE_PUBLIC_SITE_URL`.
-- Update `frontend/public/sitemap.xml`.
+- Confirm `wasilio.ma` and `www.wasilio.ma` are active on Cloudflare Pages.
+- Confirm `VITE_PUBLIC_SITE_URL` is `https://wasilio.ma`.
+- Confirm `frontend/public/sitemap.xml` uses the final production domain.
 - Set real `VITE_PUBLIC_SUPPORT_EMAIL`.
 - Set real `VITE_PUBLIC_WHATSAPP_URL`.
 - Set `VITE_PUBLIC_META_PIXEL_ID` only if Meta Pixel is ready.
@@ -321,6 +323,8 @@ Before publishing a trial-client campaign:
 - Confirm the lead appears in `/admin/billing`, follow-up status can be updated, and qualified leads can be converted into trial tenants.
 - Run `mvn test`, `npm run build`, `npm run lint`, and `npm run smoke`.
 - Capture a database backup.
+
+For the current frontend-only deployment, the backend-dependent items in this checklist are deferred until a hosted backend API is connected.
 
 ## Backups
 
@@ -347,6 +351,7 @@ Useful references:
 - [Security](docs/architecture/security.md)
 - [Frontend architecture](docs/architecture/frontend-architecture.md)
 - [Launch readiness pivot](docs/product/launch-readiness-pivot.md)
+- [Next implementation plan](docs/product/next-implementation-plan.md)
 - [Pilot acquisition workflow](docs/product/pilot-acquisition-workflow.md)
 - [Technical debt register](docs/technical-debt.md)
 - [Brand direction](docs/product/brand-direction.md)

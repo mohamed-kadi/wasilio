@@ -6,6 +6,8 @@ For detailed remaining phases, batch sequencing, deferred work, and the architec
 
 For the temporary merchant-pilot/public-launch path, use `docs/product/launch-readiness-pivot.md`.
 
+For the current tactical sequence after the public frontend launch, use `docs/product/next-implementation-plan.md`.
+
 ## Completed
 
 - Modular monolith foundation.
@@ -51,6 +53,12 @@ For the temporary merchant-pilot/public-launch path, use `docs/product/launch-re
 - Public landing site and lead capture: first slice implemented.
 - SEO and Facebook/Meta tracking.
 - Production backup, password recovery, and monitoring hardening.
+
+## Current Tactical Focus
+
+- Keep the public frontend live on Cloudflare Pages.
+- Keep backend hosting deferred until there is pilot/client demand or a card-verified hosting account is acceptable.
+- Prioritize landing-page/acquisition UX, core workflow polish, lead-capture readiness, and focused frontend smoke coverage.
 
 ## Phase 3 Candidate: Business Layer
 

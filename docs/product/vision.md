@@ -34,12 +34,14 @@ Wasilio should become the operational source of truth for COD merchants:
 
 ## Current MVP
 
-The MVP supports tenant onboarding, authentication, event-backed order lifecycle, order read models, confirmation attempts, and callback scheduling.
+The MVP supports tenant onboarding, authentication, event-backed order lifecycle, order read models, confirmation attempts, callback scheduling, internal courier operations, manual payment/receipt records, password reset, and lead capture.
 
 ## Near-Term Product Priorities
 
-- Harden production readiness.
+- Polish the public landing page and acquisition UX for Moroccan merchant traffic.
+- Polish local core workflows for guided demos.
+- Validate lead capture, campaign attribution, and follow-up workflow.
 - Add frontend E2E coverage for critical workflows.
-- Build courier workflow screens and integrations.
+- Defer backend hosting until pilot demand or a card-verified hosting account is acceptable.
 - Add analytics for confirmation and delivery performance.
-- Add billing/subscription support when commercial onboarding starts.
+- Expand billing/subscription support after the current first-slice manual billing foundation proves useful.

@@ -4,9 +4,11 @@ Wasilio is a multi-tenant COD operations platform for Moroccan e-commerce mercha
 
 ## Runtime Shape
 
-- `frontend`: React dashboard served by the frontend container in Docker, or by Vite during local development.
+- `frontend`: React dashboard served by the frontend container in Docker, by Vite during local development, or by Cloudflare Pages for the current public frontend-only deployment.
 - `backend`: Spring Boot API exposing authentication, onboarding, order lifecycle, and confirmation operations.
 - `postgres`: PostgreSQL database containing tenant data, users, domain events, projections, and operational records.
+
+Current public deployment note: `wasilio.ma` is live on Cloudflare Pages, but the hosted backend is intentionally deferred. Treat the public site as a frontend/acquisition presence until a backend host is selected and connected.
 
 ## Backend Structure
 
@@ -54,6 +56,7 @@ The production overlay, `docker-compose.prod.yml`, requires explicit database cr
 
 ## Current Limits
 
+- Public frontend is live, but online app/API workflows are not production-complete until a hosted backend and production database connection are deployed.
 - No distributed outbox or retry worker for projection/event dispatch failures.
 - No refresh-token model or token revocation store.
 - Abuse throttling is process-local and must be replaced or backed by Redis before multi-node deployment.

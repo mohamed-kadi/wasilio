@@ -66,6 +66,8 @@ The local development seed remains limited to `docker-compose.override.yml` thro
 
 The public landing page is served at `/`. Authenticated merchant workflows live under `/app`, while Wasilio staff operations live under `/admin/billing`.
 
+Current public deployment mode: the frontend is live on Cloudflare Pages at `wasilio.ma`, but a hosted backend API is intentionally deferred. Lead capture and authenticated workflows require a running backend; for now, validate those flows locally unless a backend host has been connected.
+
 Production frontend builds require public build-time values:
 
 ```text
@@ -86,7 +88,7 @@ Lead capture flow:
 - Super-admin users can convert qualified leads into `TRIALING` tenants with a first merchant admin account.
 - Meta Pixel is loaded only when `VITE_PUBLIC_META_PIXEL_ID` is configured.
 
-Before publishing, update `frontend/public/sitemap.xml` with the final production domain and verify that legal pages are reachable:
+Before paid traffic, confirm `frontend/public/sitemap.xml` uses the final production domain and verify that legal pages are reachable:
 
 - `/terms`
 - `/privacy`
@@ -95,6 +97,8 @@ Before publishing, update `frontend/public/sitemap.xml` with the final productio
 ## Deployment Smoke Checklist
 
 Run this checklist after every production deployment and before sending paid traffic to the public landing page.
+
+For the current frontend-only Cloudflare Pages deployment, run items 1, 2, 5, and 6. Run the backend-dependent items only after a hosted backend API is deployed and `VITE_API_BASE_URL` points to it.
 
 1. Run `cd frontend && npm run smoke` before publishing frontend changes. On a fresh machine, run `npx playwright install chromium` once first.
 2. Open `/` and confirm the public landing page renders with the final brand, support email, WhatsApp link, and no development placeholder contact values.

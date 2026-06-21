@@ -17,6 +17,7 @@ This index is the starting point for future engineers and AI agents.
 - `docs/product/vision.md`: product direction and target users.
 - `docs/product/master-roadmap.md`: remaining phases, batches, sequencing, and audit gate.
 - `docs/product/launch-readiness-pivot.md`: temporary path for merchant pilots, admin billing, receipts, public site, SEO, and return path.
+- `docs/product/next-implementation-plan.md`: current tactical plan after frontend launch, including deferred backend hosting and next UX/acquisition priorities.
 - `docs/product/pilot-acquisition-workflow.md`: guided demo request to trial tenant conversion workflow.
 - `docs/product/brand-direction.md`: working name shortlist, logo direction, and rebrand rollout plan.
 - `docs/product/roadmap.md`: completed work and future phases.
@@ -48,5 +49,6 @@ This index is the starting point for future engineers and AI agents.
 - `docs/audits/audit-001-initial-production-readiness.md`
 - `docs/audits/audit-002-post-stabilization.md`
 - `docs/audits/audit-003-current-readiness.md`
+- `docs/audits/audit-004-frontend-launch-readiness.md`
 - `docs/technical-debt.md`
 - `docs/operations.md`

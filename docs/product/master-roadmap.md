@@ -7,6 +7,7 @@ This roadmap documents Wasilio from the initial foundation through the planned p
 - Start with the project history to understand the implemented platform shape.
 - Use the current state section to understand what is production-adjacent today.
 - Use `docs/product/launch-readiness-pivot.md` when preparing for merchant pilots or public acquisition.
+- Use `docs/product/next-implementation-plan.md` for the current tactical sequence after the public frontend launch.
 - Use the remaining phases to sequence future work.
 - Use the architecture audit gate before moving from operational completion into commercialization or enterprise hardening.
 - Use the linked architecture, ADR, phase, and audit documents for implementation details.
@@ -19,6 +20,7 @@ Primary supporting documents:
 - `docs/product/order-lifecycle.md`
 - `docs/product/courier-workflow.md`
 - `docs/product/launch-readiness-pivot.md`
+- `docs/product/next-implementation-plan.md`
 - `docs/technical-debt.md`
 
 ## Project History
@@ -186,6 +188,9 @@ Completed capabilities include:
 - Unified order timeline.
 - Frontend management UI.
 - Docker deployment.
+- Public frontend deployment on Cloudflare Pages at `wasilio.ma`.
+- Brevo SMTP sender authentication and password-reset email delivery.
+- Neon Postgres retained as the production database candidate for a future hosted backend.
 - CI pipeline.
 - Correlation IDs.
 - Health checks.
@@ -199,6 +204,7 @@ Approximate maturity:
 - Completed production OMS foundation: 75-80%.
 - Remaining work for real operational use: about 15%.
 - Later SaaS commercialization and enterprise hardening: about 5% of product surface, but meaningful architecture effort.
+- Current public deployment maturity: frontend-only public presence; hosted backend is intentionally deferred until pilot demand or a card-verified hosting account is acceptable.
 
 ## Execution Recommendation
 
@@ -216,6 +222,10 @@ Reason: at that point Wasilio should be usable by a real small-to-medium deliver
 Launch-readiness pivot recommendation:
 
 If the immediate goal is to publish, pilot, or sell Wasilio, temporarily follow `docs/product/launch-readiness-pivot.md` before returning to the operations-completion sequence. The launch path prioritizes internal admin, subscription status, manual Moroccan payment tracking, receipts, public landing/lead capture, SEO, and production trust hardening.
+
+Current tactical recommendation:
+
+Follow `docs/product/next-implementation-plan.md` first. The immediate sequence is landing/acquisition UX, local core-workflow polish, campaign readiness, and focused smoke coverage while backend hosting remains deferred.
 
 ## Phase 2: Operations Completion
 
@@ -407,16 +417,16 @@ Non-goals:
 
 ## Launch Readiness Pivot
 
-Status: active candidate path when preparing merchant pilots or public acquisition.
+Status: active path for merchant pilot and public acquisition preparation.
 
-Use `docs/product/launch-readiness-pivot.md` as the detailed source of truth.
+Use `docs/product/launch-readiness-pivot.md` as the detailed launch-readiness source of truth. Use `docs/product/next-implementation-plan.md` for the current tactical order.
 
 Summary:
 
 - L1: Internal admin console for tenant management.
 - L2: Plans, manual cash/bank-transfer payments, and receipts.
-- L3: Public landing site and lead capture first slice implemented; SEO, legal pages, brand polish, and Facebook/Meta tracking remain.
-- L4: Production trust hardening.
+- L3: Public landing site and lead capture first slice implemented; frontend is live on Cloudflare Pages. UX, campaign validation, and tracking setup remain.
+- L4: Production trust hardening; hosted backend, production backups, monitoring, and full smoke checks remain deferred until hosting is funded or card-verified.
 - L5: Controlled public beta.
 
 Return to the original roadmap after L1-L4, then continue customer notes, exports, E2E coverage, user management, architecture audit, and deterministic risk scoring.

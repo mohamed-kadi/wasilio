@@ -13,11 +13,11 @@ Rationale:
 - The name has a local delivery/connection signal without sounding like a small courier company.
 - It is short, professional, and pronounceable for Moroccan Arabic, French, and English contexts.
 - The `.ma` domain reinforces the first market and is appropriate for Moroccan merchant acquisition.
-- A WHOIS check on June 10, 2026 returned `No Object Found` for `wasilio.ma`, so it appears unregistered at the time of checking. This is not a substitute for registrar checkout or legal review.
+- A WHOIS check on June 10, 2026 returned `No Object Found` for `wasilio.ma`; the domain was later registered and connected through Cloudflare for the public frontend launch. This is not a substitute for trademark or legal review.
 
 Immediate action:
 
-- Register `wasilio.ma` before public rebrand work.
+- Keep `wasilio.ma` configured through Cloudflare and use it as the primary public domain.
 - Consider defensive fallbacks if affordable: `getwasilio.com`, `usewasilio.com`, and `wasilio.co`.
 - Keep the product codebase internal names unchanged until the public-facing rebrand is confirmed.
 

@@ -92,11 +92,11 @@ Target: reminder worker, SLA indicators, and optional notification channels.
 
 ### Billing
 
-Current state: no billing, subscriptions, invoices, or usage enforcement.
+Current state: first-slice subscription plans, tenant subscription status, manual cash/bank-transfer payment records, and receipt records exist. Usage enforcement, online checkout, accounting-grade invoicing, and automated billing provider integration are not implemented.
 
-Risk: commercial rollout requires manual account management.
+Risk: commercial rollout still requires manual account management and reconciliation.
 
-Target: plan model, subscription status, usage tracking, and billing provider integration.
+Target: usage tracking, billing status automation, invoice/accounting hardening, and billing provider integration when online payment becomes necessary.
 
 ### Admin Support Console
 

@@ -24,7 +24,7 @@ test('public landing captures a demo lead with campaign source', async ({ page }
   });
 
   await page.goto('/?utm_source=facebook&utm_campaign=pilot');
-  await expect(page.getByRole('heading', { name: /Wasilio aide votre equipe/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Arretez de perdre des commandes COD/i })).toBeVisible();
   await expect(page.getByRole('button', { name: 'العربية' })).toBeVisible();
 
   await page.getByLabel('Nom du contact').fill('Sara Admin');
@@ -32,7 +32,7 @@ test('public landing captures a demo lead with campaign source', async ({ page }
   await page.getByLabel('Telephone / WhatsApp').fill('+212600000001');
   await page.getByLabel('Email').fill('sara@example.com');
   await page.getByLabel('Ville').fill('Casablanca');
-  await page.getByLabel('Qu est-ce qui complique votre workflow COD aujourd hui ?').fill('Callbacks are hard to track.');
+  await page.getByLabel('Quel est votre plus gros probleme de confirmation aujourd hui ?').fill('Callbacks are hard to track.');
   await page.getByRole('button', { name: /demander la demo/i }).click();
 
   await expect(page.getByText(/Demande recue/i)).toBeVisible();
