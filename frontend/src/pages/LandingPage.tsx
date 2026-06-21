@@ -26,17 +26,20 @@ const copy = {
     navContact: 'Demo',
     signIn: 'Acces pilote',
     eyebrow: 'Confirmation COD pour marchands marocains',
-    headline: 'Arretez de perdre des commandes COD entre appels, rappels et WhatsApp.',
+    headline: 'Confirmez plus de commandes COD, sans perdre les rappels.',
     subhead:
-      'Wasilio donne a votre equipe une file claire pour confirmer chaque commande, planifier les rappels, voir les appels manques et passer seulement les commandes confirmees aux coursiers.',
+      'Wasilio aide votre equipe a savoir quoi appeler, quoi relancer et quoi envoyer au coursier, depuis une seule file de travail.',
     primaryCta: 'Demander une demo',
-    whatsapp: 'WhatsApp',
-    trust: ['Specialise dans la confirmation COD', 'Essai accompagne pour marchands pilotes', 'Facturation manuelle: cash ou virement'],
+    whatsapp: 'Parler sur WhatsApp',
+    heroModel: ['Demo gratuite', 'Pilote accompagne', 'Abonnement mensuel MAD'],
+    trust: ['Pour les equipes COD avec du volume', 'Validation avant ouverture du pilote', 'Paiement manuel: cash ou virement'],
     metrics: [
       ['Commandes a confirmer', '42'],
       ['Rappels a ne pas oublier', '18'],
       ['Confirmees pour coursier', '27'],
     ],
+    deskTitle: 'Bureau de suivi COD',
+    deskText: 'Une vue pour decider: appeler, relancer, rejeter ou passer au coursier.',
     demoRows: [
       ['Amina Shop', 'RAPPEL PLUS TARD', 'Casablanca'],
       ['Atlas Store', 'CONFIRMEE', 'Rabat'],
@@ -44,30 +47,30 @@ const copy = {
       ['Rif Market', 'LIVREE', 'Tanger'],
     ],
     features: [
-      ['File de confirmation', 'Une liste unique pour appeler, noter le resultat et eviter les doubles appels.'],
-      ['Rappels visibles', 'Chaque rappel programme reste dans la queue jusqu a resolution, au lieu de disparaitre dans WhatsApp.'],
-      ['Passage coursier propre', 'Les commandes confirmees avancent vers affectation, ramassage, livraison ou echec documente.'],
+      ['File claire', 'Chaque commande garde son statut, son prochain geste et la personne responsable.'],
+      ['Relances controlees', 'Les rappels restent visibles jusqu a resolution, meme quand la journee devient chargee.'],
+      ['Handoff coursier', 'Seules les commandes pretes avancent vers affectation, ramassage ou suivi d echec.'],
     ],
     processEyebrow: 'Workflow de confirmation',
-    processTitle: 'Chaque commande garde une prochaine action claire.',
+    processTitle: 'Votre equipe ne devine plus la prochaine action.',
     process:
-      'Au lieu de chercher qui a appele le client, Wasilio garde l historique des tentatives, les rappels dus et le statut final avant la livraison.',
+      'Wasilio garde les tentatives, les notes et la decision finale dans le meme workflow avant la livraison.',
     processSteps: ['Nouvelle commande', 'Appel ou rappel', 'Confirmee ou rejetee'],
     pricingEyebrow: 'Modele pilote',
-    pricingTitle: 'Business model simple: essai accompagne, puis abonnement mensuel manuel.',
+    pricingTitle: 'Demo gratuite, pilote valide ensemble, puis abonnement mensuel.',
     prices: [
       ['Etape 1', 'Demo gratuite', 'On regarde votre workflow de confirmation avant toute decision.'],
       ['Etape 2', 'Pilote accompagne', 'Un espace de test est configure pour votre equipe si le besoin est clair.'],
       ['Etape 3', 'Abonnement MAD', 'Paiement mensuel manuel par cash ou virement, avec recu.'],
     ],
     contactEyebrow: 'Demande de demo',
-    contactTitle: 'Voyons si votre probleme de confirmation vaut un pilote Wasilio.',
+    contactTitle: 'Montrez-nous ou votre equipe perd du temps.',
     contactText:
-      'Partagez votre boutique, votre volume COD et ce qui bloque aujourd hui: appels oublies, rappels non suivis, clients injoignables ou commandes envoyees trop vite au coursier.',
+      'Partagez votre boutique, votre volume COD et le blocage principal. Nous verifions si Wasilio peut vraiment aider avant d ouvrir un espace pilote.',
     bullets: [
-      'Le premier appel sert a comprendre votre workflow, pas a vendre un checkout.',
-      'Le pilote cible les equipes qui confirment beaucoup de commandes chaque jour.',
-      'Le paiement reste manuel au lancement: cash ou virement avec recu.',
+      'Premier appel: comprendre vos operations et vos pertes.',
+      'Pilote: reserve aux marchands avec un besoin COD clair.',
+      'Paiement: manuel au lancement, cash ou virement avec recu.',
     ],
     submitted: 'Demande recue. L equipe Wasilio peut maintenant vous recontacter.',
     form: {
@@ -96,17 +99,20 @@ const copy = {
     navContact: 'تجربة',
     signIn: 'دخول التجربة',
     eyebrow: 'تأكيد طلبات COD للتجار في المغرب',
-    headline: 'توقف عن ضياع طلبات COD بين المكالمات، المواعيد وواتساب.',
+    headline: 'أكد طلبات COD اكثر بدون نسيان المواعيد.',
     subhead:
-      'Wasilio يعطي فريقك لائحة واضحة لتأكيد كل طلب، برمجة الاتصالات اللاحقة، رؤية المكالمات غير الناجحة، وتمرير الطلبات المؤكدة فقط للموزعين.',
+      'Wasilio يساعد فريقك يعرف ما الذي يجب الاتصال به، ما الذي يحتاج متابعة، وما الذي يمكن تمريره للموزع من لائحة واحدة.',
     primaryCta: 'اطلب ديمو',
-    whatsapp: 'واتساب',
-    trust: ['متخصص في تأكيد COD', 'تجربة مرافقة للتجار الجادين', 'فوترة يدوية: كاش او تحويل'],
+    whatsapp: 'تواصل عبر واتساب',
+    heroModel: ['ديمو مجاني', 'تجربة مرافقة', 'اشتراك شهري بالدرهم'],
+    trust: ['للفرق التي لديها حجم COD', 'الموافقة قبل فتح التجربة', 'اداء يدوي: كاش او تحويل'],
     metrics: [
       ['طلبات تنتظر التأكيد', '42'],
       ['مواعيد لا يجب نسيانها', '18'],
       ['مؤكدة للموزع', '27'],
     ],
+    deskTitle: 'مكتب متابعة COD',
+    deskText: 'رؤية واحدة للقرار: اتصال، متابعة، رفض او تمرير للموزع.',
     demoRows: [
       ['Amina Shop', 'اتصال لاحق', 'الدار البيضاء'],
       ['Atlas Store', 'مؤكد', 'الرباط'],
@@ -114,28 +120,28 @@ const copy = {
       ['Rif Market', 'تم التسليم', 'طنجة'],
     ],
     features: [
-      ['لائحة التأكيد', 'مكان واحد للاتصال، تسجيل النتيجة، وتفادي تكرار المكالمات.'],
-      ['المواعيد واضحة', 'كل اتصال لاحق يبقى ظاهرا حتى يتم حله بدل ان يضيع في واتساب.'],
-      ['تسليم منظم للموزع', 'الطلبات المؤكدة فقط تنتقل للتعيين، الاستلام، التسليم او سبب الفشل.'],
+      ['لائحة واضحة', 'كل طلب عنده الحالة، الخطوة القادمة، والمسؤول عنه.'],
+      ['متابعات مضبوطة', 'المواعيد تبقى ظاهرة حتى يتم حلها، حتى في ايام الضغط.'],
+      ['تسليم للموزع', 'فقط الطلبات الجاهزة تنتقل للتعيين، الاستلام او تتبع سبب الفشل.'],
     ],
     processEyebrow: 'مسار التأكيد',
-    processTitle: 'كل طلب عنده الخطوة القادمة واضحة.',
+    processTitle: 'الفريق لا يحتاج ان يخمن الخطوة القادمة.',
     process:
-      'بدل البحث عمن اتصل بالزبون، Wasilio يحفظ محاولات الاتصال، المواعيد القريبة، والقرار النهائي قبل التسليم.',
+      'Wasilio يحفظ المحاولات، الملاحظات، والقرار النهائي في نفس المسار قبل التسليم.',
     processSteps: ['طلب جديد', 'اتصال او موعد', 'مؤكد او مرفوض'],
     pricingEyebrow: 'نموذج التجربة',
-    pricingTitle: 'نموذج واضح: ديمو، ثم تجربة مرافقة، ثم اشتراك شهري يدوي.',
+    pricingTitle: 'ديمو مجاني، تجربة نتفق عليها، ثم اشتراك شهري.',
     prices: [
       ['الخطوة 1', 'ديمو مجاني', 'نراجع طريقة تأكيد الطلبات قبل اي قرار.'],
       ['الخطوة 2', 'تجربة مرافقة', 'نجهز مساحة اختبار للفريق اذا كان الاحتياج واضحا.'],
       ['الخطوة 3', 'اشتراك بالدرهم', 'اداء شهري يدوي كاش او تحويل مع وصل.'],
     ],
     contactEyebrow: 'طلب ديمو',
-    contactTitle: 'لنرى هل مشكل تأكيد الطلبات يستحق تجربة Wasilio.',
-    contactText: 'شاركنا المتجر، حجم طلبات COD، وما الذي يعرقل التأكيد اليوم: مواعيد منسية، زبائن غير متاحين، او طلبات تذهب بسرعة للموزع.',
+    contactTitle: 'ارنا اين يضيع وقت فريقك.',
+    contactText: 'شاركنا المتجر، حجم طلبات COD، واكبر عائق اليوم. نتحقق هل Wasilio مناسب قبل فتح مساحة تجربة.',
     bullets: [
-      'اول اتصال لفهم workflow وليس لبيع checkout.',
-      'التجربة مناسبة للفرق التي تؤكد طلبات كثيرة يوميا.',
+      'اول اتصال لفهم العمليات والخسائر.',
+      'التجربة مخصصة للتجار الذين لديهم احتياج COD واضح.',
       'الاداء في البداية يدوي: كاش او تحويل مع وصل.',
     ],
     submitted: 'تم استلام الطلب. فريق Wasilio سيتواصل معك.',
@@ -165,17 +171,20 @@ const copy = {
     navContact: 'Demo',
     signIn: 'Pilot access',
     eyebrow: 'COD confirmation for Moroccan merchants',
-    headline: 'Stop losing COD orders between calls, callbacks, and WhatsApp.',
+    headline: 'Confirm more COD orders without losing callbacks.',
     subhead:
-      'Wasilio gives your team one clear queue to confirm every order, schedule callbacks, see missed attempts, and hand only confirmed orders to couriers.',
+      'Wasilio helps your team know what to call, what to follow up, and what is ready for the courier from one working queue.',
     primaryCta: 'Request a demo',
-    whatsapp: 'WhatsApp',
-    trust: ['Focused on COD confirmation', 'Guided pilot for serious merchants', 'Manual billing: cash or bank transfer'],
+    whatsapp: 'Talk on WhatsApp',
+    heroModel: ['Free demo', 'Guided pilot', 'Monthly MAD subscription'],
+    trust: ['For COD teams with real volume', 'Pilot opened after validation', 'Manual payment: cash or bank transfer'],
     metrics: [
       ['Orders awaiting confirmation', '42'],
       ['Callbacks not to miss', '18'],
       ['Confirmed for courier', '27'],
     ],
+    deskTitle: 'COD follow-up desk',
+    deskText: 'One view to decide: call, follow up, reject, or send to courier.',
     demoRows: [
       ['Amina Shop', 'CALL BACK', 'Casablanca'],
       ['Atlas Store', 'CONFIRMED', 'Rabat'],
@@ -183,30 +192,30 @@ const copy = {
       ['Rif Market', 'DELIVERED', 'Tangier'],
     ],
     features: [
-      ['Confirmation queue', 'One place to call customers, record the result, and avoid duplicate follow-up.'],
-      ['Visible callbacks', 'Every scheduled callback stays visible until it is resolved instead of disappearing in WhatsApp.'],
-      ['Clean courier handoff', 'Confirmed orders move to assignment, pickup, delivery, or a documented failure reason.'],
+      ['Clear queue', 'Every order keeps its status, next move, and responsible operator.'],
+      ['Controlled follow-up', 'Callbacks stay visible until resolved, even when the day gets busy.'],
+      ['Courier handoff', 'Only ready orders move to assignment, pickup, or failure tracking.'],
     ],
     processEyebrow: 'Confirmation workflow',
-    processTitle: 'Every order keeps a clear next action.',
+    processTitle: 'Your team stops guessing the next action.',
     process:
-      'Instead of asking who called the customer, Wasilio keeps the attempt history, due callbacks, and final confirmation status in one workflow before delivery.',
+      'Wasilio keeps attempts, notes, and the final decision in the same workflow before delivery.',
     processSteps: ['New order', 'Call or callback', 'Confirmed or rejected'],
     pricingEyebrow: 'Pilot model',
-    pricingTitle: 'Simple business model: demo, guided pilot, then monthly manual subscription.',
+    pricingTitle: 'Free demo, agreed pilot, then monthly subscription.',
     prices: [
       ['Step 1', 'Free demo', 'We review your confirmation workflow before any decision.'],
       ['Step 2', 'Guided pilot', 'A test workspace is configured if the operational need is clear.'],
       ['Step 3', 'MAD subscription', 'Monthly manual payment by cash or bank transfer, with receipt.'],
     ],
     contactEyebrow: 'Demo request',
-    contactTitle: 'Let us see if your confirmation problem is worth a Wasilio pilot.',
+    contactTitle: 'Show us where your team is losing time.',
     contactText:
-      'Share your store, COD volume, and what breaks today: forgotten callbacks, unreachable customers, duplicate calls, or orders sent to couriers before they are truly confirmed.',
+      'Share your store, COD volume, and the main operational block. We validate whether Wasilio can help before opening a pilot workspace.',
     bullets: [
-      'The first call is a workflow review, not an online checkout.',
-      'The pilot is for teams confirming many COD orders every day.',
-      'Billing stays manual at launch: cash or bank transfer with receipt.',
+      'First call: understand your operations and losses.',
+      'Pilot: reserved for merchants with a clear COD need.',
+      'Payment: manual at launch, cash or bank transfer with receipt.',
     ],
     submitted: 'Demo request received. Wasilio operations can now follow up.',
     form: {
@@ -240,8 +249,11 @@ interface LandingCopy {
   subhead: string;
   primaryCta: string;
   whatsapp: string;
+  heroModel: string[];
   trust: string[];
   metrics: string[][];
+  deskTitle: string;
+  deskText: string;
   demoRows: string[][];
   features: string[][];
   processEyebrow: string;
@@ -386,14 +398,26 @@ export default function LandingPage() {
                 {content.primaryCta}
                 <ArrowRight size={17} className={direction === 'rtl' ? 'rotate-180' : ''} />
               </a>
-              <a href={whatsappUrl || '#contact'} className="inline-flex items-center gap-2 rounded-md border border-[#0F5B4A]/30 bg-white px-5 py-3 text-sm font-semibold text-[#0F5B4A] hover:bg-[#E8F4EF]">
+              <a href={whatsappUrl || '#contact'} className="inline-flex items-center gap-2 px-2 py-3 text-sm font-semibold text-[#0F5B4A] hover:text-[#0B4639]">
                 <MessageCircle size={17} />
                 {content.whatsapp}
               </a>
             </div>
-            <div className="mt-8 grid max-w-2xl gap-2 text-sm text-slate-700 sm:grid-cols-3">
+
+            <div className="mt-6 flex max-w-2xl flex-col overflow-hidden rounded-lg border border-[#0F5B4A]/20 bg-white text-sm font-semibold text-slate-800 shadow-sm sm:flex-row">
+              {content.heroModel.map((item, index) => (
+                <div key={item} className="flex flex-1 items-center gap-2 border-b border-slate-100 px-4 py-3 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#E8F4EF] text-xs font-bold text-[#0F5B4A]">
+                    {index + 1}
+                  </span>
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 grid max-w-2xl gap-2 text-sm text-slate-700 sm:grid-cols-3">
               {content.trust.map((item) => (
-                <div key={item} className="flex items-start gap-2 rounded-md border border-white bg-white/70 px-3 py-2">
+                <div key={item} className="flex items-start gap-2 px-1 py-1">
                   <CheckCircle2 className="mt-0.5 shrink-0 text-[#0F5B4A]" size={16} />
                   <span>{item}</span>
                 </div>
@@ -403,8 +427,8 @@ export default function LandingPage() {
 
           <div className="rounded-lg border border-[#0F5B4A]/20 bg-white p-4 shadow-lg shadow-slate-200/70">
             <div className="mb-4 rounded-md bg-slate-950 px-4 py-3 text-white">
-              <p className="text-xs font-semibold uppercase text-[#F6B24A]">Live confirmation desk</p>
-              <p className="mt-1 text-sm text-slate-200">One queue for calls, callbacks, and courier handoff.</p>
+              <p className="text-xs font-semibold uppercase text-[#F6B24A]">{content.deskTitle}</p>
+              <p className="mt-1 text-sm text-slate-200">{content.deskText}</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
               {content.metrics.map(([label, value], index) => (
