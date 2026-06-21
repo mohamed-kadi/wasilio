@@ -45,7 +45,7 @@ export default function Signup() {
       await onboardTenant({ tenantName, adminName, adminEmail, password });
       navigate('/login', {
         replace: true,
-        state: { message: 'Tenant created. Sign in with the admin account.' },
+        state: { message: 'Workspace created. Sign in with the main admin account.' },
       });
     } catch (submitError) {
       if (submitError instanceof ApiError) {
@@ -66,7 +66,10 @@ export default function Signup() {
             Sign in
           </Link>
           <BrandLogo className="mt-6" markClassName="h-10 w-10" textClassName="text-2xl" />
-          <h2 className="mt-4 text-xl font-semibold text-gray-900">Create tenant</h2>
+          <h2 className="mt-4 text-xl font-semibold text-gray-900">Create store workspace</h2>
+          <p className="mt-2 text-sm leading-6 text-gray-600">
+            The store workspace is the business account. The main admin is the person who will manage it.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
@@ -77,7 +80,8 @@ export default function Signup() {
           )}
 
           <Field
-            label="Tenant name"
+            label="Store / business name"
+            help="This is the company, shop, or client workspace name."
             name="tenantName"
             value={tenantName}
             error={fieldErrors.tenantName}
@@ -85,7 +89,8 @@ export default function Signup() {
             onChange={setTenantName}
           />
           <Field
-            label="Admin name"
+            label="Main admin full name"
+            help="This is the person who will log in and manage the workspace."
             name="adminName"
             value={adminName}
             error={fieldErrors.adminName}
@@ -93,7 +98,7 @@ export default function Signup() {
             onChange={setAdminName}
           />
           <Field
-            label="Admin email"
+            label="Main admin email"
             name="adminEmail"
             type="email"
             value={adminEmail}
@@ -126,7 +131,7 @@ export default function Signup() {
             className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 focus:ring-4 focus:ring-blue-100 disabled:opacity-50"
           >
             <UserPlus size={18} />
-            {loading ? 'Creating tenant' : 'Create tenant'}
+            {loading ? 'Creating workspace' : 'Create workspace'}
           </button>
         </form>
       </div>
@@ -141,15 +146,17 @@ interface FieldProps {
   error?: string;
   type?: string;
   autoComplete?: string;
+  help?: string;
   onChange: (value: string) => void;
 }
 
-function Field({ label, name, value, error, type = 'text', autoComplete, onChange }: FieldProps) {
+function Field({ label, name, value, error, type = 'text', autoComplete, help, onChange }: FieldProps) {
   return (
     <div>
       <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">
         {label}
       </label>
+      {help && <p className="mb-2 text-xs leading-5 text-gray-500">{help}</p>}
       <input
         id={name}
         name={name}

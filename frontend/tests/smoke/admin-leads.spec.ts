@@ -90,14 +90,14 @@ test('super admin can update marketing lead follow-up status', async ({ page }) 
   });
 
   await page.getByRole('button', { name: 'Convert' }).click();
-  await page.getByLabel('Tenant name').fill('Casa Beauty Pilot');
-  await page.getByLabel('Admin email').fill('sara.admin@example.com');
+  await page.getByLabel('Store / business name').fill('Casa Beauty Pilot');
+  await page.getByLabel('Main admin email').fill('sara.admin@example.com');
   await page.getByLabel('Initial password').fill('PilotPass123!');
   await page.getByLabel('Conversion notes').fill('Free guided onboarding offered.');
-  await page.getByRole('button', { name: /create trial tenant/i }).click();
+  await page.getByRole('button', { name: /create pilot workspace/i }).click();
 
   await expect(page.locator('span').filter({ hasText: 'ONBOARDED' })).toBeVisible();
-  await expect(page.getByText(/Lead converted to a trial tenant/i)).toBeVisible();
+  await expect(page.getByText(/Lead converted to a pilot workspace/i)).toBeVisible();
   expect(conversions).toHaveLength(1);
   expect(conversions[0]).toMatchObject({
     tenantName: 'Casa Beauty Pilot',

@@ -710,7 +710,7 @@ function LeadCard({
           <p>Captured: <span className="font-medium text-gray-700">{formatDateTime(lead.createdAt)}</span></p>
           <p>Next follow-up: <span className="font-medium text-gray-700">{formatDateTime(lead.nextFollowUpAt)}</span></p>
           {lead.convertedAt && <p>Converted: <span className="font-medium text-gray-700">{formatDateTime(lead.convertedAt)}</span></p>}
-          {lead.convertedTenantId && <p>Tenant ID: <span className="font-medium text-gray-700">{lead.convertedTenantId}</span></p>}
+          {lead.convertedTenantId && <p>Workspace ID: <span className="font-medium text-gray-700">{lead.convertedTenantId}</span></p>}
           {lead.campaignSource && <p className="sm:col-span-2">Source: <span className="font-medium text-gray-700">{lead.campaignSource}</span></p>}
         </div>
       </div>
@@ -768,7 +768,9 @@ function LeadCard({
           <div className="flex items-start justify-between gap-3">
             <div>
               <h5 className="text-sm font-semibold text-gray-900">Guided pilot conversion</h5>
-              <p className="mt-1 text-xs leading-5 text-gray-600">Create a trial tenant and first admin from this qualified lead.</p>
+              <p className="mt-1 text-xs leading-5 text-gray-600">
+                Create a pilot workspace and main admin from this qualified lead.
+              </p>
             </div>
             <button
               type="button"
@@ -780,9 +782,19 @@ function LeadCard({
           </div>
           {showConversion && (
             <form onSubmit={handleConvert} className="mt-4 grid gap-3">
-              <FieldInput label="Tenant name" value={tenantName} onChange={setTenantName} />
-              <FieldInput label="Admin name" value={adminName} onChange={setAdminName} />
-              <FieldInput label="Admin email" value={adminEmail} onChange={setAdminEmail} type="email" />
+              <FieldInput
+                label="Store / business name"
+                help="This becomes the merchant workspace name."
+                value={tenantName}
+                onChange={setTenantName}
+              />
+              <FieldInput
+                label="Main admin full name"
+                help="This person will manage the merchant workspace."
+                value={adminName}
+                onChange={setAdminName}
+              />
+              <FieldInput label="Main admin email" value={adminEmail} onChange={setAdminEmail} type="email" />
               <FieldInput label="Initial password" value={password} onChange={setPassword} type="password" />
               <label>
                 <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Conversion notes</span>
@@ -800,7 +812,7 @@ function LeadCard({
                 className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
               >
                 <PlusCircle size={16} />
-                {isConverting ? 'Converting' : 'Create trial tenant'}
+                {isConverting ? 'Converting' : 'Create pilot workspace'}
               </button>
             </form>
           )}
@@ -808,7 +820,7 @@ function LeadCard({
       )}
       {isConverted && (
         <div className="rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-          Lead converted to a trial tenant. Continue setup from the Tenants or Billing tab.
+          Lead converted to a pilot workspace. Continue setup from the Tenants or Billing tab.
         </div>
       )}
       </div>
@@ -818,11 +830,13 @@ function LeadCard({
 
 function FieldInput({
   label,
+  help,
   value,
   onChange,
   type = 'text',
 }: {
   label: string;
+  help?: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
@@ -830,6 +844,7 @@ function FieldInput({
   return (
     <label>
       <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">{label}</span>
+      {help && <span className="mb-2 block text-xs leading-5 text-gray-500">{help}</span>}
       <input
         type={type}
         required
