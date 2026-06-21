@@ -355,45 +355,45 @@ export default function LandingPage() {
 
   return (
     <main dir={direction} className="min-h-screen bg-white text-gray-950">
-      <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-5 py-4">
           <Link to="/" aria-label="Wasilio home">
             <BrandLogo markClassName="h-8 w-8" textClassName="text-xl" />
           </Link>
           <nav className="flex items-center gap-2 text-sm">
-            <a href="#pricing" className="hidden font-medium text-gray-600 hover:text-gray-950 sm:inline">
+            <a href="#pricing" className="hidden font-medium text-slate-600 hover:text-slate-950 sm:inline">
               {content.navPricing}
             </a>
-            <a href="#contact" className="hidden font-medium text-gray-600 hover:text-gray-950 sm:inline">
+            <a href="#contact" className="hidden font-medium text-slate-600 hover:text-slate-950 sm:inline">
               {content.navContact}
             </a>
             <LanguageSwitcher language={language} onChange={setLanguage} />
-            <Link to="/login" className="rounded-md border border-gray-300 px-3 py-2 font-medium text-gray-700 hover:bg-gray-50">
+            <Link to="/login" className="rounded-md border border-slate-300 px-3 py-2 font-medium text-slate-600 hover:bg-slate-50">
               {content.signIn}
             </Link>
           </nav>
         </div>
       </header>
 
-      <section className="border-b border-gray-200 bg-[linear-gradient(135deg,#f2f7f5_0%,#ffffff_48%,#eef6ff_100%)]">
-        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-5 py-12 lg:grid-cols-[1.02fr_0.98fr] lg:py-16">
+      <section className="border-b border-slate-200 bg-[#f7fbf9]">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-5 py-10 lg:grid-cols-[1.02fr_0.98fr] lg:py-14">
           <div className="flex flex-col justify-center">
-            <p className="text-sm font-semibold uppercase text-[#0F5B4A]">{content.eyebrow}</p>
-            <h1 className="mt-4 max-w-3xl text-4xl font-bold leading-tight text-gray-950 sm:text-5xl">{content.headline}</h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-gray-700">{content.subhead}</p>
+            <p className="inline-flex w-fit rounded-md bg-[#E8F4EF] px-3 py-1 text-sm font-semibold uppercase text-[#0F5B4A]">{content.eyebrow}</p>
+            <h1 className="mt-4 max-w-3xl text-4xl font-bold leading-tight text-slate-950 sm:text-5xl">{content.headline}</h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">{content.subhead}</p>
             <div className="mt-7 flex flex-wrap gap-3">
-              <a href="#contact" className="inline-flex items-center gap-2 rounded-md bg-[#0F5B4A] px-5 py-3 text-sm font-semibold text-white hover:bg-[#0b493b]">
+              <a href="#contact" className="inline-flex items-center gap-2 rounded-md bg-[#E2552D] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#c84725]">
                 {content.primaryCta}
                 <ArrowRight size={17} className={direction === 'rtl' ? 'rotate-180' : ''} />
               </a>
-              <a href={whatsappUrl || '#contact'} className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-800 hover:bg-gray-50">
+              <a href={whatsappUrl || '#contact'} className="inline-flex items-center gap-2 rounded-md border border-[#0F5B4A]/30 bg-white px-5 py-3 text-sm font-semibold text-[#0F5B4A] hover:bg-[#E8F4EF]">
                 <MessageCircle size={17} />
                 {content.whatsapp}
               </a>
             </div>
-            <div className="mt-8 grid max-w-2xl gap-2 text-sm text-gray-700 sm:grid-cols-3">
+            <div className="mt-8 grid max-w-2xl gap-2 text-sm text-slate-700 sm:grid-cols-3">
               {content.trust.map((item) => (
-                <div key={item} className="flex items-start gap-2">
+                <div key={item} className="flex items-start gap-2 rounded-md border border-white bg-white/70 px-3 py-2">
                   <CheckCircle2 className="mt-0.5 shrink-0 text-[#0F5B4A]" size={16} />
                   <span>{item}</span>
                 </div>
@@ -401,20 +401,24 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <div className="rounded-lg border border-[#0F5B4A]/20 bg-white p-4 shadow-lg shadow-slate-200/70">
+            <div className="mb-4 rounded-md bg-slate-950 px-4 py-3 text-white">
+              <p className="text-xs font-semibold uppercase text-[#F6B24A]">Live confirmation desk</p>
+              <p className="mt-1 text-sm text-slate-200">One queue for calls, callbacks, and courier handoff.</p>
+            </div>
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
               {content.metrics.map(([label, value], index) => (
                 <Metric key={label} label={label} value={value} tone={index === 0 ? 'green' : index === 1 ? 'amber' : 'blue'} />
               ))}
             </div>
-            <div className="mt-4 rounded-md border border-gray-200">
+            <div className="mt-4 overflow-hidden rounded-md border border-slate-200">
               {content.demoRows.map(([store, status, cityName]) => (
-                <div key={store} className="grid grid-cols-[1fr_auto] gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0">
+                <div key={store} className="grid grid-cols-[1fr_auto] gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0">
                   <div>
-                    <p className="text-sm font-semibold text-gray-900">{store}</p>
-                    <p className="text-xs text-gray-500">{cityName}</p>
+                    <p className="text-sm font-semibold text-slate-900">{store}</p>
+                    <p className="text-xs text-slate-500">{cityName}</p>
                   </div>
-                  <span className="self-center rounded-md bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700">{status}</span>
+                  <span className="self-center rounded-md bg-[#FFF1D7] px-2 py-1 text-xs font-semibold text-[#8A4F00]">{status}</span>
                 </div>
               ))}
             </div>
@@ -435,18 +439,18 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="border-y border-gray-200 bg-gray-50">
+      <section className="border-y border-slate-200 bg-[#102A43] text-white">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-5 py-12 lg:grid-cols-[0.8fr_1.2fr]">
           <div>
-            <p className="text-sm font-semibold uppercase text-[#0F5B4A]">{content.processEyebrow}</p>
-            <h2 className="mt-3 text-3xl font-bold text-gray-950">{content.processTitle}</h2>
-            <p className="mt-4 leading-7 text-gray-700">{content.process}</p>
+            <p className="text-sm font-semibold uppercase text-[#F6B24A]">{content.processEyebrow}</p>
+            <h2 className="mt-3 text-3xl font-bold text-white">{content.processTitle}</h2>
+            <p className="mt-4 leading-7 text-slate-200">{content.process}</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             {content.processSteps.map((step, index) => (
-              <article key={step} className="rounded-lg border border-gray-200 bg-white p-5">
-                <p className="text-sm font-semibold text-gray-500">0{index + 1}</p>
-                <p className="mt-3 text-lg font-bold text-gray-950">{step}</p>
+              <article key={step} className="rounded-lg border border-white/15 bg-white/10 p-5">
+                <p className="text-sm font-semibold text-[#F6B24A]">0{index + 1}</p>
+                <p className="mt-3 text-lg font-bold text-white">{step}</p>
               </article>
             ))}
           </div>
@@ -456,22 +460,22 @@ export default function LandingPage() {
       <section id="pricing" className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-5 py-12 lg:grid-cols-[0.8fr_1.2fr]">
         <div>
           <p className="text-sm font-semibold uppercase text-[#0F5B4A]">{content.pricingEyebrow}</p>
-          <h2 className="mt-3 text-3xl font-bold text-gray-950">{content.pricingTitle}</h2>
+          <h2 className="mt-3 text-3xl font-bold text-slate-950">{content.pricingTitle}</h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
-          {content.prices.map(([label, value, detail]) => (
-            <Price key={label} label={label} value={value} detail={detail} />
+          {content.prices.map(([label, value, detail], index) => (
+            <Price key={label} label={label} value={value} detail={detail} featured={index === 1} />
           ))}
         </div>
       </section>
 
-      <section id="contact" className="border-t border-gray-200 bg-gray-50">
+      <section id="contact" className="border-t border-slate-200 bg-[#F7FAF9]">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-5 py-12 lg:grid-cols-[0.8fr_1.2fr]">
           <div>
             <p className="text-sm font-semibold uppercase text-[#0F5B4A]">{content.contactEyebrow}</p>
-            <h2 className="mt-3 text-3xl font-bold text-gray-950">{content.contactTitle}</h2>
-            <p className="mt-4 leading-7 text-gray-700">{content.contactText}</p>
-            <ul className="mt-6 space-y-3 text-sm text-gray-700">
+            <h2 className="mt-3 text-3xl font-bold text-slate-950">{content.contactTitle}</h2>
+            <p className="mt-4 leading-7 text-slate-700">{content.contactText}</p>
+            <ul className="mt-6 space-y-3 text-sm text-slate-700">
               {content.bullets.map((item) => (
                 <li key={item} className="flex gap-2">
                   <CheckCircle2 className="mt-0.5 shrink-0 text-[#0F5B4A]" size={16} />
@@ -481,7 +485,7 @@ export default function LandingPage() {
             </ul>
           </div>
 
-          <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
+          <form onSubmit={handleSubmit} className="rounded-lg border border-[#0F5B4A]/20 bg-white p-5 shadow-lg shadow-slate-200/70">
             {submitted && (
               <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{content.submitted}</div>
             )}
@@ -497,7 +501,7 @@ export default function LandingPage() {
                 <select
                   value={monthlyOrderVolume}
                   onChange={(event) => setMonthlyOrderVolume(event.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5B4A]"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E2552D]"
                 >
                   {orderVolumeValues.map((volume, index) => (
                     <option key={volume} value={volume}>
@@ -513,13 +517,13 @@ export default function LandingPage() {
                 value={message}
                 onChange={(event) => setMessage(event.target.value)}
                 rows={4}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5B4A]"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E2552D]"
               />
             </label>
             <button
               type="submit"
               disabled={loading}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#0F5B4A] px-5 py-3 text-sm font-semibold text-white hover:bg-[#0b493b] disabled:opacity-50"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#E2552D] px-5 py-3 text-sm font-semibold text-white hover:bg-[#c84725] disabled:opacity-50"
             >
               <ClipboardList size={17} />
               {loading ? content.form.sending : content.form.submit}
@@ -553,8 +557,8 @@ export default function LandingPage() {
 
 function LanguageSwitcher({ language, onChange }: { language: Language; onChange: (language: Language) => void }) {
   return (
-    <div className="flex items-center gap-1 rounded-md border border-gray-300 bg-white p-1" aria-label="Language selector">
-      <Globe2 size={15} className="mx-1 text-gray-500" />
+    <div className="flex items-center gap-1 rounded-md border border-slate-300 bg-white p-1" aria-label="Language selector">
+      <Globe2 size={15} className="mx-1 text-slate-500" />
       {languages.map((item) => (
         <button
           key={item.code}
@@ -563,7 +567,7 @@ function LanguageSwitcher({ language, onChange }: { language: Language; onChange
           aria-pressed={language === item.code}
           onClick={() => onChange(item.code)}
           className={`rounded px-2 py-1 text-xs font-semibold ${
-            language === item.code ? 'bg-[#0F5B4A] text-white' : 'text-gray-600 hover:bg-gray-100'
+            language === item.code ? 'bg-[#0F5B4A] text-white' : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           {item.shortLabel}
@@ -575,19 +579,19 @@ function LanguageSwitcher({ language, onChange }: { language: Language; onChange
 
 function Feature({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return (
-    <article className="rounded-lg border border-gray-200 bg-white p-5">
-      <div className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#e9f4f0] text-[#0F5B4A]">{icon}</div>
-      <h3 className="mt-4 font-semibold text-gray-950">{title}</h3>
-      <p className="mt-2 text-sm leading-6 text-gray-600">{text}</p>
+    <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#E8F4EF] text-[#0F5B4A]">{icon}</div>
+      <h3 className="mt-4 font-semibold text-slate-950">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
     </article>
   );
 }
 
 function Metric({ label, value, tone }: { label: string; value: string; tone: 'blue' | 'amber' | 'green' }) {
   const tones = {
-    blue: 'bg-blue-50 text-blue-800',
-    amber: 'bg-amber-50 text-amber-800',
-    green: 'bg-[#e9f4f0] text-[#0F5B4A]',
+    blue: 'bg-[#EAF2FF] text-[#214C8A]',
+    amber: 'bg-[#FFF1D7] text-[#8A4F00]',
+    green: 'bg-[#E8F4EF] text-[#0F5B4A]',
   };
   return (
     <div className={`rounded-md px-4 py-3 ${tones[tone]}`}>
@@ -597,12 +601,12 @@ function Metric({ label, value, tone }: { label: string; value: string; tone: 'b
   );
 }
 
-function Price({ label, value, detail }: { label: string; value: string; detail: string }) {
+function Price({ label, value, detail, featured = false }: { label: string; value: string; detail: string; featured?: boolean }) {
   return (
-    <article className="rounded-lg border border-gray-200 bg-white p-5">
-      <p className="text-sm font-semibold text-gray-600">{label}</p>
-      <p className="mt-3 text-2xl font-bold text-gray-950">{value}</p>
-      <p className="mt-2 text-sm leading-6 text-gray-600">{detail}</p>
+    <article className={`rounded-lg border p-5 ${featured ? 'border-[#E2552D] bg-[#FFF7F2]' : 'border-slate-200 bg-white'}`}>
+      <p className={`text-sm font-semibold ${featured ? 'text-[#B94623]' : 'text-slate-600'}`}>{label}</p>
+      <p className="mt-3 text-2xl font-bold text-slate-950">{value}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{detail}</p>
     </article>
   );
 }
@@ -620,15 +624,15 @@ interface FieldProps {
 function Field({ label, name, value, error, type = 'text', required = true, onChange }: FieldProps) {
   return (
     <label>
-      <span className="mb-1 block text-sm font-medium text-gray-700">{label}</span>
+      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
       <input
         name={name}
         type={type}
         required={required}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className={`w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#0F5B4A] ${
-          error ? 'border-red-300' : 'border-gray-300'
+        className={`w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E2552D] ${
+          error ? 'border-red-300' : 'border-slate-300'
         }`}
       />
       {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
