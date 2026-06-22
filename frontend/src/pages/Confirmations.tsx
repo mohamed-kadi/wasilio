@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  MessageCircle,
   PhoneCall,
   RefreshCw,
   Search,
@@ -51,12 +52,37 @@ const outcomeColors: Record<ConfirmationOutcome, string> = {
   WRONG_NUMBER: 'bg-orange-100 text-orange-800',
 };
 
+const outcomeLabels: Record<ConfirmationOutcome, string> = {
+  CONFIRMED: 'Confirmed',
+  REJECTED: 'Rejected',
+  NO_ANSWER: 'No answer',
+  CALL_BACK_LATER: 'Call back later',
+  WRONG_NUMBER: 'Wrong number',
+};
+
+const outcomeDescriptions: Record<ConfirmationOutcome, string> = {
+  CONFIRMED: 'Customer accepted the order. It can move toward courier assignment.',
+  REJECTED: 'Customer refused or cancelled. The order leaves the confirmation queue.',
+  NO_ANSWER: 'No decision yet. Record the attempt and keep the order in follow-up.',
+  CALL_BACK_LATER: 'Customer asked for another call. Schedule the exact callback time.',
+  WRONG_NUMBER: 'Phone number is invalid or belongs to the wrong person.',
+};
+
 const callbackStatusColors: Record<ConfirmationCallbackStatus, string> = {
   DUE: 'bg-blue-100 text-blue-800',
   OVERDUE: 'bg-red-100 text-red-800',
   UPCOMING: 'bg-gray-100 text-gray-800',
   RESOLVED: 'bg-green-100 text-green-800',
 };
+
+function phoneHref(phone: string) {
+  return `tel:${phone}`;
+}
+
+function whatsappHref(phone: string) {
+  const normalized = phone.replace(/[^\d]/g, '');
+  return normalized ? `https://wa.me/${normalized}` : undefined;
+}
 
 export default function Confirmations() {
   const queryClient = useQueryClient();
@@ -242,12 +268,30 @@ export default function Confirmations() {
               <p className="mt-3 text-sm text-gray-700">{new Date(callback.callbackAt).toLocaleString()}</p>
               {callback.note && <p className="mt-2 text-sm text-gray-600 line-clamp-2">{callback.note}</p>}
               <div className="mt-3 flex flex-wrap gap-2">
+                <a
+                  href={phoneHref(callback.order.customer.phone)}
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  <PhoneCall size={14} />
+                  Call
+                </a>
+                {whatsappHref(callback.order.customer.phone) && (
+                  <a
+                    href={whatsappHref(callback.order.customer.phone)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100"
+                  >
+                    <MessageCircle size={14} />
+                    WhatsApp
+                  </a>
+                )}
                 <button
                   type="button"
                   onClick={() => selectCallback(callback)}
                   className="inline-flex items-center justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
                 >
-                  Select
+                  Open order
                 </button>
                 <button
                   type="button"
@@ -410,6 +454,7 @@ export default function Confirmations() {
                   <th className="p-4 font-medium">Customer</th>
                   <th className="p-4 font-medium">Amount</th>
                   <th className="p-4 font-medium">Status</th>
+                  <th className="p-4 font-medium">Next action</th>
                   <th className="p-4 font-medium">Created</th>
                 </tr>
               </thead>
@@ -435,20 +480,23 @@ export default function Confirmations() {
                           {order.status.replace(/_/g, ' ')}
                         </span>
                       </td>
+                      <td className="p-4 text-gray-700">
+                        {order.status === 'CREATED' ? 'Start confirmation call' : 'Record next attempt'}
+                      </td>
                       <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleString()}</td>
                     </tr>
                   );
                 })}
                 {!isLoading && orders.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-500">
+                    <td colSpan={6} className="p-8 text-center text-gray-500">
                       No orders in the confirmation queue.
                     </td>
                   </tr>
                 )}
                 {isLoading && (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-500">
+                    <td colSpan={6} className="p-8 text-center text-gray-500">
                       Loading confirmation queue...
                     </td>
                   </tr>
@@ -490,10 +538,17 @@ export default function Confirmations() {
         <aside className="bg-white border border-gray-200 rounded-lg p-5 space-y-5 h-fit">
           <div className="flex items-center gap-2">
             <PhoneCall className="h-5 w-5 text-blue-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Attempt</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Next confirmation action</h3>
           </div>
 
-          {!selectedOrder && <p className="text-sm text-gray-500">Select an order to record a confirmation attempt.</p>}
+          {!selectedOrder && (
+            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4">
+              <p className="text-sm font-medium text-gray-900">Select an order from the queue.</p>
+              <p className="mt-1 text-sm text-gray-500">
+                Then call the customer, choose the result, and save the next action.
+              </p>
+            </div>
+          )}
 
           {selectedOrder && (
             <>
@@ -505,9 +560,38 @@ export default function Confirmations() {
                 </p>
                 <p className="text-sm text-gray-500">{selectedOrder.customer.phone}</p>
                 <p className="mt-2 text-sm font-medium">{selectedOrder.amount.toFixed(2)} MAD</p>
+                <p className="mt-2 text-sm text-gray-500">
+                  {selectedOrder.address.city}, {selectedOrder.address.country}
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <a
+                    href={phoneHref(selectedOrder.customer.phone)}
+                    className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    <PhoneCall size={16} />
+                    Call customer
+                  </a>
+                  {whatsappHref(selectedOrder.customer.phone) && (
+                    <a
+                      href={whatsappHref(selectedOrder.customer.phone)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-800 hover:bg-green-100"
+                    >
+                      <MessageCircle size={16} />
+                      WhatsApp
+                    </a>
+                  )}
+                </div>
               </div>
 
               <form className="space-y-4" onSubmit={handleSubmit}>
+                <div className="rounded-md border border-blue-100 bg-blue-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-blue-700">Current decision</p>
+                  <p className="mt-1 text-sm font-medium text-blue-950">{outcomeLabels[outcome]}</p>
+                  <p className="mt-1 text-sm text-blue-800">{outcomeDescriptions[outcome]}</p>
+                </div>
+
                 <label className="block">
                   <span className="block text-sm font-medium text-gray-700 mb-1">Outcome</span>
                   <select
@@ -523,7 +607,7 @@ export default function Confirmations() {
                   >
                     {outcomes.map((outcomeOption) => (
                       <option key={outcomeOption} value={outcomeOption}>
-                        {outcomeOption.replace(/_/g, ' ')}
+                        {outcomeLabels[outcomeOption]}
                       </option>
                     ))}
                   </select>
@@ -563,10 +647,16 @@ export default function Confirmations() {
                 <button
                   type="submit"
                   disabled={mutation.isPending}
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className={`inline-flex w-full items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${
+                    outcome === 'CONFIRMED'
+                      ? 'bg-green-700 hover:bg-green-800'
+                      : outcome === 'REJECTED'
+                        ? 'bg-red-700 hover:bg-red-800'
+                        : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
                 >
                   {outcome === 'CONFIRMED' ? <CheckCircle2 size={18} /> : outcome === 'REJECTED' ? <XCircle size={18} /> : <PhoneCall size={18} />}
-                  Record attempt
+                  Save: {outcomeLabels[outcome]}
                 </button>
               </form>
 
@@ -583,7 +673,7 @@ export default function Confirmations() {
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-medium text-gray-900">#{attempt.attemptNumber}</span>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${outcomeColors[attempt.outcome]}`}>
-                          {attempt.outcome.replace(/_/g, ' ')}
+                          {outcomeLabels[attempt.outcome]}
                         </span>
                       </div>
                       {attempt.note && <p className="mt-2 text-sm text-gray-700">{attempt.note}</p>}
