@@ -16,6 +16,7 @@ import {
   rejectOrder,
   requestConfirmation,
 } from '../api/client';
+import type { OrderStatus } from '../api/client';
 
 type LifecycleCommand =
   | { action: 'request-confirmation' }
@@ -25,6 +26,50 @@ type LifecycleCommand =
   | { action: 'pick-up'; courierId: string }
   | { action: 'deliver' }
   | { action: 'fail'; reason: DeliveryFailureReason };
+
+const statusLabels: Record<OrderStatus, string> = {
+  CREATED: 'New order',
+  CONFIRMATION_REQUESTED: 'Needs confirmation',
+  CONFIRMED: 'Confirmed',
+  REJECTED: 'Rejected',
+  ASSIGNED_TO_COURIER: 'Assigned',
+  PICKED_UP: 'Picked up',
+  DELIVERED: 'Delivered',
+  FAILED: 'Failed delivery',
+};
+
+const statusDescriptions: Record<OrderStatus, string> = {
+  CREATED: 'The order exists, but customer confirmation has not started.',
+  CONFIRMATION_REQUESTED: 'The customer must be called before this order goes to courier operations.',
+  CONFIRMED: 'The customer accepted the order. Assign a courier when ready.',
+  REJECTED: 'The customer refused or cancelled. This order is closed.',
+  ASSIGNED_TO_COURIER: 'A courier has been assigned and pickup is pending.',
+  PICKED_UP: 'The package is with the courier. Record delivered or failed after the attempt.',
+  DELIVERED: 'The order was delivered successfully.',
+  FAILED: 'Delivery failed. Review the failure reason before any follow-up.',
+};
+
+const nextActions: Record<OrderStatus, string> = {
+  CREATED: 'Request confirmation',
+  CONFIRMATION_REQUESTED: 'Confirm or reject after customer contact',
+  CONFIRMED: 'Assign courier',
+  REJECTED: 'No action needed',
+  ASSIGNED_TO_COURIER: 'Mark picked up when courier collects it',
+  PICKED_UP: 'Record delivery result',
+  DELIVERED: 'No action needed',
+  FAILED: 'Review failure',
+};
+
+const statusTones: Record<OrderStatus, string> = {
+  CREATED: 'border-gray-200 bg-gray-50 text-gray-700',
+  CONFIRMATION_REQUESTED: 'border-blue-200 bg-blue-50 text-blue-700',
+  CONFIRMED: 'border-indigo-200 bg-indigo-50 text-indigo-700',
+  REJECTED: 'border-red-200 bg-red-50 text-red-700',
+  ASSIGNED_TO_COURIER: 'border-yellow-200 bg-yellow-50 text-yellow-800',
+  PICKED_UP: 'border-orange-200 bg-orange-50 text-orange-800',
+  DELIVERED: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  FAILED: 'border-red-200 bg-red-50 text-red-700',
+};
 
 export default function OrderDetails() {
   const { id } = useParams<{ id: string }>();
@@ -113,6 +158,7 @@ export default function OrderDetails() {
   const mutationDisabled = mutation.isPending;
   const activeCouriers = (couriersPage?.content ?? []).filter((courier) => courier.active);
   const selectedPickupCourierId = order.courierId ?? courierId;
+  const selectedCourierName = activeCouriers.find((courier) => courier.courierId === order.courierId)?.name ?? order.courierId;
 
   const TimelineIcon = ({ type, category }: { type: string; category: string }) => {
     if (category === 'CALLBACK') return <PhoneCall className="w-5 h-5 text-purple-500" />;
@@ -150,7 +196,28 @@ export default function OrderDetails() {
           <h2 className="text-2xl font-bold text-gray-900">Order Details</h2>
           <p className="text-sm text-gray-500 font-mono mt-1">{order.id}</p>
         </div>
+      </div>
 
+      <section className={`rounded-lg border p-5 ${statusTones[order.status]}`}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase">Current COD stage</p>
+            <h3 className="mt-2 text-2xl font-bold text-gray-900">{statusLabels[order.status]}</h3>
+            <p className="mt-2 max-w-2xl text-sm">{statusDescriptions[order.status]}</p>
+          </div>
+          <div className="rounded-md bg-white/70 px-4 py-3 text-sm shadow-sm">
+            <p className="text-xs font-semibold uppercase text-gray-500">Next action</p>
+            <p className="mt-1 font-semibold text-gray-900">{nextActions[order.status]}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-gray-200 bg-white p-5">
+        <div className="flex flex-wrap justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-semibold uppercase text-gray-500">Available actions</h3>
+            <p className="mt-1 text-sm text-gray-600">Use the action that matches the current COD stage.</p>
+          </div>
         <div className="flex flex-wrap justify-end gap-2 max-w-xl">
           {order.status === 'CREATED' && (
             <button
@@ -267,6 +334,7 @@ export default function OrderDetails() {
           )}
         </div>
       </div>
+      </section>
 
       {mutation.error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -305,7 +373,11 @@ export default function OrderDetails() {
             <h3 className="text-lg font-medium text-gray-900 border-b pb-4 mb-4">Order Summary</h3>
             <div className="flex justify-between items-center py-2">
               <span className="text-gray-600">Status</span>
-              <span className="font-medium px-2.5 py-1 bg-gray-100 rounded-full text-sm">{order.status}</span>
+              <span className={`rounded-full border px-2.5 py-1 text-sm font-medium ${statusTones[order.status]}`}>{statusLabels[order.status]}</span>
+            </div>
+            <div className="flex justify-between items-center gap-4 py-2">
+              <span className="text-gray-600">Next action</span>
+              <span className="text-right font-medium">{nextActions[order.status]}</span>
             </div>
             <div className="flex justify-between items-center py-2">
               <span className="text-gray-600">Total Amount</span>
@@ -314,7 +386,7 @@ export default function OrderDetails() {
             {order.courierId && (
               <div className="flex justify-between items-center py-2">
                 <span className="text-gray-600">Courier</span>
-                <span className="font-medium">{order.courierId}</span>
+                <span className="font-medium">{selectedCourierName}</span>
               </div>
             )}
             {order.failureReason && (

@@ -11,7 +11,7 @@ import {
   getErrorMessage,
   updateOrderSearchSavedView,
 } from '../api/client';
-import type { OrderSearchSavedView, OrderStatus } from '../api/client';
+import type { Order, OrderSearchSavedView, OrderStatus } from '../api/client';
 
 const statusColors: Record<string, string> = {
   CREATED: 'bg-gray-100 text-gray-800',
@@ -22,6 +22,39 @@ const statusColors: Record<string, string> = {
   PICKED_UP: 'bg-orange-100 text-orange-800',
   DELIVERED: 'bg-green-100 text-green-800',
   FAILED: 'bg-red-100 text-red-800',
+};
+
+const statusLabels: Record<OrderStatus, string> = {
+  CREATED: 'New order',
+  CONFIRMATION_REQUESTED: 'Needs confirmation',
+  CONFIRMED: 'Confirmed',
+  REJECTED: 'Rejected',
+  ASSIGNED_TO_COURIER: 'Assigned',
+  PICKED_UP: 'Picked up',
+  DELIVERED: 'Delivered',
+  FAILED: 'Failed delivery',
+};
+
+const statusStages: Record<OrderStatus, string> = {
+  CREATED: 'Confirm',
+  CONFIRMATION_REQUESTED: 'Confirm',
+  CONFIRMED: 'Assign',
+  REJECTED: 'Closed',
+  ASSIGNED_TO_COURIER: 'Pickup',
+  PICKED_UP: 'Deliver',
+  DELIVERED: 'Closed',
+  FAILED: 'Closed',
+};
+
+const nextActions: Record<OrderStatus, string> = {
+  CREATED: 'Request confirmation',
+  CONFIRMATION_REQUESTED: 'Call customer',
+  CONFIRMED: 'Assign courier',
+  REJECTED: 'No action',
+  ASSIGNED_TO_COURIER: 'Wait for pickup',
+  PICKED_UP: 'Record delivery result',
+  DELIVERED: 'Complete',
+  FAILED: 'Review failure',
 };
 
 const statuses: OrderStatus[] = [
@@ -87,6 +120,10 @@ function savedPayloadToFilters(payload: Record<string, string>): OrderFilters {
 function toInstantFromDate(date: string, endOfDay = false) {
   if (!date) return undefined;
   return `${date}T${endOfDay ? '23:59:59' : '00:00:00'}Z`;
+}
+
+function countByStatus(orders: Order[], status: OrderStatus) {
+  return orders.filter((order) => order.status === status).length;
 }
 
 export default function OrdersList() {
@@ -168,6 +205,12 @@ export default function OrdersList() {
   const canGoBack = page > 0;
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
   const selectedSavedView = savedViews.find((view) => view.viewId === selectedSavedViewId);
+  const visibleJourneyCounts = {
+    confirm: countByStatus(orders, 'CREATED') + countByStatus(orders, 'CONFIRMATION_REQUESTED'),
+    courier:
+      countByStatus(orders, 'CONFIRMED') + countByStatus(orders, 'ASSIGNED_TO_COURIER') + countByStatus(orders, 'PICKED_UP'),
+    closed: countByStatus(orders, 'DELIVERED') + countByStatus(orders, 'FAILED') + countByStatus(orders, 'REJECTED'),
+  };
 
   function updateFilter<K extends keyof OrderFilters>(key: K, value: OrderFilters[K]) {
     setFilters((currentFilters) => ({ ...currentFilters, [key]: value }));
@@ -205,7 +248,7 @@ export default function OrdersList() {
       <div className="flex flex-wrap justify-between items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Orders</h2>
-          <p className="text-sm text-gray-500">{totalElements} total orders</p>
+          <p className="text-sm text-gray-500">{totalElements} total orders across confirmation, courier, and closed stages</p>
         </div>
         <Link
           to="/app/orders/new"
@@ -215,6 +258,12 @@ export default function OrdersList() {
           New Order
         </Link>
       </div>
+
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <JourneyMetric title="Needs confirmation" value={visibleJourneyCounts.confirm} detail="New or waiting for customer call" tone="blue" />
+        <JourneyMetric title="Courier workflow" value={visibleJourneyCounts.courier} detail="Confirmed, assigned, or picked up" tone="amber" />
+        <JourneyMetric title="Closed orders" value={visibleJourneyCounts.closed} detail="Delivered, failed, or rejected" tone="green" />
+      </section>
 
       <div className="space-y-4 bg-white border border-gray-200 rounded-lg px-4 py-4">
         <div className="grid gap-3 md:grid-cols-4">
@@ -344,6 +393,7 @@ export default function OrdersList() {
                 className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               {statusOption.replace(/_/g, ' ')}
+              <span className="text-xs text-gray-400">({statusLabels[statusOption]})</span>
             </label>
           ))}
         </div>
@@ -431,6 +481,7 @@ export default function OrdersList() {
               <th className="p-4 font-medium">Amount</th>
               <th className="p-4 font-medium">Courier</th>
               <th className="p-4 font-medium">Status</th>
+              <th className="p-4 font-medium">Next action</th>
               <th className="p-4 font-medium">Date</th>
             </tr>
           </thead>
@@ -438,7 +489,7 @@ export default function OrdersList() {
             {orders.map((order) => (
               <tr key={order.id} className="hover:bg-gray-50">
                 <td className="p-4 font-mono text-gray-500">
-                  <Link to={`/orders/${order.id}`} className="text-blue-600 hover:underline">
+                  <Link to={`/app/orders/${order.id}`} className="text-blue-600 hover:underline">
                     {order.id.slice(0, 8)}...
                   </Link>
                 </td>
@@ -454,22 +505,26 @@ export default function OrdersList() {
                 </td>
                 <td className="p-4">
                   <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
-                    {order.status.replace(/_/g, ' ')}
+                    {statusLabels[order.status]}
                   </span>
+                  <p className="mt-1 text-xs text-gray-500">{statusStages[order.status]} stage</p>
+                </td>
+                <td className="p-4">
+                  <span className="text-sm font-medium text-gray-900">{nextActions[order.status]}</span>
                 </td>
                 <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</td>
               </tr>
             ))}
             {!isLoading && orders.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-gray-500">
+                <td colSpan={7} className="p-8 text-center text-gray-500">
                   No orders found.
                 </td>
               </tr>
             )}
             {isLoading && (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-gray-500">
+                <td colSpan={7} className="p-8 text-center text-gray-500">
                   Loading orders...
                 </td>
               </tr>
@@ -506,6 +561,32 @@ export default function OrdersList() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function JourneyMetric({
+  title,
+  value,
+  detail,
+  tone,
+}: {
+  title: string;
+  value: number;
+  detail: string;
+  tone: 'blue' | 'amber' | 'green';
+}) {
+  const tones = {
+    blue: 'border-blue-200 bg-blue-50 text-blue-700',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700',
+    green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  };
+
+  return (
+    <div className={`rounded-lg border p-4 ${tones[tone]}`}>
+      <p className="text-xs font-semibold uppercase">{title}</p>
+      <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
+      <p className="mt-1 text-sm">{detail}</p>
     </div>
   );
 }
