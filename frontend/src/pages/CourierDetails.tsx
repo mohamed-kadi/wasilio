@@ -70,6 +70,29 @@ export default function CourierDetails() {
         <p className="font-mono text-sm text-gray-500">{courier.courierId}</p>
       </div>
 
+      <section className={`rounded-lg border p-5 ${courier.active ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase">Courier availability</p>
+            <h3 className="mt-2 text-xl font-bold text-gray-900">{courier.active ? 'Active for assignment' : 'Inactive courier'}</h3>
+            <p className="mt-2 max-w-2xl text-sm">
+              {courier.active
+                ? 'This courier can be selected in assignment, pickup, and delivery workflows.'
+                : 'Inactive couriers stay in records but should not receive new operational assignments.'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => activeMutation.mutate(!courier.active)}
+            disabled={activeMutation.isPending}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+          >
+            {courier.active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+            {courier.active ? 'Deactivate courier' : 'Activate courier'}
+          </button>
+        </div>
+      </section>
+
       {(updateMutation.error || activeMutation.error) && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {getErrorMessage(updateMutation.error ?? activeMutation.error)}
@@ -77,20 +100,9 @@ export default function CourierDetails() {
       )}
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">
-        <div className="mb-5 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm text-gray-500">Status</p>
-            <p className="font-medium text-gray-900">{courier.active ? 'Active' : 'Inactive'}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => activeMutation.mutate(!courier.active)}
-            disabled={activeMutation.isPending}
-            className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
-          >
-            {courier.active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-            {courier.active ? 'Deactivate' : 'Activate'}
-          </button>
+        <div className="mb-5">
+          <h3 className="text-sm font-semibold uppercase text-gray-500">Courier profile</h3>
+          <p className="mt-1 text-sm text-gray-600">Keep the name and phone number clear for operations teams.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

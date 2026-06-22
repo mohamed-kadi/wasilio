@@ -39,6 +39,8 @@ export default function Couriers() {
   });
 
   const couriers = couriersPage?.content ?? [];
+  const activeCount = couriers.filter((courier) => courier.active).length;
+  const inactiveCount = couriers.length - activeCount;
   const totalPages = couriersPage?.totalPages ?? 0;
   const totalElements = couriersPage?.totalElements ?? 0;
   const canGoBack = page > 0;
@@ -53,10 +55,20 @@ export default function Couriers() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Couriers</h2>
-        <p className="text-sm text-gray-500">{totalElements} operational courier resources</p>
+        <p className="text-sm text-gray-500">{totalElements} courier resources for assignment, pickup, and delivery workflows</p>
       </div>
 
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <CourierMetric title="Active couriers" value={activeCount} detail="Available for new assignments" tone="green" />
+        <CourierMetric title="Inactive couriers" value={inactiveCount} detail="Hidden from active operations" tone="gray" />
+        <CourierMetric title="Visible on page" value={couriers.length} detail="Current page of courier records" tone="blue" />
+      </section>
+
       <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-lg p-4">
+        <div className="mb-4">
+          <h3 className="text-sm font-semibold uppercase text-gray-500">Add courier</h3>
+          <p className="mt-1 text-sm text-gray-600">Create courier resources before assigning confirmed COD orders.</p>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-[1fr_220px_auto] gap-3">
           <label>
             <span className="block text-xs font-medium uppercase text-gray-500 mb-1">Name</span>
@@ -131,7 +143,7 @@ export default function Couriers() {
             {couriers.map((courier) => (
               <tr key={courier.courierId} className="hover:bg-gray-50">
                 <td className="p-4">
-                  <Link to={`/couriers/${courier.courierId}`} className="font-medium text-blue-600 hover:underline">
+                  <Link to={`/app/couriers/${courier.courierId}`} className="font-medium text-blue-600 hover:underline">
                     {courier.name}
                   </Link>
                   <p className="font-mono text-xs text-gray-500">{courier.courierId.slice(0, 8)}...</p>
@@ -141,6 +153,7 @@ export default function Couriers() {
                   <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${courier.active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-700'}`}>
                     {courier.active ? 'Active' : 'Inactive'}
                   </span>
+                  <p className="mt-1 text-xs text-gray-500">{courier.active ? 'Can receive assignments' : 'Not used for new assignments'}</p>
                 </td>
                 <td className="p-4 text-gray-500">{new Date(courier.createdAt).toLocaleDateString()}</td>
                 <td className="p-4">
@@ -203,6 +216,32 @@ export default function Couriers() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function CourierMetric({
+  title,
+  value,
+  detail,
+  tone,
+}: {
+  title: string;
+  value: number;
+  detail: string;
+  tone: 'green' | 'gray' | 'blue';
+}) {
+  const tones = {
+    green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    gray: 'border-gray-200 bg-gray-50 text-gray-600',
+    blue: 'border-blue-200 bg-blue-50 text-blue-700',
+  };
+
+  return (
+    <div className={`rounded-lg border p-4 ${tones[tone]}`}>
+      <p className="text-xs font-semibold uppercase">{title}</p>
+      <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
+      <p className="mt-1 text-sm">{detail}</p>
     </div>
   );
 }
