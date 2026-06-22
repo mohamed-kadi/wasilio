@@ -53,6 +53,22 @@ export default function PickupQueue() {
         </p>
       </div>
 
+      <section className="rounded-lg border border-orange-200 bg-orange-50 p-5 text-orange-900">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase">Courier stage</p>
+            <h3 className="mt-2 text-xl font-bold text-gray-900">Pickup confirmation</h3>
+            <p className="mt-2 max-w-2xl text-sm">
+              These orders already have a courier assigned. Confirm pickup only when the package has physically left the merchant.
+            </p>
+          </div>
+          <div className="rounded-md bg-white/80 px-4 py-3 text-sm shadow-sm">
+            <p className="text-xs font-semibold uppercase text-gray-500">Next action</p>
+            <p className="mt-1 font-semibold text-gray-900">Mark picked up to move the order into delivery.</p>
+          </div>
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-5">
         <label>
           <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Courier</span>
@@ -138,6 +154,7 @@ export default function PickupQueue() {
               <th className="p-4 font-medium">Order</th>
               <th className="p-4 font-medium">Customer</th>
               <th className="p-4 font-medium">Courier</th>
+              <th className="p-4 font-medium">Next action</th>
               <th className="p-4 font-medium">Created</th>
               <th className="p-4 font-medium">Action</th>
             </tr>
@@ -156,6 +173,7 @@ export default function PickupQueue() {
                   <p className="font-medium text-gray-900">{courierNames.get(order.courierId ?? '') ?? 'Unknown courier'}</p>
                   <p className="font-mono text-xs text-gray-500">{order.courierId}</p>
                 </td>
+                <td className="p-4 text-gray-700">Confirm package pickup</td>
                 <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleString()}</td>
                 <td className="p-4">
                   <button
@@ -172,14 +190,14 @@ export default function PickupQueue() {
             ))}
             {!isLoading && orders.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-gray-500">
+                <td colSpan={6} className="p-8 text-center text-gray-500">
                   No assigned orders are waiting pickup.
                 </td>
               </tr>
             )}
             {isLoading && (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-gray-500">
+                <td colSpan={6} className="p-8 text-center text-gray-500">
                   Loading pickup queue...
                 </td>
               </tr>

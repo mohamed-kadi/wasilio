@@ -1,0 +1,122 @@
+import { expect, test } from '@playwright/test';
+import { fakeJwt, installMockApi } from './helpers';
+
+const courier = {
+  courierId: '22222222-2222-2222-2222-222222222222',
+  tenantId: '00000000-0000-0000-0000-000000000001',
+  name: 'Amine Courier',
+  phone: '+212600000002',
+  active: true,
+  createdAt: '2026-06-20T10:00:00Z',
+};
+
+const baseOrder = {
+  id: '11111111-1111-1111-1111-111111111111',
+  tenantId: '00000000-0000-0000-0000-000000000001',
+  customer: {
+    firstName: 'Sara',
+    lastName: 'Customer',
+    email: 'sara@example.com',
+    phone: '+212600000001',
+  },
+  address: {
+    street: 'Rue Test',
+    city: 'Casablanca',
+    state: 'Casablanca-Settat',
+    zipCode: '20000',
+    country: 'Morocco',
+  },
+  amount: 349,
+  courierId: courier.courierId,
+  createdAt: '2026-06-21T10:00:00Z',
+  updatedAt: '2026-06-21T10:00:00Z',
+  version: 1,
+};
+
+test('merchant can read courier workflow stages across queues', async ({ page }) => {
+  await installMockApi(page);
+  const token = fakeJwt({
+    email: 'admin@example.com',
+    role: 'MERCHANT',
+    tenantId: '00000000-0000-0000-0000-000000000001',
+  });
+  await page.goto('/login');
+  await page.evaluate((sessionToken) => {
+    window.sessionStorage.setItem(
+      'nexora.auth.session',
+      JSON.stringify({
+        token: sessionToken,
+        user: {
+          email: 'admin@example.com',
+          role: 'MERCHANT',
+          tenantId: '00000000-0000-0000-0000-000000000001',
+          expiresAt: Date.now() + 3_600_000,
+        },
+      }),
+    );
+  }, token);
+
+  await page.route('**/api/couriers?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content: [courier],
+        page: 0,
+        size: 100,
+        totalElements: 1,
+        totalPages: 1,
+      }),
+    });
+  });
+
+  await page.route('**/api/courier-operations/assignment-queue?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pageResponse({ ...baseOrder, status: 'CONFIRMED', courierId: undefined })),
+    });
+  });
+
+  await page.route('**/api/courier-operations/pickup-queue?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pageResponse({ ...baseOrder, status: 'ASSIGNED_TO_COURIER' })),
+    });
+  });
+
+  await page.route('**/api/courier-operations/delivery-queue?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pageResponse({ ...baseOrder, status: 'PICKED_UP' })),
+    });
+  });
+
+  await page.goto('/app/couriers/assignment');
+  await expect(page.getByRole('heading', { name: 'Courier assignment' })).toBeVisible();
+  await expect(page.getByText('Assign a courier to move the order into pickup.')).toBeVisible();
+  await expect(page.getByText('Select courier and assign for pickup')).toBeVisible();
+
+  await page.goto('/app/couriers/pickup');
+  await expect(page.getByRole('heading', { name: 'Pickup confirmation' })).toBeVisible();
+  await expect(page.getByText('Mark picked up to move the order into delivery.')).toBeVisible();
+  await expect(page.getByText('Confirm package pickup')).toBeVisible();
+
+  await page.goto('/app/couriers/delivery');
+  await expect(page.getByRole('heading', { name: 'Delivery outcome' })).toBeVisible();
+  await expect(page.getByText('Choose delivered or document the failure reason.')).toBeVisible();
+  await expect(page.getByText('Record delivery result')).toBeVisible();
+  await expect(page.getByRole('combobox').filter({ hasText: 'Customer refused' })).toHaveCount(1);
+});
+
+function pageResponse(order: Record<string, unknown>) {
+  return {
+    content: [order],
+    page: 0,
+    size: 20,
+    totalElements: 1,
+    totalPages: 1,
+  };
+}

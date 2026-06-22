@@ -19,6 +19,15 @@ const failureReasons: DeliveryFailureReason[] = [
   'OTHER',
 ];
 
+const failureReasonLabels: Record<DeliveryFailureReason, string> = {
+  CUSTOMER_UNREACHABLE: 'Customer unreachable',
+  CUSTOMER_REFUSED: 'Customer refused',
+  INVALID_ADDRESS: 'Invalid address',
+  CUSTOMER_RESCHEDULED: 'Customer rescheduled',
+  LOST_PACKAGE: 'Lost package',
+  OTHER: 'Other',
+};
+
 export default function DeliveryQueue() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
@@ -91,6 +100,22 @@ export default function DeliveryQueue() {
           {isFetching && !isLoading ? ' - Refreshing' : ''}
         </p>
       </div>
+
+      <section className="rounded-lg border border-green-200 bg-green-50 p-5 text-green-900">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase">Courier stage</p>
+            <h3 className="mt-2 text-xl font-bold text-gray-900">Delivery outcome</h3>
+            <p className="mt-2 max-w-2xl text-sm">
+              These packages are already with couriers. Record the final result after the delivery attempt.
+            </p>
+          </div>
+          <div className="rounded-md bg-white/80 px-4 py-3 text-sm shadow-sm">
+            <p className="text-xs font-semibold uppercase text-gray-500">Next action</p>
+            <p className="mt-1 font-semibold text-gray-900">Choose delivered or document the failure reason.</p>
+          </div>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-5">
         <label>
@@ -177,6 +202,7 @@ export default function DeliveryQueue() {
               <th className="p-4 font-medium">Order</th>
               <th className="p-4 font-medium">Customer</th>
               <th className="p-4 font-medium">Courier</th>
+              <th className="p-4 font-medium">Next action</th>
               <th className="p-4 font-medium">Failure reason</th>
               <th className="p-4 font-medium">Outcome</th>
             </tr>
@@ -197,6 +223,7 @@ export default function DeliveryQueue() {
                     <p className="font-medium text-gray-900">{courierNames.get(order.courierId ?? '') ?? 'Unknown courier'}</p>
                     <p className="font-mono text-xs text-gray-500">{order.courierId}</p>
                   </td>
+                  <td className="p-4 text-gray-700">Record delivery result</td>
                   <td className="p-4">
                     <div className="space-y-2">
                       <select
@@ -206,7 +233,7 @@ export default function DeliveryQueue() {
                       >
                         {failureReasons.map((reason) => (
                           <option key={reason} value={reason}>
-                            {reason.replaceAll('_', ' ')}
+                            {failureReasonLabels[reason]}
                           </option>
                         ))}
                       </select>
@@ -246,14 +273,14 @@ export default function DeliveryQueue() {
             })}
             {!isLoading && orders.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-gray-500">
+                <td colSpan={6} className="p-8 text-center text-gray-500">
                   No picked up orders are waiting delivery outcome.
                 </td>
               </tr>
             )}
             {isLoading && (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-gray-500">
+                <td colSpan={6} className="p-8 text-center text-gray-500">
                   Loading delivery queue...
                 </td>
               </tr>

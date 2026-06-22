@@ -47,6 +47,9 @@ export default function AssignmentQueue() {
     <QueueLayout
       title="Assignment Queue"
       subtitle={`${totalElements} confirmed orders ready for courier assignment`}
+      stageTitle="Courier assignment"
+      stageDescription="These orders are confirmed by the customer. Choose the courier who should collect each package."
+      nextAction="Assign a courier to move the order into pickup."
       error={error ?? assignMutation.error}
       isFetching={isFetching}
       isLoading={isLoading}
@@ -70,6 +73,7 @@ export default function AssignmentQueue() {
               <th className="p-4 font-medium">Customer</th>
               <th className="p-4 font-medium">Amount</th>
               <th className="p-4 font-medium">Courier</th>
+              <th className="p-4 font-medium">Next action</th>
               <th className="p-4 font-medium">Action</th>
             </tr>
           </thead>
@@ -98,6 +102,7 @@ export default function AssignmentQueue() {
                     ))}
                   </select>
                 </td>
+                <td className="p-4 text-gray-700">Select courier and assign for pickup</td>
                 <td className="p-4">
                   <button
                     type="button"
@@ -113,7 +118,7 @@ export default function AssignmentQueue() {
             ))}
             {!isLoading && orders.length === 0 && (
               <tr>
-                <td colSpan={5} className="p-8 text-center text-gray-500">
+                <td colSpan={6} className="p-8 text-center text-gray-500">
                   No orders are ready for assignment.
                 </td>
               </tr>
@@ -128,6 +133,9 @@ export default function AssignmentQueue() {
 interface QueueLayoutProps {
   title: string;
   subtitle: string;
+  stageTitle: string;
+  stageDescription: string;
+  nextAction: string;
   error: unknown;
   isFetching: boolean;
   isLoading: boolean;
@@ -148,6 +156,9 @@ interface QueueLayoutProps {
 function QueueLayout({
   title,
   subtitle,
+  stageTitle,
+  stageDescription,
+  nextAction,
   error,
   isFetching,
   isLoading,
@@ -173,6 +184,20 @@ function QueueLayout({
           {isFetching && !isLoading ? ' - Refreshing' : ''}
         </p>
       </div>
+
+      <section className="rounded-lg border border-yellow-200 bg-yellow-50 p-5 text-yellow-900">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase">Courier stage</p>
+            <h3 className="mt-2 text-xl font-bold text-gray-900">{stageTitle}</h3>
+            <p className="mt-2 max-w-2xl text-sm">{stageDescription}</p>
+          </div>
+          <div className="rounded-md bg-white/80 px-4 py-3 text-sm shadow-sm">
+            <p className="text-xs font-semibold uppercase text-gray-500">Next action</p>
+            <p className="mt-1 font-semibold text-gray-900">{nextAction}</p>
+          </div>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-4">
         <label>
