@@ -77,6 +77,9 @@ test('super admin can update marketing lead follow-up status', async ({ page }) 
 
   await expect(page.getByText('Casa Beauty')).toBeVisible();
   await expect(page.getByText('utm_source=facebook&utm_campaign=pilot')).toBeVisible();
+  await expect(page.getByText('Open leads')).toBeVisible();
+  await expect(page.getByRole('button', { name: /NEW 1/i })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'WhatsApp' })).toBeVisible();
 
   await page.getByLabel('Lead status').selectOption('CONTACTED');
   await page.getByLabel('Internal notes').fill('Reached on WhatsApp. Interested in pilot.');

@@ -8,6 +8,9 @@ import {
   ClipboardList,
   CreditCard,
   FileText,
+  Mail,
+  MessageCircle,
+  PhoneCall,
   PlusCircle,
   Printer,
   RefreshCw,
@@ -80,6 +83,15 @@ function formatPeriod(start?: string, end?: string) {
     return 'Not specified';
   }
   return `${formatDate(start)} - ${formatDate(end)}`;
+}
+
+function isFollowUpDue(value?: string) {
+  return Boolean(value && new Date(value).getTime() <= Date.now());
+}
+
+function whatsappHref(phone: string) {
+  const normalized = phone.replace(/[^\d]/g, '');
+  return normalized ? `https://wa.me/${normalized}` : undefined;
 }
 
 function isBlocked(status: TenantStatus) {
@@ -624,25 +636,71 @@ function LeadList({
   onUpdate: (payload: { leadId: string; status: MarketingLeadStatus; nextFollowUpAt?: string; internalNotes?: string }) => void;
   onConvert: (payload: { leadId: string; tenantName: string; adminName: string; adminEmail: string; password: string; internalNotes?: string }) => void;
 }) {
+  const [statusFilter, setStatusFilter] = useState<MarketingLeadStatus | 'ALL'>('ALL');
+  const stats = useMemo(() => {
+    const open = leads.filter((lead) => lead.status !== 'REJECTED' && lead.status !== 'ONBOARDED').length;
+    const due = leads.filter((lead) => isFollowUpDue(lead.nextFollowUpAt) && lead.status !== 'ONBOARDED').length;
+    const qualified = leads.filter((lead) => lead.status === 'QUALIFIED').length;
+    const onboarded = leads.filter((lead) => lead.status === 'ONBOARDED').length;
+
+    return { open, due, qualified, onboarded };
+  }, [leads]);
+  const filteredLeads = useMemo(() => {
+    return statusFilter === 'ALL' ? leads : leads.filter((lead) => lead.status === statusFilter);
+  }, [leads, statusFilter]);
+
   return (
-    <section className="mt-6 rounded-lg border border-gray-200 bg-white">
-      <div className="border-b border-gray-200 p-5">
-        <h3 className="text-sm font-semibold uppercase text-gray-500">Demo Requests</h3>
-        <p className="mt-1 text-sm text-gray-600">{leads.length} captured leads for pilot follow-up.</p>
+    <section className="mt-6 space-y-4">
+      <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-semibold uppercase text-gray-500">Demo Requests</h3>
+            <p className="mt-1 text-sm text-gray-600">
+              Review new demo requests, schedule follow-up, qualify serious merchants, then create pilot workspaces.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <LeadFilterButton active={statusFilter === 'ALL'} label="All" count={leads.length} onClick={() => setStatusFilter('ALL')} />
+            {marketingLeadStatuses.map((leadStatus) => (
+              <LeadFilterButton
+                key={leadStatus}
+                active={statusFilter === leadStatus}
+                label={leadStatus}
+                count={leads.filter((lead) => lead.status === leadStatus).length}
+                onClick={() => setStatusFilter(leadStatus)}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <LeadMetric label="Open leads" value={stats.open} detail="Needs decision" />
+          <LeadMetric label="Follow-up due" value={stats.due} detail="Call or message now" tone={stats.due ? 'warning' : 'neutral'} />
+          <LeadMetric label="Qualified" value={stats.qualified} detail="Ready to convert" tone="success" />
+          <LeadMetric label="Onboarded" value={stats.onboarded} detail="Pilot created" />
+        </div>
       </div>
-      <div className="divide-y divide-gray-100">
-        {leads.map((lead) => (
-          <LeadCard
-            key={lead.leadId}
-            lead={lead}
-            isUpdating={updatingLeadId === lead.leadId}
-            isConverting={convertingLeadId === lead.leadId}
-            onUpdate={onUpdate}
-            onConvert={onConvert}
-          />
-        ))}
-        {isLoading && <p className="p-5 text-sm text-gray-500">Loading leads...</p>}
-        {!isLoading && !leads.length && <p className="p-5 text-sm text-gray-500">No demo requests captured yet.</p>}
+
+      <div className="rounded-lg border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 px-5 py-3 text-sm text-gray-600">
+          Showing <span className="font-semibold text-gray-900">{filteredLeads.length}</span> of {leads.length} demo requests
+        </div>
+        <div className="divide-y divide-gray-100">
+          {filteredLeads.map((lead) => (
+            <LeadCard
+              key={lead.leadId}
+              lead={lead}
+              isUpdating={updatingLeadId === lead.leadId}
+              isConverting={convertingLeadId === lead.leadId}
+              onUpdate={onUpdate}
+              onConvert={onConvert}
+            />
+          ))}
+          {isLoading && <p className="p-5 text-sm text-gray-500">Loading leads...</p>}
+          {!isLoading && !leads.length && <p className="p-5 text-sm text-gray-500">No demo requests captured yet.</p>}
+          {!isLoading && Boolean(leads.length) && !filteredLeads.length && (
+            <p className="p-5 text-sm text-gray-500">No demo requests match this status.</p>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -670,6 +728,8 @@ function LeadCard({
   const [adminEmail, setAdminEmail] = useState(lead.email ?? '');
   const [password, setPassword] = useState('');
   const [conversionNotes, setConversionNotes] = useState('Qualified for guided pilot onboarding.');
+  const due = isFollowUpDue(lead.nextFollowUpAt);
+  const waLink = whatsappHref(lead.phone);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -696,15 +756,34 @@ function LeadCard({
   const isConverted = Boolean(lead.convertedTenantId);
 
   return (
-    <article className="grid grid-cols-1 gap-5 p-5 xl:grid-cols-[1fr_360px]">
+    <article className={`grid grid-cols-1 gap-5 p-5 xl:grid-cols-[1fr_380px] ${due ? 'bg-amber-50/35' : ''}`}>
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <h4 className="font-semibold text-gray-900">{lead.storeName}</h4>
           <LeadStatusBadge status={lead.status} />
+          {due && <span className="rounded-md bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">FOLLOW-UP DUE</span>}
           {lead.city && <span className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">{lead.city}</span>}
           {lead.monthlyOrderVolume && <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{lead.monthlyOrderVolume}</span>}
         </div>
         <p className="mt-2 text-sm text-gray-700">{lead.contactName} · {lead.phone}{lead.email ? ` · ${lead.email}` : ''}</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+            <PhoneCall size={14} />
+            Call
+          </a>
+          {waLink && (
+            <a href={waLink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">
+              <MessageCircle size={14} />
+              WhatsApp
+            </a>
+          )}
+          {lead.email && (
+            <a href={`mailto:${lead.email}`} className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+              <Mail size={14} />
+              Email
+            </a>
+          )}
+        </div>
         {lead.message && <p className="mt-2 text-sm leading-6 text-gray-600">{lead.message}</p>}
         <div className="mt-3 grid gap-1 text-xs text-gray-500 sm:grid-cols-2">
           <p>Captured: <span className="font-medium text-gray-700">{formatDateTime(lead.createdAt)}</span></p>
@@ -758,9 +837,15 @@ function LeadCard({
             <Save size={16} />
             {isUpdating ? 'Saving' : 'Save follow-up'}
           </button>
-          <a href={`tel:${lead.phone}`} className="inline-flex rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-            Call lead
-          </a>
+          {status !== 'QUALIFIED' && (
+            <button
+              type="button"
+              onClick={() => setStatus('QUALIFIED')}
+              className="inline-flex rounded-md border border-green-200 bg-white px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+            >
+              Mark qualified
+            </button>
+          )}
         </div>
       </form>
       {!isConverted && (
@@ -825,6 +910,57 @@ function LeadCard({
       )}
       </div>
     </article>
+  );
+}
+
+function LeadFilterButton({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  count: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold ${
+        active ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+      }`}
+    >
+      <span>{label}</span>
+      <span className={`rounded-full px-1.5 py-0.5 ${active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600'}`}>{count}</span>
+    </button>
+  );
+}
+
+function LeadMetric({
+  label,
+  value,
+  detail,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  tone?: 'neutral' | 'warning' | 'success';
+}) {
+  const tones = {
+    neutral: 'border-gray-200 bg-gray-50 text-gray-600',
+    warning: 'border-amber-200 bg-amber-50 text-amber-700',
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  };
+
+  return (
+    <div className={`rounded-md border p-3 ${tones[tone]}`}>
+      <p className="text-xs font-semibold uppercase">{label}</p>
+      <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
+      <p className="mt-1 text-xs">{detail}</p>
+    </div>
   );
 }
 
