@@ -11,4 +11,6 @@ public interface DeliveryFailureRepository extends JpaRepository<DeliveryFailure
     Optional<DeliveryFailure> findByOrderIdAndTenantId(UUID orderId, UUID tenantId);
 
     List<DeliveryFailure> findByTenantIdAndOrderIdOrderByCreatedAtAsc(UUID tenantId, UUID orderId);
+
+    Optional<DeliveryFailure> findFirstByTenantIdAndOrderIdOrderByCreatedAtDesc(UUID tenantId, UUID orderId);
 }

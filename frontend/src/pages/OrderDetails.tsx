@@ -18,8 +18,9 @@ import {
   recordDeliveryFailureRecovery,
   rejectOrder,
   requestConfirmation,
+  retryFailedDelivery,
 } from '../api/client';
-import type { OrderStatus } from '../api/client';
+import type { Order, OrderStatus } from '../api/client';
 
 type LifecycleCommand =
   | { action: 'request-confirmation' }
@@ -202,6 +203,30 @@ export default function OrderDetails() {
     },
   });
 
+  const retryDeliveryMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) {
+        throw new Error('Order ID is missing');
+      }
+      return retryFailedDelivery(id);
+    },
+    onSuccess: () => {
+      queryClient.setQueryData<Order | undefined>(['order', id], (currentOrder) => currentOrder
+        ? {
+            ...currentOrder,
+            status: 'CONFIRMED',
+            courierId: undefined,
+            failureReason: undefined,
+          }
+        : currentOrder);
+      queryClient.invalidateQueries({ queryKey: ['order', id] });
+      queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] });
+    },
+  });
+
   if (loadingOrder || loadingTimeline) {
     return <div>Loading...</div>;
   }
@@ -228,6 +253,10 @@ export default function OrderDetails() {
   const selectedPickupCourierId = order.courierId ?? courierId;
   const selectedCourierName = activeCouriers.find((courier) => courier.courierId === order.courierId)?.name ?? order.courierId;
   const formattedFailureReason = formatFailureReason(order.failureReason);
+  const latestFailureRecovery = failureRecoveries.length > 0
+    ? failureRecoveries[failureRecoveries.length - 1]
+    : undefined;
+  const canMoveBackToAssignment = latestFailureRecovery?.decision === 'RETRY_DELIVERY';
 
   const TimelineIcon = ({ type, category }: { type: string; category: string }) => {
     if (category === 'CALLBACK') return <PhoneCall className="w-5 h-5 text-purple-500" />;
@@ -401,6 +430,28 @@ export default function OrderDetails() {
                   ))}
                 </div>
               )}
+              <div className="mt-4 border-t border-red-100 pt-4">
+                <p className="text-sm font-semibold text-gray-900">Retry execution</p>
+                <p className="mt-1 text-sm text-gray-600">
+                  Move this order back to the assignment queue only after the latest decision is Retry delivery.
+                </p>
+                {retryDeliveryMutation.error && (
+                  <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {getErrorMessage(retryDeliveryMutation.error)}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={!canMoveBackToAssignment || retryDeliveryMutation.isPending}
+                  onClick={() => retryDeliveryMutation.mutate()}
+                  className="mt-3 w-full rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {retryDeliveryMutation.isPending ? 'Moving...' : 'Move back to assignment queue'}
+                </button>
+                {!canMoveBackToAssignment && (
+                  <p className="mt-2 text-xs text-gray-500">Record Retry delivery as the latest decision first.</p>
+                )}
+              </div>
             </div>
           </div>
         </section>

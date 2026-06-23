@@ -8,6 +8,8 @@ import com.nexora.backend.domain.event.payload.OrderConfirmationRequestedEvent;
 import com.nexora.backend.domain.event.payload.OrderConfirmedEvent;
 import com.nexora.backend.domain.event.payload.OrderCreatedEvent;
 import com.nexora.backend.domain.event.payload.OrderDeliveredEvent;
+import com.nexora.backend.domain.event.payload.OrderDeliveryFailedEvent;
+import com.nexora.backend.domain.event.payload.OrderDeliveryRetryRequestedEvent;
 import com.nexora.backend.domain.event.payload.OrderPickedUpEvent;
 import com.nexora.backend.domain.model.Address;
 import com.nexora.backend.domain.model.Customer;
@@ -28,6 +30,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -126,6 +129,28 @@ class OrderProjectionServiceIntegrationTest {
         assertEquals(6, result.eventsProcessed());
         assertTrue(orderRepository.findByIdAndTenantId(orderId, tenantId).isPresent());
         assertEquals(6, processedEventRepository.countByProjectionName(OrderProjectionService.PROJECTION_NAME));
+    }
+
+    @Test
+    void retryEventReopensFailedOrderForAssignment() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        save(event(tenantId, orderId, "OrderCreated", orderCreated("Retry"), 1));
+        save(event(tenantId, orderId, "OrderConfirmationRequested", new OrderConfirmationRequestedEvent(), 2));
+        save(event(tenantId, orderId, "OrderConfirmed", new OrderConfirmedEvent(), 3));
+        save(event(tenantId, orderId, "OrderAssignedToCourier", new OrderAssignedToCourierEvent("courier-1"), 4));
+        save(event(tenantId, orderId, "OrderPickedUp", new OrderPickedUpEvent("courier-1"), 5));
+        save(event(tenantId, orderId, "OrderDeliveryFailed", new OrderDeliveryFailedEvent("CUSTOMER_UNREACHABLE"), 6));
+        save(event(tenantId, orderId, "OrderDeliveryRetryRequested", new OrderDeliveryRetryRequestedEvent(UUID.randomUUID()), 7));
+
+        OrderProjectionService.ProjectionRebuildResult result = projectionService.rebuildAll();
+
+        assertEquals(7, result.eventsProcessed());
+        Order order = orderRepository.findByIdAndTenantId(orderId, tenantId).orElseThrow();
+        assertEquals(OrderStatus.CONFIRMED, order.getStatus());
+        assertNull(order.getCourierId());
+        assertNull(order.getFailureReason());
+        assertEquals(7, order.getVersion());
     }
 
     @Test

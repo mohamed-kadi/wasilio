@@ -218,6 +218,12 @@ public class CourierOperationsController {
         ));
     }
 
+    @PostMapping("/orders/{orderId}/retry-delivery")
+    public ResponseEntity<Void> retryDelivery(@PathVariable UUID orderId) {
+        deliveryOperationsService.retryDelivery(getCurrentTenantId(), orderId);
+        return ResponseEntity.ok().build();
+    }
+
     @GetMapping("/courier-performance")
     public ResponseEntity<List<CourierPerformanceResponse>> courierPerformance() {
         return ResponseEntity.ok(orderRepository.findCourierPerformance(getCurrentTenantId()).stream()

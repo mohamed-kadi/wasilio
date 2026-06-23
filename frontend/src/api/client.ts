@@ -851,6 +851,10 @@ export async function recordDeliveryFailureRecovery(
   });
 }
 
+export async function retryFailedDelivery(orderId: string): Promise<void> {
+  await apiRequest<void>(`/courier-operations/orders/${orderId}/retry-delivery`, { method: 'POST' });
+}
+
 export function getErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     return `${error.title}: ${error.detail}`;

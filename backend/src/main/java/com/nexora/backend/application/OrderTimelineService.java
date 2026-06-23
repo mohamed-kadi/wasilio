@@ -159,7 +159,7 @@ public class OrderTimelineService {
         if (eventType.contains("Confirmation") || eventType.contains("Confirmed") || eventType.contains("Rejected")) {
             return TimelineCategory.CONFIRMATION;
         }
-        if (eventType.contains("Assigned") || eventType.contains("PickedUp") || eventType.contains("Delivered") || eventType.contains("Failed")) {
+        if (eventType.contains("Delivery") || eventType.contains("Assigned") || eventType.contains("PickedUp") || eventType.contains("Delivered") || eventType.contains("Failed")) {
             return TimelineCategory.DELIVERY;
         }
         return TimelineCategory.LIFECYCLE;

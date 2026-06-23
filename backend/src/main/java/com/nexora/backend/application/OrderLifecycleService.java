@@ -80,6 +80,26 @@ public class OrderLifecycleService {
         appendEvent(tenantId, orderId, "OrderDeliveryFailed", new OrderDeliveryFailedEvent(reason), order.sequence());
     }
 
+    @Transactional
+    public void retryDelivery(UUID tenantId, UUID orderId, UUID recoveryId) {
+        OrderState order = replayOrder(tenantId, orderId);
+
+        if (!order.exists()) {
+            throw new IllegalArgumentException("Order not found");
+        }
+        if (order.status() != OrderStatus.FAILED) {
+            throw new IllegalStateException("Retry delivery can only be requested for failed orders");
+        }
+
+        appendEvent(
+                tenantId,
+                orderId,
+                "OrderDeliveryRetryRequested",
+                new OrderDeliveryRetryRequestedEvent(recoveryId),
+                order.sequence()
+        );
+    }
+
     private OrderState loadOrderAndValidate(UUID tenantId, UUID orderId, OrderStatus expectedStatus) {
         OrderState order = replayOrder(tenantId, orderId);
 
@@ -120,6 +140,7 @@ public class OrderLifecycleService {
                 case "OrderPickedUp" -> state.withStatus(OrderStatus.PICKED_UP, event.getAggregateSequence());
                 case "OrderDelivered" -> state.withStatus(OrderStatus.DELIVERED, event.getAggregateSequence());
                 case "OrderDeliveryFailed" -> state.withStatus(OrderStatus.FAILED, event.getAggregateSequence());
+                case "OrderDeliveryRetryRequested" -> state.withCourier(OrderStatus.CONFIRMED, null, event.getAggregateSequence());
                 default -> throw new IllegalStateException("Unknown order event type: " + event.getEventType());
             };
         } catch (JsonProcessingException e) {

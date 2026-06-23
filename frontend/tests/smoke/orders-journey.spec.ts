@@ -148,8 +148,10 @@ test('merchant can understand order journey stage and next action', async ({ pag
 
 test('merchant can review failed delivery recovery details', async ({ page }) => {
   await installMockApi(page);
+  let currentOrder = { ...failedOrder };
   const recoveryRecords: Array<Record<string, unknown>> = [];
   const recoveryRequests: Array<Record<string, unknown>> = [];
+  let retryRequests = 0;
   const token = fakeJwt({
     email: 'admin@example.com',
     role: 'MERCHANT',
@@ -176,7 +178,7 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        content: [failedOrder],
+        content: [currentOrder],
         page: 0,
         size: 20,
         totalElements: 1,
@@ -211,7 +213,7 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(failedOrder),
+      body: JSON.stringify(currentOrder),
     });
   });
 
@@ -265,6 +267,22 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
     });
   });
 
+  await page.route('**/api/courier-operations/orders/11111111-1111-1111-1111-111111111111/retry-delivery', async (route) => {
+    retryRequests += 1;
+    currentOrder = {
+      ...failedOrder,
+      status: 'CONFIRMED',
+      courierId: undefined,
+      failureReason: undefined,
+      updatedAt: '2026-06-21T12:35:00Z',
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '',
+    });
+  });
+
   await page.goto('/app/orders');
   await page.getByRole('button', { name: 'Review failed deliveries' }).click();
 
@@ -287,10 +305,27 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
 
   await expect(page.getByText('Refund / customer follow-up').last()).toBeVisible();
   await expect(page.getByText('Customer wants a refund before another attempt')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Move back to assignment queue' })).toBeDisabled();
+
+  await page.getByLabel('Recovery decision').selectOption('RETRY_DELIVERY');
+  await page.getByLabel('Recovery note').fill('Customer confirmed retry for tomorrow');
+  await page.getByRole('button', { name: 'Record recovery decision' }).click();
+
+  await expect(page.getByText('Retry delivery').last()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Move back to assignment queue' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Move back to assignment queue' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Confirmed' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Assign Courier' })).toBeVisible();
+  expect(retryRequests).toBe(1);
   expect(recoveryRequests).toEqual([
     {
       decision: 'REFUND_OR_CUSTOMER_FOLLOW_UP',
       note: 'Customer wants a refund before another attempt',
+    },
+    {
+      decision: 'RETRY_DELIVERY',
+      note: 'Customer confirmed retry for tomorrow',
     },
   ]);
 });

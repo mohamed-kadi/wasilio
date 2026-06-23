@@ -82,6 +82,24 @@ public class DeliveryOperationsService {
                 .build());
     }
 
+    @Transactional
+    public void retryDelivery(UUID tenantId, UUID orderId) {
+        requireFailedOrder(tenantId, orderId);
+        DeliveryFailure latestFailure = deliveryFailureRepository
+                .findFirstByTenantIdAndOrderIdOrderByCreatedAtDesc(tenantId, orderId)
+                .orElseThrow(() -> new IllegalStateException("Retry delivery requires a recorded delivery failure"));
+        DeliveryFailureRecovery latestRecovery = deliveryFailureRecoveryRepository
+                .findFirstByTenantIdAndOrderIdOrderByCreatedAtDesc(tenantId, orderId)
+                .orElseThrow(() -> new IllegalStateException("Retry delivery requires a recovery decision"));
+
+        if (latestRecovery.getDecision() != DeliveryFailureRecoveryDecision.RETRY_DELIVERY
+                || latestRecovery.getCreatedAt().isBefore(latestFailure.getCreatedAt())) {
+            throw new IllegalStateException("Retry delivery requires the latest recovery decision to be Retry delivery");
+        }
+
+        orderLifecycleService.retryDelivery(tenantId, orderId, latestRecovery.getRecoveryId());
+    }
+
     private Order requirePickedUpOrder(UUID tenantId, UUID orderId) {
         Order order = orderRepository.findByIdAndTenantId(orderId, tenantId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
@@ -98,7 +116,7 @@ public class DeliveryOperationsService {
         Order order = orderRepository.findByIdAndTenantId(orderId, tenantId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
         if (order.getStatus() != OrderStatus.FAILED) {
-            throw new IllegalStateException("Recovery can only be recorded for failed orders");
+            throw new IllegalStateException("Operation requires a failed order");
         }
         return order;
     }

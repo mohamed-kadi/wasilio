@@ -390,6 +390,33 @@ class CourierOperationsIntegrationTest {
                 .andExpect(jsonPath("$[?(@.type=='DeliveryFailureRecoveryRecorded')].details.decision").value("RETRY_DELIVERY"))
                 .andExpect(jsonPath("$[?(@.type=='DeliveryFailureRecoveryRecorded')].details.note").value("Customer asked for retry tomorrow"));
 
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/retry-delivery")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+
+        mockMvc.perform(get("/api/courier-operations/assignment-queue")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(orderId));
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/events")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(7))
+                .andExpect(jsonPath("$[6].eventType").value("OrderDeliveryRetryRequested"));
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/timeline")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(9))
+                .andExpect(jsonPath("$[?(@.type=='OrderDeliveryRetryRequested')].category").value("DELIVERY"));
+
         transactionTemplate.executeWithoutResult(status -> {
             var failure = deliveryFailureRepository.findByOrderIdAndTenantId(UUID.fromString(orderId), getTenantId("courier@example.com"))
                     .orElseThrow();
@@ -430,6 +457,11 @@ class CourierOperationsIntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.title").value("Invalid state transition"));
 
+        mockMvc.perform(post("/api/courier-operations/orders/" + confirmedOrderId + "/retry-delivery")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid state transition"));
+
         mockMvc.perform(post("/api/courier-operations/orders/" + confirmedOrderId + "/failure-recoveries")
                 .header("Authorization", bearer(jwtToken))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -437,6 +469,29 @@ class CourierOperationsIntegrationTest {
                         DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP,
                         "Customer follow-up needed"
                 ))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid state transition"));
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + pickedUpOrderId + "/fail")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRequest(
+                        DeliveryFailureReason.CUSTOMER_REFUSED,
+                        null
+                ))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + pickedUpOrderId + "/failure-recoveries")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
+                        DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP,
+                        "Customer follow-up needed"
+                ))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + pickedUpOrderId + "/retry-delivery")
+                .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.title").value("Invalid state transition"));
 

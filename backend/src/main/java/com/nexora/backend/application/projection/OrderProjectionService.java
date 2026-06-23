@@ -67,6 +67,7 @@ public class OrderProjectionService {
             case "OrderPickedUp" -> updateOrderStatus(event, OrderStatus.PICKED_UP);
             case "OrderDelivered" -> updateOrderStatus(event, OrderStatus.DELIVERED);
             case "OrderDeliveryFailed" -> failDelivery(event);
+            case "OrderDeliveryRetryRequested" -> retryDelivery(event);
             default -> throw new IllegalStateException("Unknown order event type: " + event.getEventType());
         }
     }
@@ -112,6 +113,14 @@ public class OrderProjectionService {
         Order order = getOrder(event);
         order.setStatus(OrderStatus.FAILED);
         order.setFailureReason(payload.reason());
+        saveOrder(order, event);
+    }
+
+    private void retryDelivery(DomainEvent event) {
+        Order order = getOrder(event);
+        order.setStatus(OrderStatus.CONFIRMED);
+        order.setCourierId(null);
+        order.setFailureReason(null);
         saveOrder(order, event);
     }
 

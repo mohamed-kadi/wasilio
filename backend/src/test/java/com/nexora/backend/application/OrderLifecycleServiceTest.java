@@ -9,6 +9,7 @@ import com.nexora.backend.domain.event.payload.OrderConfirmedEvent;
 import com.nexora.backend.domain.event.payload.OrderCreatedEvent;
 import com.nexora.backend.domain.event.payload.OrderDeliveredEvent;
 import com.nexora.backend.domain.event.payload.OrderDeliveryFailedEvent;
+import com.nexora.backend.domain.event.payload.OrderDeliveryRetryRequestedEvent;
 import com.nexora.backend.domain.event.payload.OrderPickedUpEvent;
 import com.nexora.backend.domain.model.Address;
 import com.nexora.backend.domain.model.Customer;
@@ -124,6 +125,27 @@ class OrderLifecycleServiceTest {
         DomainEvent savedEvent = eventCaptor.getValue();
         assertEquals("OrderDeliveryFailed", savedEvent.getEventType());
         assertEquals(6, savedEvent.getAggregateSequence());
+    }
+
+    @Test
+    void retryDelivery_appendsRetryEventFromFailedOrder() throws Exception {
+        UUID recoveryId = UUID.randomUUID();
+        when(eventStore.getEventsForAggregate(tenantId, orderId)).thenReturn(List.of(
+                event("OrderCreated", new OrderCreatedEvent(customer, address, BigDecimal.TEN), 1),
+                event("OrderConfirmationRequested", new OrderConfirmationRequestedEvent(), 2),
+                event("OrderConfirmed", new OrderConfirmedEvent(), 3),
+                event("OrderAssignedToCourier", new OrderAssignedToCourierEvent("courier-123"), 4),
+                event("OrderPickedUp", new OrderPickedUpEvent("courier-123"), 5),
+                event("OrderDeliveryFailed", new OrderDeliveryFailedEvent("Customer unavailable"), 6)
+        ));
+
+        service.retryDelivery(tenantId, orderId, recoveryId);
+
+        verify(eventStore).append(eventCaptor.capture(), eq(6));
+        DomainEvent savedEvent = eventCaptor.getValue();
+        assertEquals("OrderDeliveryRetryRequested", savedEvent.getEventType());
+        assertEquals(7, savedEvent.getAggregateSequence());
+        assertEquals(recoveryId, objectMapper.readValue(savedEvent.getPayload(), OrderDeliveryRetryRequestedEvent.class).recoveryId());
     }
 
     @Test
