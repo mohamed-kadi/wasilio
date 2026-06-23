@@ -3,9 +3,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Truck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { assignCourier, fetchAssignmentQueue, fetchCouriers, getErrorMessage } from '../api/client';
+import type { Order } from '../api/client';
 
 interface AssignmentLocationState {
   confirmedOrderId?: string;
+}
+
+interface AssignedHandoff {
+  order: Order;
+  courierId: string;
+  courierName: string;
 }
 
 export default function AssignmentQueue() {
@@ -19,6 +26,7 @@ export default function AssignmentQueue() {
   const [createdFrom, setCreatedFrom] = useState('');
   const [createdTo, setCreatedTo] = useState('');
   const [selectedCouriers, setSelectedCouriers] = useState<Record<string, string>>({});
+  const [assignedHandoff, setAssignedHandoff] = useState<AssignedHandoff | null>(null);
 
   const {
     data: queuePage,
@@ -37,7 +45,17 @@ export default function AssignmentQueue() {
 
   const assignMutation = useMutation({
     mutationFn: ({ orderId, courierId }: { orderId: string; courierId: string }) => assignCourier(orderId, courierId),
-    onSuccess: async () => {
+    onSuccess: async (_result, variables) => {
+      const assignedOrder = orders.find((order) => order.id === variables.orderId);
+      const assignedCourier = activeCouriers.find((courier) => courier.courierId === variables.courierId);
+
+      if (assignedOrder) {
+        setAssignedHandoff({
+          order: assignedOrder,
+          courierId: variables.courierId,
+          courierName: assignedCourier?.name ?? variables.courierId,
+        });
+      }
       await queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] });
       await queryClient.invalidateQueries({ queryKey: ['courier-pickup-queue'] });
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -52,11 +70,22 @@ export default function AssignmentQueue() {
   const canGoBack = page > 0;
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
   const highlightedOrder = confirmedOrderId ? orders.find((order) => order.id === confirmedOrderId) : undefined;
+  const confirmedOrderAssigned = confirmedOrderId === assignedHandoff?.order.id;
 
   function resetFilters() {
     setCreatedFrom('');
     setCreatedTo('');
     setPage(0);
+  }
+
+  function assignOrder(order: Order) {
+    const selectedCourierId = selectedCouriers[order.id];
+    if (!selectedCourierId) {
+      return;
+    }
+
+    setAssignedHandoff(null);
+    assignMutation.mutate({ orderId: order.id, courierId: selectedCourierId });
   }
 
   return (
@@ -81,7 +110,7 @@ export default function AssignmentQueue() {
       canGoBack={canGoBack}
       canGoForward={canGoForward}
     >
-      {confirmedOrderId && highlightedOrder && (
+      {confirmedOrderId && highlightedOrder && !confirmedOrderAssigned && (
         <section className="rounded-lg border border-green-200 bg-green-50 px-4 py-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -97,7 +126,7 @@ export default function AssignmentQueue() {
         </section>
       )}
 
-      {confirmedOrderId && !highlightedOrder && !isLoading && (
+      {confirmedOrderId && !highlightedOrder && !isLoading && !confirmedOrderAssigned && (
         <section className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -131,6 +160,32 @@ export default function AssignmentQueue() {
               className="inline-flex items-center rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
             >
               Manage couriers
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {assignedHandoff && (
+        <section className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-orange-950">Order assigned and moved to pickup</p>
+              <p className="mt-1 text-sm text-orange-800">
+                {assignedHandoff.order.customer.firstName} {assignedHandoff.order.customer.lastName} is assigned to{' '}
+                {assignedHandoff.courierName}. Confirm pickup when the package leaves the merchant.
+              </p>
+              <p className="mt-2 font-mono text-xs text-orange-700">{assignedHandoff.order.id}</p>
+            </div>
+            <Link
+              to="/app/couriers/pickup"
+              state={{
+                assignedOrderId: assignedHandoff.order.id,
+                assignedCourierId: assignedHandoff.courierId,
+              }}
+              className="inline-flex items-center gap-2 rounded-md bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700"
+            >
+              <Truck size={16} />
+              Open pickup queue
             </Link>
           </div>
         </section>
@@ -190,9 +245,7 @@ export default function AssignmentQueue() {
                       <button
                         type="button"
                         disabled={!selectedCouriers[order.id] || assignMutation.isPending}
-                        onClick={() =>
-                          assignMutation.mutate({ orderId: order.id, courierId: selectedCouriers[order.id] })
-                        }
+                        onClick={() => assignOrder(order)}
                         className="inline-flex items-center gap-2 rounded-md bg-yellow-600 px-3 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
                       >
                         <Truck size={16} />

@@ -35,6 +35,8 @@ const baseOrder = {
 
 test('merchant can read courier workflow stages across queues', async ({ page }) => {
   await installMockApi(page);
+  const assignments: Record<string, unknown>[] = [];
+  let assigned = false;
   const token = fakeJwt({
     email: 'admin@example.com',
     role: 'MERCHANT',
@@ -74,7 +76,7 @@ test('merchant can read courier workflow stages across queues', async ({ page })
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(pageResponse({ ...baseOrder, status: 'CONFIRMED', courierId: undefined })),
+      body: JSON.stringify(assigned ? emptyPage() : pageResponse({ ...baseOrder, status: 'CONFIRMED', courierId: undefined })),
     });
   });
 
@@ -82,8 +84,15 @@ test('merchant can read courier workflow stages across queues', async ({ page })
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(pageResponse({ ...baseOrder, status: 'ASSIGNED_TO_COURIER' })),
+      body: JSON.stringify(assigned ? pageResponse({ ...baseOrder, status: 'ASSIGNED_TO_COURIER' }) : emptyPage()),
     });
+  });
+
+  await page.route('**/api/orders/11111111-1111-1111-1111-111111111111/assign-courier', async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    assignments.push(body);
+    assigned = true;
+    await route.fulfill({ status: 204 });
   });
 
   await page.route('**/api/courier-operations/delivery-queue?**', async (route) => {
@@ -98,9 +107,16 @@ test('merchant can read courier workflow stages across queues', async ({ page })
   await expect(page.getByRole('heading', { name: 'Courier assignment' })).toBeVisible();
   await expect(page.getByText('Assign a courier to move the order into pickup.')).toBeVisible();
   await expect(page.getByText('Select courier and assign for pickup')).toBeVisible();
+  await page.getByRole('combobox').filter({ hasText: 'Select courier' }).selectOption(courier.courierId);
+  await page.getByRole('button', { name: 'Assign' }).click();
+  await expect(page.getByText('Order assigned and moved to pickup')).toBeVisible();
+  await expect(page.getByText('Sara Customer is assigned to Amine Courier')).toBeVisible();
+  await page.getByRole('link', { name: 'Open pickup queue' }).click();
 
-  await page.goto('/app/couriers/pickup');
+  await expect(page).toHaveURL(/\/app\/couriers\/pickup$/);
   await expect(page.getByRole('heading', { name: 'Pickup confirmation' })).toBeVisible();
+  await expect(page.getByText('Assigned order ready for pickup confirmation')).toBeVisible();
+  await expect(page.getByRole('table').getByText('From assignment', { exact: true })).toBeVisible();
   await expect(page.getByText('Mark picked up to move the order into delivery.')).toBeVisible();
   await expect(page.getByText('Confirm package pickup')).toBeVisible();
 
@@ -109,6 +125,11 @@ test('merchant can read courier workflow stages across queues', async ({ page })
   await expect(page.getByText('Choose delivered or document the failure reason.')).toBeVisible();
   await expect(page.getByText('Record delivery result')).toBeVisible();
   await expect(page.getByRole('combobox').filter({ hasText: 'Customer refused' })).toHaveCount(1);
+
+  expect(assignments).toHaveLength(1);
+  expect(assignments[0]).toMatchObject({
+    courierId: courier.courierId,
+  });
 });
 
 function pageResponse(order: Record<string, unknown>) {
@@ -118,5 +139,15 @@ function pageResponse(order: Record<string, unknown>) {
     size: 20,
     totalElements: 1,
     totalPages: 1,
+  };
+}
+
+function emptyPage() {
+  return {
+    content: [],
+    page: 0,
+    size: 20,
+    totalElements: 0,
+    totalPages: 0,
   };
 }
