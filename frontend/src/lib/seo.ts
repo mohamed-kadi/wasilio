@@ -27,9 +27,11 @@ export function usePageMeta({ title, description, path = '/', type = 'website' }
     setMeta('property', 'og:description', description);
     setMeta('property', 'og:url', canonicalUrl);
     setMeta('property', 'og:image', `${publicSiteUrl()}/social-preview.svg`);
+    setMeta('property', 'og:image:alt', 'Wasilio COD operations workspace preview');
     setMeta('name', 'twitter:card', 'summary_large_image');
     setMeta('name', 'twitter:title', title);
     setMeta('name', 'twitter:description', description);
+    setMeta('name', 'twitter:image', `${publicSiteUrl()}/social-preview.svg`);
     setCanonical(canonicalUrl);
   }, [description, path, title, type]);
 }

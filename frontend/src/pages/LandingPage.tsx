@@ -1,6 +1,17 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, ClipboardList, Globe2, MessageCircle, PhoneCall, ShieldCheck, Truck } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  ClipboardList,
+  Globe2,
+  MessageCircle,
+  PackageCheck,
+  PhoneCall,
+  ReceiptText,
+  Truck,
+  Users,
+} from 'lucide-react';
 import { ApiError, captureMarketingLead, getErrorMessage } from '../api/client';
 import { usePageMeta } from '../lib/seo';
 import { campaignSourceFromLocation, installMetaPixel, trackLeadSubmitted } from '../lib/tracking';
@@ -26,13 +37,14 @@ const copy = {
     navContact: 'Demo',
     signIn: 'Acces pilote',
     eyebrow: 'Confirmation COD pour marchands marocains',
-    headline: 'Confirmez plus de commandes COD, sans perdre les rappels.',
+    headline: 'Le bureau de controle pour vos commandes COD au Maroc.',
     subhead:
-      'Wasilio aide votre equipe a savoir quoi appeler, quoi relancer et quoi envoyer au coursier, depuis une seule file de travail.',
-    primaryCta: 'Demander une demo',
+      'Wasilio aide votre equipe a confirmer les commandes, suivre les rappels, coordonner les coursiers et comprendre les echecs de livraison depuis un seul espace.',
+    primaryCta: 'Demander un pilotage',
     whatsapp: 'Parler sur WhatsApp',
-    heroModel: ['Demo gratuite', 'Pilote accompagne', 'Abonnement mensuel MAD'],
-    trust: ['Pour les equipes COD avec du volume', 'Validation avant ouverture du pilote', 'Paiement manuel: cash ou virement'],
+    heroModel: ['Audit rapide du workflow', 'Espace pilote configure avec vous', 'Paiement mensuel manuel en MAD'],
+    trust: ['Fait pour WhatsApp, appels et cash a la livraison', 'Pilote ouvert apres validation humaine', 'Recu disponible pour cash ou virement'],
+    heroPromise: 'Pas une inscription ouverte: votre demande est revue, puis nous configurons le premier workflow avec vous.',
     metrics: [
       ['Commandes a confirmer', '42'],
       ['Rappels a ne pas oublier', '18'],
@@ -47,9 +59,16 @@ const copy = {
       ['Rif Market', 'LIVREE', 'Tanger'],
     ],
     features: [
-      ['File claire', 'Chaque commande garde son statut, son prochain geste et la personne responsable.'],
+      ['Priorite du jour', 'La page d accueil montre ce qui attend confirmation, ce qui est chez les coursiers, et ce qui a echoue.'],
       ['Relances controlees', 'Les rappels restent visibles jusqu a resolution, meme quand la journee devient chargee.'],
       ['Handoff coursier', 'Seules les commandes pretes avancent vers affectation, ramassage ou suivi d echec.'],
+    ],
+    proofEyebrow: 'Pourquoi les equipes COD perdent de l argent',
+    proofTitle: 'Wasilio remet les appels, rappels et livraisons dans un seul flux.',
+    proofCards: [
+      ['Moins de commandes oubliees', 'Les rappels et commandes en attente restent visibles au lieu de disparaitre dans WhatsApp.'],
+      ['Moins de confusion coursier', 'Les commandes passent par affectation, ramassage, livraison ou echec avec une trace claire.'],
+      ['Meilleur suivi pilote', 'Les paiements manuels, recus et statuts client donnent une base commerciale pour demarrer.'],
     ],
     processEyebrow: 'Workflow de confirmation',
     processTitle: 'Votre equipe ne devine plus la prochaine action.',
@@ -57,21 +76,23 @@ const copy = {
       'Wasilio garde les tentatives, les notes et la decision finale dans le meme workflow avant la livraison.',
     processSteps: ['Nouvelle commande', 'Appel ou rappel', 'Confirmee ou rejetee'],
     pricingEyebrow: 'Modele pilote',
-    pricingTitle: 'Demo gratuite, pilote valide ensemble, puis abonnement mensuel.',
+    pricingTitle: 'Demo gratuite, pilote configure ensemble, puis abonnement mensuel.',
     prices: [
-      ['Etape 1', 'Demo gratuite', 'On regarde votre workflow de confirmation avant toute decision.'],
-      ['Etape 2', 'Pilote accompagne', 'Un espace de test est configure pour votre equipe si le besoin est clair.'],
-      ['Etape 3', 'Abonnement MAD', 'Paiement mensuel manuel par cash ou virement, avec recu.'],
+      ['Etape 1', 'Diagnostic gratuit', 'On regarde votre workflow COD, vos volumes et vos pertes avant toute decision.'],
+      ['Etape 2', 'Pilote accompagne', 'Un espace de test est configure avec vos premieres files de confirmation et livraison.'],
+      ['Etape 3', 'Abonnement MAD', 'Paiement mensuel manuel par cash ou virement, avec recu dans Wasilio.'],
     ],
     contactEyebrow: 'Demande de demo',
-    contactTitle: 'Montrez-nous ou votre equipe perd du temps.',
+    contactTitle: 'Demandez une revue de votre workflow COD.',
     contactText:
-      'Partagez votre boutique, votre volume COD et le blocage principal. Nous verifions si Wasilio peut vraiment aider avant d ouvrir un espace pilote.',
+      'Partagez votre boutique, votre volume COD et le blocage principal. Nous vous recontactons par telephone ou WhatsApp, puis nous ouvrons un espace pilote seulement si le besoin est clair.',
     bullets: [
       'Premier appel: comprendre vos operations et vos pertes.',
-      'Pilote: reserve aux marchands avec un besoin COD clair.',
+      'Pilote: configuration guidee de votre premier workflow.',
       'Paiement: manuel au lancement, cash ou virement avec recu.',
     ],
+    afterSubmitTitle: 'Apres votre demande',
+    afterSubmitSteps: ['Nous appelons ou envoyons un WhatsApp', 'Nous qualifions le besoin COD', 'Nous creons le pilote si le fit est clair'],
     submitted: 'Demande recue. L equipe Wasilio peut maintenant vous recontacter.',
     form: {
       contactName: 'Nom du contact',
@@ -81,7 +102,7 @@ const copy = {
       city: 'Ville',
       volume: 'Commandes COD par mois',
       challenge: 'Quel est votre plus gros probleme de confirmation aujourd hui ?',
-      submit: 'Demander la demo',
+      submit: 'Envoyer la demande',
       sending: 'Envoi en cours',
       approvedSignup: 'Les espaces pilotes sont ouverts apres validation.',
     },
@@ -99,13 +120,14 @@ const copy = {
     navContact: 'تجربة',
     signIn: 'دخول التجربة',
     eyebrow: 'تأكيد طلبات COD للتجار في المغرب',
-    headline: 'أكد طلبات COD اكثر بدون نسيان المواعيد.',
+    headline: 'مكتب التحكم في طلبات COD داخل المغرب.',
     subhead:
-      'Wasilio يساعد فريقك يعرف ما الذي يجب الاتصال به، ما الذي يحتاج متابعة، وما الذي يمكن تمريره للموزع من لائحة واحدة.',
-    primaryCta: 'اطلب ديمو',
+      'Wasilio يساعد فريقك يؤكد الطلبات، يتابع المواعيد، ينسق مع الموزعين، ويفهم اسباب فشل التسليم من مكان واحد.',
+    primaryCta: 'اطلب تجربة مرافقة',
     whatsapp: 'تواصل عبر واتساب',
-    heroModel: ['ديمو مجاني', 'تجربة مرافقة', 'اشتراك شهري بالدرهم'],
-    trust: ['للفرق التي لديها حجم COD', 'الموافقة قبل فتح التجربة', 'اداء يدوي: كاش او تحويل'],
+    heroModel: ['مراجعة سريعة للعملية', 'مساحة تجربة نجهزها معك', 'اشتراك شهري يدوي بالدرهم'],
+    trust: ['مناسب لواتساب، المكالمات، والدفع عند التسليم', 'التجربة تفتح بعد مراجعة بشرية', 'وصل متاح للكاش او التحويل'],
+    heroPromise: 'ليست منصة تسجيل مفتوحة: نراجع الطلب ثم نجهز اول workflow معك.',
     metrics: [
       ['طلبات تنتظر التأكيد', '42'],
       ['مواعيد لا يجب نسيانها', '18'],
@@ -120,9 +142,16 @@ const copy = {
       ['Rif Market', 'تم التسليم', 'طنجة'],
     ],
     features: [
-      ['لائحة واضحة', 'كل طلب عنده الحالة، الخطوة القادمة، والمسؤول عنه.'],
+      ['اولوية اليوم', 'الصفحة الرئيسية تبين ما ينتظر التأكيد، ما هو عند الموزعين، وما فشل.'],
       ['متابعات مضبوطة', 'المواعيد تبقى ظاهرة حتى يتم حلها، حتى في ايام الضغط.'],
       ['تسليم للموزع', 'فقط الطلبات الجاهزة تنتقل للتعيين، الاستلام او تتبع سبب الفشل.'],
+    ],
+    proofEyebrow: 'لماذا فرق COD تخسر المال',
+    proofTitle: 'Wasilio يجمع الاتصالات، المتابعات، والتسليم في مسار واحد.',
+    proofCards: [
+      ['طلبات منسية اقل', 'المواعيد والطلبات المنتظرة تبقى ظاهرة بدل ان تضيع في واتساب.'],
+      ['لخبطة اقل مع الموزع', 'الطلبات تمر عبر التعيين، الاستلام، التسليم او الفشل مع اثر واضح.'],
+      ['تتبع افضل للتجربة', 'الاداء اليدوي، الوصولات، وحالة العميل تعطي قاعدة تجارية للبداية.'],
     ],
     processEyebrow: 'مسار التأكيد',
     processTitle: 'الفريق لا يحتاج ان يخمن الخطوة القادمة.',
@@ -130,20 +159,22 @@ const copy = {
       'Wasilio يحفظ المحاولات، الملاحظات، والقرار النهائي في نفس المسار قبل التسليم.',
     processSteps: ['طلب جديد', 'اتصال او موعد', 'مؤكد او مرفوض'],
     pricingEyebrow: 'نموذج التجربة',
-    pricingTitle: 'ديمو مجاني، تجربة نتفق عليها، ثم اشتراك شهري.',
+    pricingTitle: 'ديمو مجاني، تجربة نجهزها معك، ثم اشتراك شهري.',
     prices: [
-      ['الخطوة 1', 'ديمو مجاني', 'نراجع طريقة تأكيد الطلبات قبل اي قرار.'],
-      ['الخطوة 2', 'تجربة مرافقة', 'نجهز مساحة اختبار للفريق اذا كان الاحتياج واضحا.'],
-      ['الخطوة 3', 'اشتراك بالدرهم', 'اداء شهري يدوي كاش او تحويل مع وصل.'],
+      ['الخطوة 1', 'تشخيص مجاني', 'نراجع طريقة COD، الحجم، والخسائر قبل اي قرار.'],
+      ['الخطوة 2', 'تجربة مرافقة', 'نجهز مساحة اختبار مع اول لوائح التأكيد والتسليم.'],
+      ['الخطوة 3', 'اشتراك بالدرهم', 'اداء شهري يدوي كاش او تحويل مع وصل داخل Wasilio.'],
     ],
     contactEyebrow: 'طلب ديمو',
-    contactTitle: 'ارنا اين يضيع وقت فريقك.',
-    contactText: 'شاركنا المتجر، حجم طلبات COD، واكبر عائق اليوم. نتحقق هل Wasilio مناسب قبل فتح مساحة تجربة.',
+    contactTitle: 'اطلب مراجعة لطريقة COD عندك.',
+    contactText: 'شاركنا المتجر، حجم طلبات COD، واكبر عائق اليوم. نتواصل معك بالهاتف او واتساب ونفتح تجربة فقط اذا كان الاحتياج واضحا.',
     bullets: [
       'اول اتصال لفهم العمليات والخسائر.',
-      'التجربة مخصصة للتجار الذين لديهم احتياج COD واضح.',
+      'التجربة تشمل اعداد اول workflow معك.',
       'الاداء في البداية يدوي: كاش او تحويل مع وصل.',
     ],
+    afterSubmitTitle: 'بعد الطلب',
+    afterSubmitSteps: ['نتصل بك او نرسل واتساب', 'نؤكد احتياج COD', 'نفتح التجربة اذا كان fit واضحا'],
     submitted: 'تم استلام الطلب. فريق Wasilio سيتواصل معك.',
     form: {
       contactName: 'اسم المسؤول',
@@ -153,7 +184,7 @@ const copy = {
       city: 'المدينة',
       volume: 'طلبات COD في الشهر',
       challenge: 'ما هو اكبر مشكل عندك في تأكيد الطلبات اليوم؟',
-      submit: 'اطلب التجربة',
+      submit: 'ارسل الطلب',
       sending: 'جار الارسال',
       approvedSignup: 'مساحات التجربة تفتح بعد الموافقة.',
     },
@@ -171,13 +202,14 @@ const copy = {
     navContact: 'Demo',
     signIn: 'Pilot access',
     eyebrow: 'COD confirmation for Moroccan merchants',
-    headline: 'Confirm more COD orders without losing callbacks.',
+    headline: 'The control desk for Moroccan COD orders.',
     subhead:
-      'Wasilio helps your team know what to call, what to follow up, and what is ready for the courier from one working queue.',
-    primaryCta: 'Request a demo',
+      'Wasilio helps your team confirm orders, track callbacks, coordinate couriers, and understand failed deliveries from one workspace.',
+    primaryCta: 'Request guided pilot',
     whatsapp: 'Talk on WhatsApp',
-    heroModel: ['Free demo', 'Guided pilot', 'Monthly MAD subscription'],
-    trust: ['For COD teams with real volume', 'Pilot opened after validation', 'Manual payment: cash or bank transfer'],
+    heroModel: ['Quick workflow audit', 'Pilot workspace configured with you', 'Monthly manual MAD payment'],
+    trust: ['Built for WhatsApp, calls, and cash-on-delivery', 'Pilot opened after human review', 'Receipt available for cash or bank transfer'],
+    heroPromise: 'Not open self-service signup: your request is reviewed, then we configure the first workflow with you.',
     metrics: [
       ['Orders awaiting confirmation', '42'],
       ['Callbacks not to miss', '18'],
@@ -192,9 +224,16 @@ const copy = {
       ['Rif Market', 'DELIVERED', 'Tangier'],
     ],
     features: [
-      ['Clear queue', 'Every order keeps its status, next move, and responsible operator.'],
+      ['Daily priority', 'The dashboard shows what needs confirmation, what is with couriers, and what failed.'],
       ['Controlled follow-up', 'Callbacks stay visible until resolved, even when the day gets busy.'],
       ['Courier handoff', 'Only ready orders move to assignment, pickup, or failure tracking.'],
+    ],
+    proofEyebrow: 'Why COD teams lose money',
+    proofTitle: 'Wasilio brings calls, callbacks, and delivery handoff into one flow.',
+    proofCards: [
+      ['Fewer forgotten orders', 'Pending callbacks and orders stay visible instead of disappearing inside WhatsApp threads.'],
+      ['Less courier confusion', 'Orders move through assignment, pickup, delivered, or failed with a clear trace.'],
+      ['Better pilot follow-up', 'Manual payments, receipts, and tenant status give the business a launch-ready base.'],
     ],
     processEyebrow: 'Confirmation workflow',
     processTitle: 'Your team stops guessing the next action.',
@@ -202,21 +241,23 @@ const copy = {
       'Wasilio keeps attempts, notes, and the final decision in the same workflow before delivery.',
     processSteps: ['New order', 'Call or callback', 'Confirmed or rejected'],
     pricingEyebrow: 'Pilot model',
-    pricingTitle: 'Free demo, agreed pilot, then monthly subscription.',
+    pricingTitle: 'Free demo, guided pilot setup, then monthly subscription.',
     prices: [
-      ['Step 1', 'Free demo', 'We review your confirmation workflow before any decision.'],
-      ['Step 2', 'Guided pilot', 'A test workspace is configured if the operational need is clear.'],
-      ['Step 3', 'MAD subscription', 'Monthly manual payment by cash or bank transfer, with receipt.'],
+      ['Step 1', 'Free diagnosis', 'We review your COD workflow, order volume, and losses before any decision.'],
+      ['Step 2', 'Guided pilot', 'A test workspace is configured with your first confirmation and delivery queues.'],
+      ['Step 3', 'MAD subscription', 'Monthly manual payment by cash or bank transfer, with a Wasilio receipt.'],
     ],
     contactEyebrow: 'Demo request',
-    contactTitle: 'Show us where your team is losing time.',
+    contactTitle: 'Request a review of your COD workflow.',
     contactText:
-      'Share your store, COD volume, and the main operational block. We validate whether Wasilio can help before opening a pilot workspace.',
+      'Share your store, COD volume, and main operational block. We follow up by phone or WhatsApp, then open a pilot workspace only when the need is clear.',
     bullets: [
       'First call: understand your operations and losses.',
-      'Pilot: reserved for merchants with a clear COD need.',
+      'Pilot: guided setup of your first workflow.',
       'Payment: manual at launch, cash or bank transfer with receipt.',
     ],
+    afterSubmitTitle: 'After you request',
+    afterSubmitSteps: ['We call or send a WhatsApp', 'We qualify the COD need', 'We create the pilot if the fit is clear'],
     submitted: 'Demo request received. Wasilio operations can now follow up.',
     form: {
       contactName: 'Contact name',
@@ -226,7 +267,7 @@ const copy = {
       city: 'City',
       volume: 'Monthly COD orders',
       challenge: 'What is your biggest confirmation problem today?',
-      submit: 'Request demo',
+      submit: 'Send request',
       sending: 'Sending request',
       approvedSignup: 'Pilot workspaces are opened after approval.',
     },
@@ -251,11 +292,15 @@ interface LandingCopy {
   whatsapp: string;
   heroModel: string[];
   trust: string[];
+  heroPromise: string;
   metrics: string[][];
   deskTitle: string;
   deskText: string;
   demoRows: string[][];
   features: string[][];
+  proofEyebrow: string;
+  proofTitle: string;
+  proofCards: string[][];
   processEyebrow: string;
   processTitle: string;
   process: string;
@@ -267,6 +312,8 @@ interface LandingCopy {
   contactTitle: string;
   contactText: string;
   bullets: string[];
+  afterSubmitTitle: string;
+  afterSubmitSteps: string[];
   submitted: string;
   form: {
     contactName: string;
@@ -388,10 +435,10 @@ export default function LandingPage() {
       </header>
 
       <section className="border-b border-slate-200 bg-[#f7fbf9]">
-        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-5 py-10 lg:grid-cols-[1.02fr_0.98fr] lg:py-14">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-5 py-10 lg:min-h-[calc(100vh-73px)] lg:grid-cols-[1.02fr_0.98fr] lg:items-center lg:py-14">
           <div className="flex flex-col justify-center">
             <p className="inline-flex w-fit rounded-md bg-[#E8F4EF] px-3 py-1 text-sm font-semibold uppercase text-[#0F5B4A]">{content.eyebrow}</p>
-            <h1 className="mt-4 max-w-3xl text-4xl font-bold leading-tight text-slate-950 sm:text-5xl">{content.headline}</h1>
+            <h1 className="mt-4 max-w-3xl text-4xl font-bold leading-tight text-slate-950 sm:text-5xl lg:text-6xl">{content.headline}</h1>
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-700">{content.subhead}</p>
             <div className="mt-7 flex flex-wrap gap-3">
               <a href="#contact" className="inline-flex items-center gap-2 rounded-md bg-[#E2552D] px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#c84725]">
@@ -403,6 +450,9 @@ export default function LandingPage() {
                 {content.whatsapp}
               </a>
             </div>
+            <p className="mt-4 max-w-2xl rounded-md border border-[#0F5B4A]/20 bg-white px-4 py-3 text-sm font-medium leading-6 text-[#0F5B4A] shadow-sm">
+              {content.heroPromise}
+            </p>
 
             <div className="mt-6 flex max-w-2xl flex-col overflow-hidden rounded-lg border border-[#0F5B4A]/20 bg-white text-sm font-semibold text-slate-800 shadow-sm sm:flex-row">
               {content.heroModel.map((item, index) => (
@@ -455,11 +505,30 @@ export default function LandingPage() {
           {content.features.map(([title, text], index) => (
             <Feature
               key={title}
-              icon={index === 0 ? <PhoneCall size={20} /> : index === 1 ? <Truck size={20} /> : <ShieldCheck size={20} />}
+              icon={index === 0 ? <PhoneCall size={20} /> : index === 1 ? <MessageCircle size={20} /> : <Truck size={20} />}
               title={title}
               text={text}
             />
           ))}
+        </div>
+      </section>
+
+      <section className="border-y border-slate-200 bg-white">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-8 px-5 py-12 lg:grid-cols-[0.8fr_1.2fr]">
+          <div>
+            <p className="text-sm font-semibold uppercase text-[#0F5B4A]">{content.proofEyebrow}</p>
+            <h2 className="mt-3 text-3xl font-bold leading-tight text-slate-950">{content.proofTitle}</h2>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {content.proofCards.map(([title, text], index) => (
+              <ProofCard
+                key={title}
+                icon={index === 0 ? <Users size={20} /> : index === 1 ? <PackageCheck size={20} /> : <ReceiptText size={20} />}
+                title={title}
+                text={text}
+              />
+            ))}
+          </div>
         </div>
       </section>
 
@@ -507,6 +576,19 @@ export default function LandingPage() {
                 </li>
               ))}
             </ul>
+            <div className="mt-6 rounded-lg border border-[#0F5B4A]/20 bg-white p-4 shadow-sm">
+              <p className="text-sm font-semibold uppercase text-[#0F5B4A]">{content.afterSubmitTitle}</p>
+              <ol className="mt-3 grid gap-2 text-sm text-slate-700">
+                {content.afterSubmitSteps.map((step, index) => (
+                  <li key={step} className="flex items-center gap-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#E8F4EF] text-xs font-bold text-[#0F5B4A]">
+                      {index + 1}
+                    </span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="rounded-lg border border-[#0F5B4A]/20 bg-white p-5 shadow-lg shadow-slate-200/70">
@@ -575,6 +657,7 @@ export default function LandingPage() {
           </nav>
         </div>
       </footer>
+
     </main>
   );
 }
@@ -606,6 +689,16 @@ function Feature({ icon, title, text }: { icon: ReactNode; title: string; text: 
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       <div className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-[#E8F4EF] text-[#0F5B4A]">{icon}</div>
+      <h3 className="mt-4 font-semibold text-slate-950">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
+    </article>
+  );
+}
+
+function ProofCard({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+  return (
+    <article className="rounded-lg border border-[#0F5B4A]/20 bg-[#F7FAF9] p-5">
+      <div className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white text-[#0F5B4A] shadow-sm">{icon}</div>
       <h3 className="mt-4 font-semibold text-slate-950">{title}</h3>
       <p className="mt-2 text-sm leading-6 text-slate-600">{text}</p>
     </article>

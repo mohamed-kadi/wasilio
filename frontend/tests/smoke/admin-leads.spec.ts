@@ -4,6 +4,25 @@ import { installMockApi, loginAs } from './helpers';
 test('super admin can update marketing lead follow-up status', async ({ page }) => {
   await installMockApi(page);
 
+  const campaignLeadId = '11111111-1111-1111-1111-111111111111';
+  const organicLeadId = '99999999-9999-9999-9999-999999999999';
+  const organicLead = {
+    leadId: organicLeadId,
+    contactName: 'Youssef Admin',
+    storeName: 'Organic Store',
+    phone: '+212600000009',
+    email: 'youssef@example.com',
+    city: 'Rabat',
+    monthlyOrderVolume: 'Under 100/month',
+    message: 'Need to understand pricing.',
+    campaignSource: null,
+    status: 'NEW',
+    nextFollowUpAt: null,
+    internalNotes: null,
+    convertedTenantId: null,
+    convertedAt: null,
+    createdAt: '2026-06-11T13:00:00Z',
+  };
   let lead = {
     leadId: '11111111-1111-1111-1111-111111111111',
     contactName: 'Sara Admin',
@@ -13,7 +32,7 @@ test('super admin can update marketing lead follow-up status', async ({ page }) 
     city: 'Casablanca',
     monthlyOrderVolume: '100-500/month',
     message: 'Callbacks are hard to track.',
-    campaignSource: 'utm_source=facebook&utm_campaign=pilot',
+    campaignSource: 'utm_source=facebook&utm_medium=paid_social&utm_campaign=pilot&fbclid=fb-123&ref=instagram&referrer=https%3A%2F%2Fwww.instagram.com%2Fads',
     status: 'NEW',
     nextFollowUpAt: null,
     internalNotes: null,
@@ -21,14 +40,16 @@ test('super admin can update marketing lead follow-up status', async ({ page }) 
     convertedAt: null,
     createdAt: '2026-06-11T12:00:00Z',
   };
+  let leads = [organicLead, lead];
 
   const updates: Record<string, unknown>[] = [];
   const conversions: Record<string, unknown>[] = [];
 
-  await page.route('**/api/marketing/leads/11111111-1111-1111-1111-111111111111/follow-up', async (route) => {
+  await page.route(`**/api/marketing/leads/${campaignLeadId}/follow-up`, async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     updates.push(body);
     lead = { ...lead, ...body };
+    leads = leads.map((currentLead) => currentLead.leadId === campaignLeadId ? lead : currentLead);
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -36,7 +57,7 @@ test('super admin can update marketing lead follow-up status', async ({ page }) 
     });
   });
 
-  await page.route('**/api/marketing/leads/11111111-1111-1111-1111-111111111111/convert-to-tenant', async (route) => {
+  await page.route(`**/api/marketing/leads/${campaignLeadId}/convert-to-tenant`, async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     conversions.push(body);
     lead = {
@@ -46,6 +67,7 @@ test('super admin can update marketing lead follow-up status', async ({ page }) 
       convertedAt: '2026-06-11T13:00:00Z',
       internalNotes: body.internalNotes as string,
     };
+    leads = leads.map((currentLead) => currentLead.leadId === campaignLeadId ? lead : currentLead);
     await route.fulfill({
       status: 201,
       contentType: 'application/json',
@@ -68,38 +90,59 @@ test('super admin can update marketing lead follow-up status', async ({ page }) 
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([lead]),
+      body: JSON.stringify(leads),
     });
   });
 
   await loginAs(page, 'superadmin@example.com');
   await page.getByRole('button', { name: /leads/i }).click();
 
-  await expect(page.getByText('Casa Beauty')).toBeVisible();
-  await expect(page.getByText('utm_source=facebook&utm_campaign=pilot')).toBeVisible();
+  const leadCards = page.getByRole('article').filter({ hasText: /Casa Beauty|Organic Store/ });
+  await expect(leadCards.first()).toContainText('Casa Beauty');
+  const leadCard = page.getByRole('article').filter({ hasText: 'Casa Beauty' });
+
+  await expect(leadCard.getByText('CAMPAIGN LEAD')).toBeVisible();
+  await expect(leadCard.getByText('PRIORITY FOLLOW-UP')).toBeVisible();
+  await expect(leadCard.getByText('Campaign attribution')).toBeVisible();
+  await expect(leadCard.getByText('Paid signal')).toBeVisible();
+  await expect(leadCard.getByText('Source', { exact: true })).toBeVisible();
+  await expect(leadCard.getByText('facebook', { exact: true })).toBeVisible();
+  await expect(leadCard.getByText('Medium', { exact: true })).toBeVisible();
+  await expect(leadCard.getByText('paid_social', { exact: true })).toBeVisible();
+  await expect(leadCard.getByText('Campaign', { exact: true })).toBeVisible();
+  await expect(leadCard.getByText('pilot', { exact: true })).toBeVisible();
+  await expect(leadCard.getByText('Facebook click ID', { exact: true })).toBeVisible();
+  await expect(leadCard.getByText('fb-123', { exact: true })).toBeVisible();
+  await expect(leadCard.getByText('Ref', { exact: true })).toBeVisible();
+  await expect(leadCard.getByText('instagram', { exact: true })).toBeVisible();
+  await expect(leadCard.getByText('Referrer', { exact: true })).toBeVisible();
+  await expect(leadCard.getByText('instagram.com', { exact: true })).toBeVisible();
+  await expect(page.getByText('Campaign leads and due follow-ups are shown first.')).toBeVisible();
+  await expect(page.getByText('1 new paid/campaign lead')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Campaign 1/i })).toBeVisible();
   await expect(page.getByText('Open leads')).toBeVisible();
-  await expect(page.getByRole('button', { name: /NEW 1/i })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'WhatsApp' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /NEW 2/i })).toBeVisible();
+  await expect(leadCard.getByRole('link', { name: 'WhatsApp' })).toBeVisible();
 
-  await page.getByLabel('Lead status').selectOption('CONTACTED');
-  await page.getByLabel('Internal notes').fill('Reached on WhatsApp. Interested in pilot.');
-  await page.getByRole('button', { name: /save follow-up/i }).click();
+  await leadCard.getByLabel('Lead status').selectOption('CONTACTED');
+  await leadCard.getByLabel('Internal notes').fill('Reached on WhatsApp. Interested in pilot.');
+  await leadCard.getByRole('button', { name: /save follow-up/i }).click();
 
-  await expect(page.locator('span').filter({ hasText: 'CONTACTED' })).toBeVisible();
+  await expect(leadCard.locator('span').filter({ hasText: /^CONTACTED$/ })).toBeVisible();
   expect(updates).toHaveLength(1);
   expect(updates[0]).toMatchObject({
     status: 'CONTACTED',
     internalNotes: 'Reached on WhatsApp. Interested in pilot.',
   });
 
-  await page.getByRole('button', { name: 'Convert' }).click();
-  await page.getByLabel('Store / business name').fill('Casa Beauty Pilot');
-  await page.getByLabel('Main admin email').fill('sara.admin@example.com');
-  await page.getByLabel('Initial password').fill('PilotPass123!');
-  await page.getByLabel('Conversion notes').fill('Free guided onboarding offered.');
-  await page.getByRole('button', { name: /create pilot workspace/i }).click();
+  await leadCard.getByRole('button', { name: 'Convert' }).click();
+  await leadCard.getByLabel('Store / business name').fill('Casa Beauty Pilot');
+  await leadCard.getByLabel('Main admin email').fill('sara.admin@example.com');
+  await leadCard.getByLabel('Initial password').fill('PilotPass123!');
+  await leadCard.getByLabel('Conversion notes').fill('Free guided onboarding offered.');
+  await leadCard.getByRole('button', { name: /create pilot workspace/i }).click();
 
-  await expect(page.locator('span').filter({ hasText: 'ONBOARDED' })).toBeVisible();
+  await expect(leadCard.locator('span').filter({ hasText: /^ONBOARDED$/ })).toBeVisible();
   await expect(page.getByText(/Lead converted to a pilot workspace/i)).toBeVisible();
   expect(conversions).toHaveLength(1);
   expect(conversions[0]).toMatchObject({

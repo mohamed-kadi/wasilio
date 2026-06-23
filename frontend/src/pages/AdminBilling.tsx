@@ -49,6 +49,14 @@ const paymentMethods: PaymentMethod[] = ['CASH', 'BANK_TRANSFER', 'CHECK', 'OTHE
 const marketingLeadStatuses: MarketingLeadStatus[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'REJECTED', 'ONBOARDED'];
 const blockedStatuses: TenantStatus[] = ['OVERDUE', 'SUSPENDED', 'DISABLED'];
 type WorkspaceTab = 'tenants' | 'billing' | 'payments' | 'plans' | 'leads';
+type LeadFilter = MarketingLeadStatus | 'ALL' | 'CAMPAIGN';
+
+interface CampaignAttribution {
+  raw: string;
+  fields: Array<{ label: string; value: string }>;
+  hasPaidSignal: boolean;
+  clickIds: string[];
+}
 
 const workspaceTabs: Array<{ id: WorkspaceTab; label: string; icon: ReactNode }> = [
   { id: 'tenants', label: 'Tenants', icon: <Building2 size={16} /> },
@@ -636,17 +644,26 @@ function LeadList({
   onUpdate: (payload: { leadId: string; status: MarketingLeadStatus; nextFollowUpAt?: string; internalNotes?: string }) => void;
   onConvert: (payload: { leadId: string; tenantName: string; adminName: string; adminEmail: string; password: string; internalNotes?: string }) => void;
 }) {
-  const [statusFilter, setStatusFilter] = useState<MarketingLeadStatus | 'ALL'>('ALL');
+  const [statusFilter, setStatusFilter] = useState<LeadFilter>('ALL');
   const stats = useMemo(() => {
     const open = leads.filter((lead) => lead.status !== 'REJECTED' && lead.status !== 'ONBOARDED').length;
     const due = leads.filter((lead) => isFollowUpDue(lead.nextFollowUpAt) && lead.status !== 'ONBOARDED').length;
     const qualified = leads.filter((lead) => lead.status === 'QUALIFIED').length;
     const onboarded = leads.filter((lead) => lead.status === 'ONBOARDED').length;
+    const campaign = leads.filter((lead) => Boolean(parseCampaignAttribution(lead.campaignSource))).length;
+    const priorityCampaign = leads.filter(needsCampaignFollowUp).length;
 
-    return { open, due, qualified, onboarded };
+    return { open, due, qualified, onboarded, campaign, priorityCampaign };
   }, [leads]);
   const filteredLeads = useMemo(() => {
-    return statusFilter === 'ALL' ? leads : leads.filter((lead) => lead.status === statusFilter);
+    const sortedLeads = [...leads].sort(compareLeadsForFollowUp);
+    if (statusFilter === 'ALL') {
+      return sortedLeads;
+    }
+    if (statusFilter === 'CAMPAIGN') {
+      return sortedLeads.filter((lead) => Boolean(parseCampaignAttribution(lead.campaignSource)));
+    }
+    return sortedLeads.filter((lead) => lead.status === statusFilter);
   }, [leads, statusFilter]);
 
   return (
@@ -658,9 +675,13 @@ function LeadList({
             <p className="mt-1 text-sm text-gray-600">
               Review new demo requests, schedule follow-up, qualify serious merchants, then create pilot workspaces.
             </p>
+            <p className="mt-2 text-xs font-medium text-blue-700">
+              Campaign leads and due follow-ups are shown first.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <LeadFilterButton active={statusFilter === 'ALL'} label="All" count={leads.length} onClick={() => setStatusFilter('ALL')} />
+            <LeadFilterButton active={statusFilter === 'CAMPAIGN'} label="Campaign" count={stats.campaign} onClick={() => setStatusFilter('CAMPAIGN')} />
             {marketingLeadStatuses.map((leadStatus) => (
               <LeadFilterButton
                 key={leadStatus}
@@ -672,9 +693,10 @@ function LeadList({
             ))}
           </div>
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
           <LeadMetric label="Open leads" value={stats.open} detail="Needs decision" />
           <LeadMetric label="Follow-up due" value={stats.due} detail="Call or message now" tone={stats.due ? 'warning' : 'neutral'} />
+          <LeadMetric label="Campaign leads" value={stats.campaign} detail={`${stats.priorityCampaign} new paid/campaign lead${stats.priorityCampaign === 1 ? '' : 's'}`} tone={stats.priorityCampaign ? 'warning' : 'neutral'} />
           <LeadMetric label="Qualified" value={stats.qualified} detail="Ready to convert" tone="success" />
           <LeadMetric label="Onboarded" value={stats.onboarded} detail="Pilot created" />
         </div>
@@ -730,6 +752,8 @@ function LeadCard({
   const [conversionNotes, setConversionNotes] = useState('Qualified for guided pilot onboarding.');
   const due = isFollowUpDue(lead.nextFollowUpAt);
   const waLink = whatsappHref(lead.phone);
+  const attribution = parseCampaignAttribution(lead.campaignSource);
+  const campaignPriority = needsCampaignFollowUp(lead);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -756,12 +780,14 @@ function LeadCard({
   const isConverted = Boolean(lead.convertedTenantId);
 
   return (
-    <article className={`grid grid-cols-1 gap-5 p-5 xl:grid-cols-[1fr_380px] ${due ? 'bg-amber-50/35' : ''}`}>
+    <article className={`grid grid-cols-1 gap-5 p-5 xl:grid-cols-[1fr_380px] ${due ? 'bg-amber-50/35' : campaignPriority ? 'bg-blue-50/40' : ''}`}>
       <div>
         <div className="flex flex-wrap items-center gap-2">
           <h4 className="font-semibold text-gray-900">{lead.storeName}</h4>
           <LeadStatusBadge status={lead.status} />
           {due && <span className="rounded-md bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">FOLLOW-UP DUE</span>}
+          {attribution && <span className="rounded-md bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">CAMPAIGN LEAD</span>}
+          {campaignPriority && <span className="rounded-md bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-800">PRIORITY FOLLOW-UP</span>}
           {lead.city && <span className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">{lead.city}</span>}
           {lead.monthlyOrderVolume && <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{lead.monthlyOrderVolume}</span>}
         </div>
@@ -790,8 +816,8 @@ function LeadCard({
           <p>Next follow-up: <span className="font-medium text-gray-700">{formatDateTime(lead.nextFollowUpAt)}</span></p>
           {lead.convertedAt && <p>Converted: <span className="font-medium text-gray-700">{formatDateTime(lead.convertedAt)}</span></p>}
           {lead.convertedTenantId && <p>Workspace ID: <span className="font-medium text-gray-700">{lead.convertedTenantId}</span></p>}
-          {lead.campaignSource && <p className="sm:col-span-2">Source: <span className="font-medium text-gray-700">{lead.campaignSource}</span></p>}
         </div>
+        {attribution && <CampaignAttributionPanel attribution={attribution} />}
       </div>
 
       <div className="space-y-3">
@@ -962,6 +988,158 @@ function LeadMetric({
       <p className="mt-1 text-xs">{detail}</p>
     </div>
   );
+}
+
+function CampaignAttributionPanel({ attribution }: { attribution: CampaignAttribution }) {
+  return (
+    <div className="mt-4 rounded-md border border-blue-100 bg-blue-50/70 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex items-center gap-2 text-sm font-semibold text-blue-900">
+          <TrendingUp size={15} />
+          Campaign attribution
+        </div>
+        {attribution.hasPaidSignal && (
+          <span className="rounded-md bg-white px-2 py-1 text-xs font-semibold text-blue-800">
+            Paid signal
+          </span>
+        )}
+      </div>
+      <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+        {attribution.fields.map((field) => (
+          <div key={`${field.label}-${field.value}`} className="rounded-md bg-white px-3 py-2">
+            <dt className="text-xs font-semibold uppercase text-blue-700">{field.label}</dt>
+            <dd className="mt-1 break-words text-sm font-medium text-gray-900">{field.value}</dd>
+          </div>
+        ))}
+      </dl>
+      {attribution.clickIds.length > 0 && (
+        <p className="mt-3 text-xs font-medium text-blue-800">
+          Click IDs captured: {attribution.clickIds.join(', ')}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function compareLeadsForFollowUp(first: MarketingLead, second: MarketingLead) {
+  const priorityDiff = leadFollowUpRank(first) - leadFollowUpRank(second);
+  if (priorityDiff !== 0) {
+    return priorityDiff;
+  }
+  return timestamp(second.createdAt) - timestamp(first.createdAt);
+}
+
+function leadFollowUpRank(lead: MarketingLead) {
+  if (isFollowUpDue(lead.nextFollowUpAt) && !isClosedLead(lead)) {
+    return 0;
+  }
+  if (needsCampaignFollowUp(lead)) {
+    return 1;
+  }
+  if (lead.status === 'NEW') {
+    return 2;
+  }
+  if (lead.status === 'QUALIFIED') {
+    return 3;
+  }
+  if (lead.status === 'CONTACTED') {
+    return 4;
+  }
+  return 5;
+}
+
+function needsCampaignFollowUp(lead: MarketingLead) {
+  const attribution = parseCampaignAttribution(lead.campaignSource);
+  return Boolean(attribution?.hasPaidSignal && lead.status === 'NEW');
+}
+
+function isClosedLead(lead: MarketingLead) {
+  return lead.status === 'REJECTED' || lead.status === 'ONBOARDED';
+}
+
+function timestamp(value?: string) {
+  if (!value) {
+    return 0;
+  }
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseCampaignAttribution(source?: string): CampaignAttribution | undefined {
+  if (!source?.trim()) {
+    return undefined;
+  }
+
+  const raw = source.trim();
+  const params = new URLSearchParams(raw);
+  const fields: Array<{ label: string; value: string }> = [];
+  const clickIds: string[] = [];
+
+  addCampaignField(fields, params, 'utm_source', 'Source');
+  addCampaignField(fields, params, 'utm_medium', 'Medium');
+  addCampaignField(fields, params, 'utm_campaign', 'Campaign');
+  addCampaignField(fields, params, 'utm_content', 'Content');
+  addCampaignField(fields, params, 'utm_term', 'Term');
+  addCampaignField(fields, params, 'ref', 'Ref');
+
+  const fbclid = params.get('fbclid');
+  if (fbclid) {
+    clickIds.push('fbclid');
+    fields.push({ label: 'Facebook click ID', value: compactValue(fbclid) });
+  }
+
+  const gclid = params.get('gclid');
+  if (gclid) {
+    clickIds.push('gclid');
+    fields.push({ label: 'Google click ID', value: compactValue(gclid) });
+  }
+
+  const referrer = params.get('referrer');
+  if (referrer) {
+    fields.push({ label: 'Referrer', value: readableReferrer(referrer) });
+  }
+
+  if (fields.length === 0) {
+    fields.push({ label: 'Raw source', value: raw });
+  }
+
+  const paidSignalText = [
+    params.get('utm_source'),
+    params.get('utm_medium'),
+    params.get('utm_campaign'),
+    raw,
+  ].filter(Boolean).join(' ');
+  const hasPaidSignal = clickIds.length > 0 || /facebook|instagram|meta|google|tiktok|ads|paid|cpc|ppc/i.test(paidSignalText);
+
+  return { raw, fields, hasPaidSignal, clickIds };
+}
+
+function addCampaignField(
+  fields: Array<{ label: string; value: string }>,
+  params: URLSearchParams,
+  key: string,
+  label: string,
+) {
+  const value = params.get(key);
+  if (value) {
+    fields.push({ label, value });
+  }
+}
+
+function readableReferrer(value: string) {
+  try {
+    const url = new URL(value);
+    return url.hostname.replace(/^www\./, '');
+  } catch {
+    return value;
+  }
+}
+
+function compactValue(value: string) {
+  if (value.length <= 28) {
+    return value;
+  }
+  return `${value.slice(0, 14)}...${value.slice(-8)}`;
 }
 
 function FieldInput({

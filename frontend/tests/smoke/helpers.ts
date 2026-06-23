@@ -51,6 +51,46 @@ export async function installMockApi(page: Page) {
     });
   });
 
+  await page.route('**/api/confirmations/queue?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyPage()),
+    });
+  });
+
+  await page.route('**/api/confirmations/callbacks?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyPage()),
+    });
+  });
+
+  await page.route('**/api/courier-operations/assignment-queue?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyPage()),
+    });
+  });
+
+  await page.route('**/api/courier-operations/pickup-queue?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyPage()),
+    });
+  });
+
+  await page.route('**/api/courier-operations/delivery-queue?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyPage()),
+    });
+  });
+
   await page.route('**/api/admin/tenants', async (route) => {
     await route.fulfill({
       status: 200,
@@ -108,4 +148,14 @@ function base64Url(value: unknown) {
     .replace(/=/g, '')
     .replace(/\+/g, '-')
     .replace(/\//g, '_');
+}
+
+function emptyPage() {
+  return {
+    content: [],
+    page: 0,
+    size: 1,
+    totalElements: 0,
+    totalPages: 0,
+  };
 }
