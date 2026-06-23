@@ -58,6 +58,14 @@ test('merchant creates a COD order and continues to confirmation', async ({ page
     });
   });
 
+  await page.route(`**/api/orders/${createdOrder.id}/confirmation-attempts`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+
   await loginAs(page, 'admin@example.com');
   await page.goto('/app/orders/new');
 
@@ -76,8 +84,12 @@ test('merchant creates a COD order and continues to confirmation', async ({ page
 
   await expect(page).toHaveURL(/\/app\/confirmations$/);
   await expect(page.getByRole('heading', { name: 'Confirmations' })).toBeVisible();
-  await expect(page.getByText('Sara Customer')).toBeVisible();
+  await expect(page.getByText('New order ready for confirmation')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Sara Customer')).toBeVisible();
+  await expect(page.getByText('Start here')).toBeVisible();
   await expect(page.getByText('Start confirmation call')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Next confirmation action' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Call customer' })).toBeVisible();
 
   expect(createRequests).toHaveLength(1);
   expect(createRequests[0]).toMatchObject({

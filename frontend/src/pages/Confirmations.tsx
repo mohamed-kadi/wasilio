@@ -1,5 +1,6 @@
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useLocation } from 'react-router-dom';
 import {
   CalendarClock,
   CheckCircle2,
@@ -75,6 +76,10 @@ const callbackStatusColors: Record<ConfirmationCallbackStatus, string> = {
   RESOLVED: 'bg-green-100 text-green-800',
 };
 
+interface ConfirmationLocationState {
+  createdOrderId?: string;
+}
+
 function phoneHref(phone: string) {
   return `tel:${phone}`;
 }
@@ -86,6 +91,10 @@ function whatsappHref(phone: string) {
 
 export default function Confirmations() {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const locationState = location.state as ConfirmationLocationState | null;
+  const createdOrderId = typeof locationState?.createdOrderId === 'string' ? locationState.createdOrderId : undefined;
+  const appliedCreatedOrderId = useRef<string | null>(null);
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(20);
   const [callbackPage, setCallbackPage] = useState(0);
@@ -178,6 +187,19 @@ export default function Confirmations() {
   const callbackTotalElements = callbacksPage?.totalElements ?? 0;
   const canGoBackCallbacks = callbackPage > 0;
   const canGoForwardCallbacks = callbackTotalPages > 0 && callbackPage + 1 < callbackTotalPages;
+  const highlightedOrder = createdOrderId ? orders.find((order) => order.id === createdOrderId) : undefined;
+
+  useEffect(() => {
+    if (!highlightedOrder || appliedCreatedOrderId.current === highlightedOrder.id) {
+      return;
+    }
+
+    appliedCreatedOrderId.current = highlightedOrder.id;
+    setSelectedOrder(highlightedOrder);
+    setOutcome('NO_ANSWER');
+    setCallbackAt('');
+    setNote('');
+  }, [highlightedOrder]);
 
   function resetFilters() {
     setSearch('');
@@ -204,7 +226,7 @@ export default function Confirmations() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Confirmations</h2>
-          <p className="text-sm text-gray-500">{totalElements} orders awaiting confirmation</p>
+          <p className="text-sm text-gray-500">{totalElements} orders awaiting customer decision</p>
         </div>
         <button
           type="button"
@@ -216,6 +238,43 @@ export default function Confirmations() {
           <RefreshCw size={18} />
         </button>
       </div>
+
+      {createdOrderId && highlightedOrder && (
+        <section className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-blue-950">New order ready for confirmation</p>
+              <p className="mt-1 text-sm text-blue-800">
+                This order was just created from intake. It is selected in the action panel so the next step is to
+                call the customer.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700 ring-1 ring-blue-200">
+              {highlightedOrder.id.slice(0, 8)}...
+            </span>
+          </div>
+        </section>
+      )}
+
+      {createdOrderId && !highlightedOrder && !isLoading && (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-950">New order is not visible in this queue view</p>
+              <p className="mt-1 text-sm text-amber-800">
+                Refresh the queue or clear filters to find the order created from intake.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
+            >
+              Clear filters
+            </button>
+          </div>
+        </section>
+      )}
 
       <section className="bg-white border border-gray-200 rounded-lg px-4 py-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -305,9 +364,19 @@ export default function Confirmations() {
             </article>
           ))}
           {!callbacksLoading && callbacks.length === 0 && (
-            <p className="text-sm text-gray-500">No callbacks in this view.</p>
+            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4">
+              <p className="text-sm font-medium text-gray-900">No {callbackScope.toLowerCase()} callbacks.</p>
+              <p className="mt-1 text-sm text-gray-500">
+                Scheduled follow-ups for this window will appear here when customers need another call.
+              </p>
+            </div>
           )}
-          {callbacksLoading && <p className="text-sm text-gray-500">Loading callbacks...</p>}
+          {callbacksLoading && (
+            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4">
+              <p className="text-sm font-medium text-gray-900">Loading callbacks</p>
+              <p className="mt-1 text-sm text-gray-500">Checking scheduled follow-ups for this view.</p>
+            </div>
+          )}
         </div>
 
         {callbackTotalPages > 1 && (
@@ -447,62 +516,95 @@ export default function Confirmations() {
           )}
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase">
-                  <th className="p-4 font-medium">Order</th>
-                  <th className="p-4 font-medium">Customer</th>
-                  <th className="p-4 font-medium">Amount</th>
-                  <th className="p-4 font-medium">Status</th>
-                  <th className="p-4 font-medium">Next action</th>
-                  <th className="p-4 font-medium">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-sm">
-                {orders.map((order) => {
-                  const selected = selectedOrder?.id === order.id;
-                  return (
-                    <tr
-                      key={order.id}
-                      className={`cursor-pointer hover:bg-gray-50 ${selected ? 'bg-blue-50' : ''}`}
-                      onClick={() => setSelectedOrder(order)}
-                    >
-                      <td className="p-4 font-mono text-gray-600">{order.id.slice(0, 8)}...</td>
-                      <td className="p-4">
-                        <p className="font-medium text-gray-900">
-                          {order.customer.firstName} {order.customer.lastName}
-                        </p>
-                        <p className="text-gray-500">{order.customer.phone}</p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase">
+                    <th className="p-4 font-medium">Order</th>
+                    <th className="p-4 font-medium">Customer</th>
+                    <th className="p-4 font-medium">Amount</th>
+                    <th className="p-4 font-medium">Status</th>
+                    <th className="p-4 font-medium">Next action</th>
+                    <th className="p-4 font-medium">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 text-sm">
+                  {orders.map((order) => {
+                    const selected = selectedOrder?.id === order.id;
+                    const highlighted = createdOrderId === order.id;
+                    return (
+                      <tr
+                        key={order.id}
+                        className={`cursor-pointer hover:bg-gray-50 ${selected || highlighted ? 'bg-blue-50' : ''}`}
+                        onClick={() => setSelectedOrder(order)}
+                      >
+                        <td className="p-4">
+                          <p className="font-mono text-gray-600">{order.id.slice(0, 8)}...</p>
+                          {highlighted && (
+                            <span className="mt-2 inline-flex rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
+                              Start here
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          <p className="font-medium text-gray-900">
+                            {order.customer.firstName} {order.customer.lastName}
+                          </p>
+                          <p className="text-gray-500">{order.customer.phone}</p>
+                        </td>
+                        <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
+                        <td className="p-4">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
+                            {order.status.replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td className="p-4 text-gray-700">
+                          {order.status === 'CREATED' ? 'Start confirmation call' : 'Record next attempt'}
+                        </td>
+                        <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleString()}</td>
+                      </tr>
+                    );
+                  })}
+                  {!isLoading && orders.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-gray-500">
+                        <div className="mx-auto max-w-sm">
+                          <p className="text-sm font-medium text-gray-900">No orders waiting for confirmation.</p>
+                          <p className="mt-1 text-sm text-gray-500">
+                            Create a COD order or clear the filters to check the full queue.
+                          </p>
+                          <div className="mt-4 flex flex-wrap justify-center gap-2">
+                            <Link
+                              to="/app/orders/new"
+                              className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                            >
+                              Create COD order
+                            </Link>
+                            <button
+                              type="button"
+                              onClick={resetFilters}
+                              className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                            >
+                              Clear filters
+                            </button>
+                          </div>
+                        </div>
                       </td>
-                      <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
-                      <td className="p-4">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
-                          {order.status.replace(/_/g, ' ')}
-                        </span>
-                      </td>
-                      <td className="p-4 text-gray-700">
-                        {order.status === 'CREATED' ? 'Start confirmation call' : 'Record next attempt'}
-                      </td>
-                      <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleString()}</td>
                     </tr>
-                  );
-                })}
-                {!isLoading && orders.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-gray-500">
-                      No orders in the confirmation queue.
-                    </td>
-                  </tr>
-                )}
-                {isLoading && (
-                  <tr>
-                    <td colSpan={6} className="p-8 text-center text-gray-500">
-                      Loading confirmation queue...
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                  )}
+                  {isLoading && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-gray-500">
+                        <p className="text-sm font-medium text-gray-900">Loading confirmation queue</p>
+                        <p className="mt-1 text-sm text-gray-500">
+                          Fetching orders that still need a customer decision.
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="flex items-center justify-between">
