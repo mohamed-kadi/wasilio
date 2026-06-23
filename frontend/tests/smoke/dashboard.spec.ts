@@ -56,6 +56,22 @@ test('merchant can see the operational dashboard and next queue to work', async 
     });
   });
 
+  await page.route('**/api/couriers?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pageResponse(0)),
+    });
+  });
+
+  await page.route('**/api/orders/search-views', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+
   await loginAs(page, 'admin@example.com');
 
   await expect(page.getByRole('heading', { name: 'Operations dashboard' })).toBeVisible();
@@ -75,8 +91,9 @@ test('merchant can see the operational dashboard and next queue to work', async 
   await expect(page.getByText('Confirmed orders without a courier')).toBeVisible();
   await expect(page.getByText('Picked up orders with couriers')).toBeVisible();
 
-  await page.getByRole('link', { name: 'Open confirmations' }).first().click();
-  await expect(page).toHaveURL(/\/app\/confirmations$/);
+  await page.getByRole('link', { name: 'Review failures' }).click();
+  await expect(page).toHaveURL(/\/app\/orders$/);
+  await expect(page.getByText('Failed delivery recovery')).toBeVisible();
 });
 
 function pageResponse(totalElements: number) {

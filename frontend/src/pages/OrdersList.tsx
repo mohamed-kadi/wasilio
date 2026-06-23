@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { Bookmark, ChevronLeft, ChevronRight, PlusCircle, Save, Trash2, X } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { AlertCircle, Bookmark, ChevronLeft, ChevronRight, PlusCircle, Save, Trash2, X } from 'lucide-react';
 import {
   createOrderSearchSavedView,
   deleteOrderSearchSavedView,
@@ -57,6 +57,15 @@ const nextActions: Record<OrderStatus, string> = {
   FAILED: 'Review failure',
 };
 
+const failureReasonLabels: Record<string, string> = {
+  CUSTOMER_UNREACHABLE: 'Customer unreachable',
+  CUSTOMER_REFUSED: 'Customer refused',
+  INVALID_ADDRESS: 'Invalid address',
+  CUSTOMER_RESCHEDULED: 'Customer rescheduled',
+  LOST_PACKAGE: 'Lost package',
+  OTHER: 'Other',
+};
+
 const statuses: OrderStatus[] = [
   'CREATED',
   'CONFIRMATION_REQUESTED',
@@ -76,6 +85,11 @@ interface OrderFilters {
   courierId: string;
   createdFrom: string;
   createdTo: string;
+}
+
+interface OrdersLocationState {
+  statuses?: OrderStatus[];
+  recoveryFocus?: boolean;
 }
 
 const emptyFilters: OrderFilters = {
@@ -126,11 +140,29 @@ function countByStatus(orders: Order[], status: OrderStatus) {
   return orders.filter((order) => order.status === status).length;
 }
 
+function getLocationStatuses(state: OrdersLocationState | null): OrderStatus[] {
+  return (state?.statuses ?? []).filter((status): status is OrderStatus => statuses.includes(status));
+}
+
+function formatFailureReason(reason?: string) {
+  if (!reason) {
+    return undefined;
+  }
+  return failureReasonLabels[reason] ?? reason.replace(/_/g, ' ').toLowerCase();
+}
+
 export default function OrdersList() {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const locationState = location.state as OrdersLocationState | null;
+  const locationStatuses = getLocationStatuses(locationState);
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(20);
-  const [filters, setFilters] = useState<OrderFilters>(emptyFilters);
+  const [filters, setFilters] = useState<OrderFilters>(() => ({
+    ...emptyFilters,
+    statuses: locationStatuses,
+  }));
+  const [recoveryFocus, setRecoveryFocus] = useState(Boolean(locationState?.recoveryFocus));
   const [selectedSavedViewId, setSelectedSavedViewId] = useState('');
   const [savedViewName, setSavedViewName] = useState('');
 
@@ -205,15 +237,21 @@ export default function OrdersList() {
   const canGoBack = page > 0;
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
   const selectedSavedView = savedViews.find((view) => view.viewId === selectedSavedViewId);
+  const visibleFailedOrders = orders.filter((order) => order.status === 'FAILED');
+  const isFailureRecoveryView = recoveryFocus || filters.statuses.includes('FAILED');
   const visibleJourneyCounts = {
     confirm: countByStatus(orders, 'CREATED') + countByStatus(orders, 'CONFIRMATION_REQUESTED'),
     courier:
       countByStatus(orders, 'CONFIRMED') + countByStatus(orders, 'ASSIGNED_TO_COURIER') + countByStatus(orders, 'PICKED_UP'),
     closed: countByStatus(orders, 'DELIVERED') + countByStatus(orders, 'FAILED') + countByStatus(orders, 'REJECTED'),
+    failed: visibleFailedOrders.length,
   };
 
   function updateFilter<K extends keyof OrderFilters>(key: K, value: OrderFilters[K]) {
     setFilters((currentFilters) => ({ ...currentFilters, [key]: value }));
+    if (key === 'statuses') {
+      setRecoveryFocus((value as OrderStatus[]).includes('FAILED'));
+    }
     setPage(0);
   }
 
@@ -238,6 +276,18 @@ export default function OrdersList() {
 
   function clearFilters() {
     setFilters(emptyFilters);
+    setRecoveryFocus(false);
+    setSelectedSavedViewId('');
+    setSavedViewName('');
+    setPage(0);
+  }
+
+  function applyFailedRecoveryView() {
+    setFilters({
+      ...emptyFilters,
+      statuses: ['FAILED'],
+    });
+    setRecoveryFocus(true);
     setSelectedSavedViewId('');
     setSavedViewName('');
     setPage(0);
@@ -259,13 +309,49 @@ export default function OrdersList() {
         </Link>
       </div>
 
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <JourneyMetric title="Needs confirmation" value={visibleJourneyCounts.confirm} detail="New or waiting for customer call" tone="blue" />
         <JourneyMetric title="Courier workflow" value={visibleJourneyCounts.courier} detail="Confirmed, assigned, or picked up" tone="amber" />
         <JourneyMetric title="Closed orders" value={visibleJourneyCounts.closed} detail="Delivered, failed, or rejected" tone="green" />
+        <JourneyMetric title="Failed recovery" value={visibleJourneyCounts.failed} detail="Visible failures needing review" tone="red" />
       </section>
 
+      {isFailureRecoveryView && (
+        <section className="rounded-lg border border-red-200 bg-red-50 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-red-950">Failed delivery recovery</p>
+              <p className="mt-1 max-w-3xl text-sm text-red-800">
+                Review the failure reason, contact the customer or courier when needed, then decide whether to retry,
+                refund, or close the recovery outside the active courier queue.
+              </p>
+            </div>
+            <Link
+              to="/app/couriers/performance"
+              className="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
+            >
+              Review courier performance
+            </Link>
+          </div>
+        </section>
+      )}
+
       <div className="space-y-4 bg-white border border-gray-200 rounded-lg px-4 py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold uppercase text-gray-500">Search and filters</h3>
+            <p className="mt-1 text-sm text-gray-600">Find orders by customer, courier, status, or recovery state.</p>
+          </div>
+          <button
+            type="button"
+            onClick={applyFailedRecoveryView}
+            className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+          >
+            <AlertCircle size={16} />
+            Review failed deliveries
+          </button>
+        </div>
+
         <div className="grid gap-3 md:grid-cols-4">
           <div>
             <label className="block text-sm font-medium text-gray-700" htmlFor="customer-name">
@@ -473,64 +559,89 @@ export default function OrdersList() {
       )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200 text-sm text-gray-500 uppercase tracking-wider">
-              <th className="p-4 font-medium">ID</th>
-              <th className="p-4 font-medium">Customer</th>
-              <th className="p-4 font-medium">Amount</th>
-              <th className="p-4 font-medium">Courier</th>
-              <th className="p-4 font-medium">Status</th>
-              <th className="p-4 font-medium">Next action</th>
-              <th className="p-4 font-medium">Date</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 text-sm">
-            {orders.map((order) => (
-              <tr key={order.id} className="hover:bg-gray-50">
-                <td className="p-4 font-mono text-gray-500">
-                  <Link to={`/app/orders/${order.id}`} className="text-blue-600 hover:underline">
-                    {order.id.slice(0, 8)}...
-                  </Link>
-                </td>
-                <td className="p-4">
-                  <p className="font-medium text-gray-900">
-                    {order.customer.firstName} {order.customer.lastName}
-                  </p>
-                  <p className="text-gray-500">{order.customer.phone}</p>
-                </td>
-                <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
-                <td className="p-4 text-gray-500">
-                  {couriers.find((courier) => courier.courierId === order.courierId)?.name ?? order.courierId ?? '-'}
-                </td>
-                <td className="p-4">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
-                    {statusLabels[order.status]}
-                  </span>
-                  <p className="mt-1 text-xs text-gray-500">{statusStages[order.status]} stage</p>
-                </td>
-                <td className="p-4">
-                  <span className="text-sm font-medium text-gray-900">{nextActions[order.status]}</span>
-                </td>
-                <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200 text-sm text-gray-500 uppercase tracking-wider">
+                <th className="p-4 font-medium">ID</th>
+                <th className="p-4 font-medium">Customer</th>
+                <th className="p-4 font-medium">Amount</th>
+                <th className="p-4 font-medium">Courier</th>
+                <th className="p-4 font-medium">Status</th>
+                <th className="p-4 font-medium">Next action</th>
+                <th className="p-4 font-medium">Recovery</th>
+                <th className="p-4 font-medium">Date</th>
               </tr>
-            ))}
-            {!isLoading && orders.length === 0 && (
-              <tr>
-                <td colSpan={7} className="p-8 text-center text-gray-500">
-                  No orders found.
-                </td>
-              </tr>
-            )}
-            {isLoading && (
-              <tr>
-                <td colSpan={7} className="p-8 text-center text-gray-500">
-                  Loading orders...
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100 text-sm">
+              {orders.map((order) => {
+                const failureReason = formatFailureReason(order.failureReason);
+
+                return (
+                  <tr key={order.id} className={order.status === 'FAILED' ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-gray-50'}>
+                    <td className="p-4 font-mono text-gray-500">
+                      <Link to={`/app/orders/${order.id}`} className="text-blue-600 hover:underline">
+                        {order.id.slice(0, 8)}...
+                      </Link>
+                    </td>
+                    <td className="p-4">
+                      <p className="font-medium text-gray-900">
+                        {order.customer.firstName} {order.customer.lastName}
+                      </p>
+                      <p className="text-gray-500">{order.customer.phone}</p>
+                    </td>
+                    <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
+                    <td className="p-4 text-gray-500">
+                      {couriers.find((courier) => courier.courierId === order.courierId)?.name ?? order.courierId ?? '-'}
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
+                        {statusLabels[order.status]}
+                      </span>
+                      <p className="mt-1 text-xs text-gray-500">{statusStages[order.status]} stage</p>
+                    </td>
+                    <td className="p-4">
+                      <span className="text-sm font-medium text-gray-900">{nextActions[order.status]}</span>
+                    </td>
+                    <td className="p-4">
+                      {order.status === 'FAILED' ? (
+                        <div className="max-w-xs">
+                          <p className="text-sm font-medium text-red-900">
+                            Reason: {failureReason ?? 'Not recorded'}
+                          </p>
+                          <p className="mt-1 text-xs text-red-700">Contact customer or courier, then decide retry, refund, or close.</p>
+                          <Link
+                            to={`/app/orders/${order.id}`}
+                            className="mt-2 inline-flex text-sm font-medium text-blue-600 hover:underline"
+                          >
+                            Open failure review
+                          </Link>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</td>
+                  </tr>
+                );
+              })}
+              {!isLoading && orders.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                    No orders found.
+                  </td>
+                </tr>
+              )}
+              {isLoading && (
+                <tr>
+                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                    Loading orders...
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">
@@ -574,12 +685,13 @@ function JourneyMetric({
   title: string;
   value: number;
   detail: string;
-  tone: 'blue' | 'amber' | 'green';
+  tone: 'blue' | 'amber' | 'green' | 'red';
 }) {
   const tones = {
     blue: 'border-blue-200 bg-blue-50 text-blue-700',
     amber: 'border-amber-200 bg-amber-50 text-amber-700',
     green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    red: 'border-red-200 bg-red-50 text-red-700',
   };
 
   return (

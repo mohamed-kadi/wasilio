@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Clock, MessageSquare, Package, PhoneCall, Truck, XCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, MessageSquare, Package, PhoneCall, Truck, XCircle } from 'lucide-react';
 import {
   assignCourier,
   confirmOrder,
@@ -71,12 +71,29 @@ const statusTones: Record<OrderStatus, string> = {
   FAILED: 'border-red-200 bg-red-50 text-red-700',
 };
 
+const failureReasonLabels: Record<string, string> = {
+  CUSTOMER_UNREACHABLE: 'Customer unreachable',
+  CUSTOMER_REFUSED: 'Customer refused',
+  INVALID_ADDRESS: 'Invalid address',
+  CUSTOMER_RESCHEDULED: 'Customer rescheduled',
+  LOST_PACKAGE: 'Lost package',
+  OTHER: 'Other',
+};
+
+function formatFailureReason(reason?: string) {
+  if (!reason) {
+    return undefined;
+  }
+  return failureReasonLabels[reason] ?? reason.replace(/_/g, ' ').toLowerCase();
+}
+
 export default function OrderDetails() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [courierId, setCourierId] = useState('');
   const [rejectReason, setRejectReason] = useState('Customer unreachable');
   const [failureReason, setFailureReason] = useState<DeliveryFailureReason>('CUSTOMER_REFUSED');
+  const [confirmDeliverOpen, setConfirmDeliverOpen] = useState(false);
 
   const {
     data: order,
@@ -127,6 +144,7 @@ export default function OrderDetails() {
       }
     },
     onSuccess: () => {
+      setConfirmDeliverOpen(false);
       queryClient.invalidateQueries({ queryKey: ['order', id] });
       queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -159,6 +177,7 @@ export default function OrderDetails() {
   const activeCouriers = (couriersPage?.content ?? []).filter((courier) => courier.active);
   const selectedPickupCourierId = order.courierId ?? courierId;
   const selectedCourierName = activeCouriers.find((courier) => courier.courierId === order.courierId)?.name ?? order.courierId;
+  const formattedFailureReason = formatFailureReason(order.failureReason);
 
   const TimelineIcon = ({ type, category }: { type: string; category: string }) => {
     if (category === 'CALLBACK') return <PhoneCall className="w-5 h-5 text-purple-500" />;
@@ -211,6 +230,41 @@ export default function OrderDetails() {
           </div>
         </div>
       </section>
+
+      {order.status === 'FAILED' && (
+        <section className="rounded-lg border border-red-200 bg-red-50 p-5 text-red-900">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <AlertCircle size={18} />
+                <p className="text-sm font-semibold">Failed delivery recovery</p>
+              </div>
+              <p className="mt-2 text-sm">
+                Failure reason: <span className="font-semibold">{formattedFailureReason ?? 'Not recorded'}</span>
+              </p>
+              <p className="mt-1 max-w-3xl text-sm text-red-800">
+                Contact the customer or courier, confirm what happened, then decide whether this needs retry,
+                refund, or closure outside the active courier queue.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                to="/app/orders"
+                state={{ statuses: ['FAILED'], recoveryFocus: true }}
+                className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-medium text-red-800 ring-1 ring-red-200 hover:bg-red-100"
+              >
+                Back to failed deliveries
+              </Link>
+              <Link
+                to="/app/couriers/performance"
+                className="inline-flex items-center rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800"
+              >
+                Review courier performance
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
       <section className="rounded-lg border border-gray-200 bg-white p-5">
         <div className="flex flex-wrap justify-between gap-4">
@@ -304,7 +358,7 @@ export default function OrderDetails() {
               <button
                 type="button"
                 disabled={mutationDisabled}
-                onClick={() => mutation.mutate({ action: 'deliver' })}
+                onClick={() => setConfirmDeliverOpen(true)}
                 className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
               >
                 Mark Delivered
@@ -325,11 +379,42 @@ export default function OrderDetails() {
               <button
                 type="button"
                 disabled={mutationDisabled}
-                onClick={() => mutation.mutate({ action: 'fail', reason: failureReason })}
+                onClick={() => {
+                  setConfirmDeliverOpen(false);
+                  mutation.mutate({ action: 'fail', reason: failureReason });
+                }}
                 className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
               >
                 Mark Failed
               </button>
+              {confirmDeliverOpen && (
+                <div className="basis-full rounded-md border border-green-200 bg-green-50 p-3 text-left">
+                  <p className="text-sm font-semibold text-green-950">
+                    Are you sure this delivery should be marked delivered?
+                  </p>
+                  <p className="mt-1 text-sm text-green-800">
+                    This records a successful delivery and closes the order from courier tracking.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={mutationDisabled}
+                      onClick={() => mutation.mutate({ action: 'deliver' })}
+                      className="rounded-md bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
+                    >
+                      Yes, mark delivered
+                    </button>
+                    <button
+                      type="button"
+                      disabled={mutationDisabled}
+                      onClick={() => setConfirmDeliverOpen(false)}
+                      className="rounded-md border border-green-300 bg-white px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -392,7 +477,7 @@ export default function OrderDetails() {
             {order.failureReason && (
               <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-md">
                 <p className="font-medium text-sm">Failure Reason</p>
-                <p>{order.failureReason}</p>
+                <p>{formattedFailureReason ?? order.failureReason}</p>
               </div>
             )}
           </div>

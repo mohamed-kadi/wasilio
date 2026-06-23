@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AlertCircle, ArrowRight, CheckCircle2, ClipboardList, PackageCheck, PhoneCall, Truck } from 'lucide-react';
 import {
+  type OrderStatus,
   fetchAssignmentQueue,
   fetchConfirmationCallbacks,
   fetchConfirmationQueue,
@@ -18,6 +19,10 @@ interface NextAction {
   to: string;
   cta: string;
   tone: 'red' | 'blue' | 'green' | 'amber';
+  state?: {
+    statuses?: OrderStatus[];
+    recoveryFocus?: boolean;
+  };
 }
 
 export default function Dashboard() {
@@ -122,6 +127,7 @@ export default function Dashboard() {
           </div>
           <Link
             to={nextAction.to}
+            state={nextAction.state}
             className="inline-flex items-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50"
           >
             {nextAction.cta}
@@ -164,8 +170,9 @@ export default function Dashboard() {
         <DashboardMetric
           title="Failed deliveries"
           value={failed}
-          detail="Closed as failed and ready for review"
+          detail="Closed as failed and ready for recovery review"
           to="/app/orders"
+          state={{ statuses: ['FAILED'], recoveryFocus: true }}
           cta="Review failures"
           tone="red"
           isLoading={isLoading}
@@ -269,6 +276,7 @@ function getNextAction({
       label: 'Review failed deliveries',
       detail: `${failed} delivery failures need follow-up, customer recovery, or courier performance review.`,
       to: '/app/orders',
+      state: { statuses: ['FAILED'], recoveryFocus: true },
       cta: 'Open orders',
       tone: 'red',
     };
@@ -328,6 +336,7 @@ function DashboardMetric({
   value,
   detail,
   to,
+  state,
   cta,
   tone,
   isLoading,
@@ -337,6 +346,10 @@ function DashboardMetric({
   value: number;
   detail: string;
   to: string;
+  state?: {
+    statuses?: OrderStatus[];
+    recoveryFocus?: boolean;
+  };
   cta: string;
   tone: 'blue' | 'amber' | 'green' | 'red';
   isLoading: boolean;
@@ -353,7 +366,7 @@ function DashboardMetric({
     <div className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className={`rounded-md p-2 ${tones[tone]}`}>{icon}</div>
-        <Link to={to} className="text-sm font-medium text-blue-600 hover:underline">
+        <Link to={to} state={state} className="text-sm font-medium text-blue-600 hover:underline">
           {cta}
         </Link>
       </div>
