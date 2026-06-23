@@ -1,10 +1,19 @@
 import { type ReactNode, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Truck } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { assignCourier, fetchAssignmentQueue, fetchCouriers, getErrorMessage } from '../api/client';
+
+interface AssignmentLocationState {
+  confirmedOrderId?: string;
+}
 
 export default function AssignmentQueue() {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const locationState = location.state as AssignmentLocationState | null;
+  const confirmedOrderId =
+    typeof locationState?.confirmedOrderId === 'string' ? locationState.confirmedOrderId : undefined;
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(20);
   const [createdFrom, setCreatedFrom] = useState('');
@@ -21,7 +30,7 @@ export default function AssignmentQueue() {
     queryFn: () => fetchAssignmentQueue({ page, size, createdFrom: toStartIso(createdFrom), createdTo: toEndIso(createdTo) }),
   });
 
-  const { data: couriersPage } = useQuery({
+  const { data: couriersPage, isLoading: couriersLoading } = useQuery({
     queryKey: ['couriers', { page: 0, size: 100 }],
     queryFn: () => fetchCouriers({ page: 0, size: 100 }),
   });
@@ -42,6 +51,13 @@ export default function AssignmentQueue() {
   const totalElements = queuePage?.totalElements ?? 0;
   const canGoBack = page > 0;
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
+  const highlightedOrder = confirmedOrderId ? orders.find((order) => order.id === confirmedOrderId) : undefined;
+
+  function resetFilters() {
+    setCreatedFrom('');
+    setCreatedTo('');
+    setPage(0);
+  }
 
   return (
     <QueueLayout
@@ -65,66 +81,150 @@ export default function AssignmentQueue() {
       canGoBack={canGoBack}
       canGoForward={canGoForward}
     >
+      {confirmedOrderId && highlightedOrder && (
+        <section className="rounded-lg border border-green-200 bg-green-50 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-green-950">Confirmed order ready for courier assignment</p>
+              <p className="mt-1 text-sm text-green-800">
+                This order came from confirmations. Select an active courier and assign it for pickup.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-200">
+              {highlightedOrder.id.slice(0, 8)}...
+            </span>
+          </div>
+        </section>
+      )}
+
+      {confirmedOrderId && !highlightedOrder && !isLoading && (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-950">Confirmed order is not visible in this queue view</p>
+              <p className="mt-1 text-sm text-amber-800">
+                It may already be assigned, outside the current filters, or on another page.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
+            >
+              Clear filters
+            </button>
+          </div>
+        </section>
+      )}
+
+      {!couriersLoading && activeCouriers.length === 0 && orders.length > 0 && (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-950">No active couriers available</p>
+              <p className="mt-1 text-sm text-amber-800">
+                Activate or create a courier before these confirmed orders can move into pickup.
+              </p>
+            </div>
+            <Link
+              to="/app/couriers"
+              className="inline-flex items-center rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
+            >
+              Manage couriers
+            </Link>
+          </div>
+        </section>
+      )}
+
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-              <th className="p-4 font-medium">Order</th>
-              <th className="p-4 font-medium">Customer</th>
-              <th className="p-4 font-medium">Amount</th>
-              <th className="p-4 font-medium">Courier</th>
-              <th className="p-4 font-medium">Next action</th>
-              <th className="p-4 font-medium">Action</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {orders.map((order) => (
-              <tr key={order.id} className="hover:bg-gray-50">
-                <td className="p-4 font-mono text-gray-600">{order.id.slice(0, 8)}...</td>
-                <td className="p-4">
-                  <p className="font-medium text-gray-900">
-                    {order.customer.firstName} {order.customer.lastName}
-                  </p>
-                  <p className="text-gray-500">{order.customer.phone}</p>
-                </td>
-                <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
-                <td className="p-4">
-                  <select
-                    value={selectedCouriers[order.id] ?? ''}
-                    onChange={(event) => setSelectedCouriers((current) => ({ ...current, [order.id]: event.target.value }))}
-                    className="w-56 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select courier</option>
-                    {activeCouriers.map((courier) => (
-                      <option key={courier.courierId} value={courier.courierId}>
-                        {courier.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="p-4 text-gray-700">Select courier and assign for pickup</td>
-                <td className="p-4">
-                  <button
-                    type="button"
-                    disabled={!selectedCouriers[order.id] || assignMutation.isPending}
-                    onClick={() => assignMutation.mutate({ orderId: order.id, courierId: selectedCouriers[order.id] })}
-                    className="inline-flex items-center gap-2 rounded-md bg-yellow-600 px-3 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
-                  >
-                    <Truck size={16} />
-                    Assign
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[780px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
+                <th className="p-4 font-medium">Order</th>
+                <th className="p-4 font-medium">Customer</th>
+                <th className="p-4 font-medium">Amount</th>
+                <th className="p-4 font-medium">Courier</th>
+                <th className="p-4 font-medium">Next action</th>
+                <th className="p-4 font-medium">Action</th>
               </tr>
-            ))}
-            {!isLoading && orders.length === 0 && (
-              <tr>
-                <td colSpan={6} className="p-8 text-center text-gray-500">
-                  No orders are ready for assignment.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {orders.map((order) => {
+                const highlighted = confirmedOrderId === order.id;
+                return (
+                  <tr key={order.id} className={`hover:bg-gray-50 ${highlighted ? 'bg-green-50' : ''}`}>
+                    <td className="p-4">
+                      <p className="font-mono text-gray-600">{order.id.slice(0, 8)}...</p>
+                      {highlighted && (
+                        <span className="mt-2 inline-flex rounded-full bg-green-700 px-2.5 py-1 text-xs font-semibold text-white">
+                          From confirmation
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <p className="font-medium text-gray-900">
+                        {order.customer.firstName} {order.customer.lastName}
+                      </p>
+                      <p className="text-gray-500">{order.customer.phone}</p>
+                    </td>
+                    <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
+                    <td className="p-4">
+                      <select
+                        value={selectedCouriers[order.id] ?? ''}
+                        onChange={(event) =>
+                          setSelectedCouriers((current) => ({ ...current, [order.id]: event.target.value }))
+                        }
+                        className="w-56 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select courier</option>
+                        {activeCouriers.map((courier) => (
+                          <option key={courier.courierId} value={courier.courierId}>
+                            {courier.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="p-4 text-gray-700">Select courier and assign for pickup</td>
+                    <td className="p-4">
+                      <button
+                        type="button"
+                        disabled={!selectedCouriers[order.id] || assignMutation.isPending}
+                        onClick={() =>
+                          assignMutation.mutate({ orderId: order.id, courierId: selectedCouriers[order.id] })
+                        }
+                        className="inline-flex items-center gap-2 rounded-md bg-yellow-600 px-3 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
+                      >
+                        <Truck size={16} />
+                        Assign
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {isLoading && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                    <p className="text-sm font-medium text-gray-900">Loading assignment queue</p>
+                    <p className="mt-1 text-sm text-gray-500">Fetching confirmed orders that need a courier.</p>
+                  </td>
+                </tr>
+              )}
+              {!isLoading && orders.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                    <div className="mx-auto max-w-sm">
+                      <p className="text-sm font-medium text-gray-900">No confirmed orders need assignment.</p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Confirm customer orders first, or clear filters to check the full assignment queue.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </QueueLayout>
   );

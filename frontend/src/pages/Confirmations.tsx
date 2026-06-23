@@ -10,6 +10,7 @@ import {
   PhoneCall,
   RefreshCw,
   Search,
+  Truck,
   XCircle,
 } from 'lucide-react';
 import {
@@ -104,6 +105,7 @@ export default function Confirmations() {
   const [createdFrom, setCreatedFrom] = useState('');
   const [createdTo, setCreatedTo] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [confirmedHandoffOrder, setConfirmedHandoffOrder] = useState<Order | null>(null);
   const [outcome, setOutcome] = useState<ConfirmationOutcome>('NO_ANSWER');
   const [callbackAt, setCallbackAt] = useState('');
   const [note, setNote] = useState('');
@@ -151,12 +153,21 @@ export default function Confirmations() {
       return recordConfirmationAttempt(selectedOrder.id, outcome, note, scheduledCallbackAt);
     },
     onSuccess: async (attempt) => {
-      if (selectedOrder) {
-        await queryClient.invalidateQueries({ queryKey: ['confirmation-attempts', selectedOrder.id] });
-        await queryClient.invalidateQueries({ queryKey: ['order', selectedOrder.id] });
+      const attemptedOrder = selectedOrder;
+
+      if (attempt.outcome === 'CONFIRMED' && attemptedOrder) {
+        setConfirmedHandoffOrder(attemptedOrder);
+      } else if (attempt.outcome === 'REJECTED') {
+        setConfirmedHandoffOrder(null);
+      }
+
+      if (attemptedOrder) {
+        await queryClient.invalidateQueries({ queryKey: ['confirmation-attempts', attemptedOrder.id] });
+        await queryClient.invalidateQueries({ queryKey: ['order', attemptedOrder.id] });
       }
       await queryClient.invalidateQueries({ queryKey: ['confirmation-queue'] });
       await queryClient.invalidateQueries({ queryKey: ['confirmation-callbacks'] });
+      await queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] });
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
       await queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
       setNote('');
@@ -209,6 +220,11 @@ export default function Confirmations() {
     setPage(0);
   }
 
+  function selectOrder(order: Order) {
+    setSelectedOrder(order);
+    setConfirmedHandoffOrder(null);
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     mutation.mutate();
@@ -216,6 +232,7 @@ export default function Confirmations() {
 
   function selectCallback(callback: ConfirmationCallback) {
     setSelectedOrder(callback.order);
+    setConfirmedHandoffOrder(null);
     setOutcome('NO_ANSWER');
     setCallbackAt('');
     setNote(callback.note ?? '');
@@ -272,6 +289,29 @@ export default function Confirmations() {
             >
               Clear filters
             </button>
+          </div>
+        </section>
+      )}
+
+      {confirmedHandoffOrder && (
+        <section className="rounded-lg border border-green-200 bg-green-50 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-green-950">Order confirmed and moved to courier assignment</p>
+              <p className="mt-1 text-sm text-green-800">
+                {confirmedHandoffOrder.customer.firstName} {confirmedHandoffOrder.customer.lastName} is no longer in
+                the confirmation queue. Assign a courier to start pickup.
+              </p>
+              <p className="mt-2 font-mono text-xs text-green-700">{confirmedHandoffOrder.id}</p>
+            </div>
+            <Link
+              to="/app/couriers/assignment"
+              state={{ confirmedOrderId: confirmedHandoffOrder.id }}
+              className="inline-flex items-center gap-2 rounded-md bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800"
+            >
+              <Truck size={16} />
+              Open assignment queue
+            </Link>
           </div>
         </section>
       )}
@@ -536,7 +576,7 @@ export default function Confirmations() {
                       <tr
                         key={order.id}
                         className={`cursor-pointer hover:bg-gray-50 ${selected || highlighted ? 'bg-blue-50' : ''}`}
-                        onClick={() => setSelectedOrder(order)}
+                        onClick={() => selectOrder(order)}
                       >
                         <td className="p-4">
                           <p className="font-mono text-gray-600">{order.id.slice(0, 8)}...</p>

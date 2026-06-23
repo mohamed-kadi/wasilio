@@ -24,21 +24,31 @@ const order = {
   version: 1,
 };
 
+const courier = {
+  courierId: '22222222-2222-2222-2222-222222222222',
+  tenantId: '00000000-0000-0000-0000-000000000001',
+  name: 'Amine Courier',
+  phone: '+212600000002',
+  active: true,
+  createdAt: '2026-06-20T10:00:00Z',
+};
+
 test('merchant can use the confirmation next-action panel', async ({ page }) => {
   await installMockApi(page);
 
   const attempts: Record<string, unknown>[] = [];
+  let confirmed = false;
 
   await page.route('**/api/confirmations/queue?**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        content: [order],
+        content: confirmed ? [] : [order],
         page: 0,
         size: 20,
-        totalElements: 1,
-        totalPages: 1,
+        totalElements: confirmed ? 0 : 1,
+        totalPages: confirmed ? 0 : 1,
       }),
     });
   });
@@ -61,6 +71,7 @@ test('merchant can use the confirmation next-action panel', async ({ page }) => 
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON() as Record<string, unknown>;
       attempts.push(body);
+      confirmed = body.outcome === 'CONFIRMED';
       await route.fulfill({
         status: 201,
         contentType: 'application/json',
@@ -85,6 +96,34 @@ test('merchant can use the confirmation next-action panel', async ({ page }) => 
     });
   });
 
+  await page.route('**/api/couriers?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content: [courier],
+        page: 0,
+        size: 100,
+        totalElements: 1,
+        totalPages: 1,
+      }),
+    });
+  });
+
+  await page.route('**/api/courier-operations/assignment-queue?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content: confirmed ? [{ ...order, status: 'CONFIRMED' }] : [],
+        page: 0,
+        size: 20,
+        totalElements: confirmed ? 1 : 0,
+        totalPages: confirmed ? 1 : 0,
+      }),
+    });
+  });
+
   await loginAs(page, 'admin@example.com');
   await page.goto('/app/confirmations');
 
@@ -102,6 +141,15 @@ test('merchant can use the confirmation next-action panel', async ({ page }) => 
   await expect(page.getByText('Customer accepted the order')).toBeVisible();
   await page.getByLabel('Note').fill('Customer confirmed address and total.');
   await page.getByRole('button', { name: /save: confirmed/i }).click();
+
+  await expect(page.getByText('Order confirmed and moved to courier assignment')).toBeVisible();
+  await expect(page.getByText('Sara Customer is no longer in')).toBeVisible();
+  await page.getByRole('link', { name: 'Open assignment queue' }).click();
+
+  await expect(page).toHaveURL(/\/app\/couriers\/assignment$/);
+  await expect(page.getByText('Confirmed order ready for courier assignment')).toBeVisible();
+  await expect(page.getByRole('table').getByText('From confirmation', { exact: true })).toBeVisible();
+  await expect(page.getByRole('table').getByText('Sara Customer')).toBeVisible();
 
   expect(attempts).toHaveLength(1);
   expect(attempts[0]).toMatchObject({
