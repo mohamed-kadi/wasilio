@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, ChevronLeft, ChevronRight, XCircle } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import {
   type DeliveryFailureReason,
   fetchCouriers,
@@ -28,14 +29,25 @@ const failureReasonLabels: Record<DeliveryFailureReason, string> = {
   OTHER: 'Other',
 };
 
+interface DeliveryLocationState {
+  pickedUpOrderId?: string;
+  pickedUpCourierId?: string;
+}
+
 export default function DeliveryQueue() {
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const locationState = location.state as DeliveryLocationState | null;
+  const pickedUpOrderId = typeof locationState?.pickedUpOrderId === 'string' ? locationState.pickedUpOrderId : undefined;
+  const pickedUpCourierId =
+    typeof locationState?.pickedUpCourierId === 'string' ? locationState.pickedUpCourierId : undefined;
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(20);
-  const [courierId, setCourierId] = useState('');
+  const [courierId, setCourierId] = useState(pickedUpCourierId ?? '');
   const [createdFrom, setCreatedFrom] = useState('');
   const [createdTo, setCreatedTo] = useState('');
   const [failureForms, setFailureForms] = useState<Record<string, { reason: DeliveryFailureReason; note: string }>>({});
+  const [deliveryConfirmationId, setDeliveryConfirmationId] = useState<string | null>(null);
 
   const {
     data: queuePage,
@@ -54,13 +66,19 @@ export default function DeliveryQueue() {
 
   const deliveredMutation = useMutation({
     mutationFn: (orderId: string) => markDelivered(orderId),
-    onSuccess: invalidateDeliveryData,
+    onSuccess: async () => {
+      setDeliveryConfirmationId(null);
+      await invalidateDeliveryData();
+    },
   });
 
   const failedMutation = useMutation({
     mutationFn: ({ orderId, reason, note }: { orderId: string; reason: DeliveryFailureReason; note: string }) =>
       markFailed(orderId, reason, note),
-    onSuccess: invalidateDeliveryData,
+    onSuccess: async () => {
+      setDeliveryConfirmationId(null);
+      await invalidateDeliveryData();
+    },
   });
 
   async function invalidateDeliveryData() {
@@ -90,6 +108,14 @@ export default function DeliveryQueue() {
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
   const mutationError = deliveredMutation.error ?? failedMutation.error;
   const mutationPending = deliveredMutation.isPending || failedMutation.isPending;
+  const highlightedOrder = pickedUpOrderId ? orders.find((order) => order.id === pickedUpOrderId) : undefined;
+
+  function resetFilters() {
+    setCourierId('');
+    setCreatedFrom('');
+    setCreatedTo('');
+    setPage(0);
+  }
 
   return (
     <div className="space-y-6">
@@ -195,98 +221,202 @@ export default function DeliveryQueue() {
         </div>
       )}
 
+      {pickedUpOrderId && highlightedOrder && (
+        <section className="rounded-lg border border-green-200 bg-green-50 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-green-950">Picked up order ready for delivery outcome</p>
+              <p className="mt-1 text-sm text-green-800">
+                This order came from pickup confirmation. Mark it delivered only after the courier reports a successful
+                delivery; otherwise choose the failure reason.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-200">
+              {highlightedOrder.id.slice(0, 8)}...
+            </span>
+          </div>
+        </section>
+      )}
+
+      {pickedUpOrderId && !highlightedOrder && !isLoading && (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-amber-950">Picked up order is not visible in this delivery view</p>
+              <p className="mt-1 text-sm text-amber-800">
+                It may already have a delivery outcome, outside the current filters, or on another page.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100"
+            >
+              Clear filters
+            </button>
+          </div>
+        </section>
+      )}
+
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-              <th className="p-4 font-medium">Order</th>
-              <th className="p-4 font-medium">Customer</th>
-              <th className="p-4 font-medium">Courier</th>
-              <th className="p-4 font-medium">Next action</th>
-              <th className="p-4 font-medium">Failure reason</th>
-              <th className="p-4 font-medium">Outcome</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {orders.map((order) => {
-              const failureForm = getFailureForm(order.id);
-              return (
-                <tr key={order.id} className="hover:bg-gray-50">
-                  <td className="p-4 font-mono text-gray-600">{order.id.slice(0, 8)}...</td>
-                  <td className="p-4">
-                    <p className="font-medium text-gray-900">
-                      {order.customer.firstName} {order.customer.lastName}
-                    </p>
-                    <p className="text-gray-500">{order.customer.phone}</p>
-                  </td>
-                  <td className="p-4">
-                    <p className="font-medium text-gray-900">{courierNames.get(order.courierId ?? '') ?? 'Unknown courier'}</p>
-                    <p className="font-mono text-xs text-gray-500">{order.courierId}</p>
-                  </td>
-                  <td className="p-4 text-gray-700">Record delivery result</td>
-                  <td className="p-4">
-                    <div className="space-y-2">
-                      <select
-                        value={failureForm.reason}
-                        onChange={(event) => updateFailureForm(order.id, { reason: event.target.value as DeliveryFailureReason })}
-                        className="w-56 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        {failureReasons.map((reason) => (
-                          <option key={reason} value={reason}>
-                            {failureReasonLabels[reason]}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        value={failureForm.note}
-                        onChange={(event) => updateFailureForm(order.id, { note: event.target.value })}
-                        className="w-56 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        placeholder="Optional note"
-                        maxLength={1000}
-                      />
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled={mutationPending}
-                        onClick={() => deliveredMutation.mutate(order.id)}
-                        className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                      >
-                        <CheckCircle2 size={16} />
-                        Delivered
-                      </button>
-                      <button
-                        type="button"
-                        disabled={mutationPending}
-                        onClick={() => failedMutation.mutate({ orderId: order.id, reason: failureForm.reason, note: failureForm.note })}
-                        className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                      >
-                        <XCircle size={16} />
-                        Failed
-                      </button>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
+                <th className="p-4 font-medium">Order</th>
+                <th className="p-4 font-medium">Customer</th>
+                <th className="p-4 font-medium">Courier</th>
+                <th className="p-4 font-medium">Next action</th>
+                <th className="p-4 font-medium">Failure reason</th>
+                <th className="p-4 font-medium">Outcome</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {orders.map((order) => {
+                const failureForm = getFailureForm(order.id);
+                const highlighted = pickedUpOrderId === order.id;
+                const confirmingDelivered = deliveryConfirmationId === order.id;
+
+                return (
+                  <tr key={order.id} className={`hover:bg-gray-50 ${highlighted ? 'bg-green-50' : ''}`}>
+                    <td className="p-4">
+                      <p className="font-mono text-gray-600">{order.id.slice(0, 8)}...</p>
+                      {highlighted && (
+                        <span className="mt-2 inline-flex rounded-full bg-green-700 px-2.5 py-1 text-xs font-semibold text-white">
+                          From pickup
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-4">
+                      <p className="font-medium text-gray-900">
+                        {order.customer.firstName} {order.customer.lastName}
+                      </p>
+                      <p className="text-gray-500">{order.customer.phone}</p>
+                    </td>
+                    <td className="p-4">
+                      <p className="font-medium text-gray-900">{courierNames.get(order.courierId ?? '') ?? 'Unknown courier'}</p>
+                      <p className="font-mono text-xs text-gray-500">{order.courierId}</p>
+                    </td>
+                    <td className="p-4 text-gray-700">Record delivery result</td>
+                    <td className="p-4">
+                      <div className="space-y-2">
+                        <select
+                          value={failureForm.reason}
+                          onChange={(event) => updateFailureForm(order.id, { reason: event.target.value as DeliveryFailureReason })}
+                          className="w-56 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          {failureReasons.map((reason) => (
+                            <option key={reason} value={reason}>
+                              {failureReasonLabels[reason]}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          value={failureForm.note}
+                          onChange={(event) => updateFailureForm(order.id, { note: event.target.value })}
+                          className="w-56 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Optional note"
+                          maxLength={1000}
+                        />
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            disabled={mutationPending}
+                            onClick={() => setDeliveryConfirmationId(order.id)}
+                            className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                          >
+                            <CheckCircle2 size={16} />
+                            Delivered
+                          </button>
+                          <button
+                            type="button"
+                            disabled={mutationPending}
+                            onClick={() => {
+                              setDeliveryConfirmationId(null);
+                              failedMutation.mutate({ orderId: order.id, reason: failureForm.reason, note: failureForm.note });
+                            }}
+                            className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                          >
+                            <XCircle size={16} />
+                            Failed
+                          </button>
+                        </div>
+
+                        {confirmingDelivered && (
+                          <div className="rounded-md border border-green-200 bg-green-50 p-3">
+                            <p className="text-sm font-semibold text-green-950">
+                              Are you sure this delivery should be marked delivered?
+                            </p>
+                            <p className="mt-1 text-sm text-green-800">
+                              This records a successful delivery and closes the order from courier tracking.
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                disabled={mutationPending}
+                                onClick={() => deliveredMutation.mutate(order.id)}
+                                className="inline-flex items-center rounded-md bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
+                              >
+                                Yes, mark delivered
+                              </button>
+                              <button
+                                type="button"
+                                disabled={mutationPending}
+                                onClick={() => setDeliveryConfirmationId(null)}
+                                className="inline-flex items-center rounded-md border border-green-300 bg-white px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!isLoading && orders.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                    <div className="mx-auto max-w-sm">
+                      <p className="text-sm font-medium text-gray-900">No picked up orders are waiting delivery outcome.</p>
+                      <p className="mt-1 text-sm text-gray-500">
+                        Mark packages picked up first, or clear filters to check the full delivery queue.
+                      </p>
+                      <div className="mt-4 flex flex-wrap justify-center gap-2">
+                        <Link
+                          to="/app/couriers/pickup"
+                          className="inline-flex items-center rounded-md bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700"
+                        >
+                          Open pickup queue
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={resetFilters}
+                          className="inline-flex items-center rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                        >
+                          Clear filters
+                        </button>
+                      </div>
                     </div>
                   </td>
                 </tr>
-              );
-            })}
-            {!isLoading && orders.length === 0 && (
-              <tr>
-                <td colSpan={6} className="p-8 text-center text-gray-500">
-                  No picked up orders are waiting delivery outcome.
-                </td>
-              </tr>
-            )}
-            {isLoading && (
-              <tr>
-                <td colSpan={6} className="p-8 text-center text-gray-500">
-                  Loading delivery queue...
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )}
+              {isLoading && (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                    <p className="text-sm font-medium text-gray-900">Loading delivery queue</p>
+                    <p className="mt-1 text-sm text-gray-500">Fetching picked up orders that need a final outcome.</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">

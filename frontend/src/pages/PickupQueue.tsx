@@ -1,12 +1,19 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, PackageCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PackageCheck, Truck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { fetchCouriers, fetchPickupQueue, getErrorMessage, markPickedUp } from '../api/client';
+import type { Order } from '../api/client';
 
 interface PickupLocationState {
   assignedOrderId?: string;
   assignedCourierId?: string;
+}
+
+interface PickedUpHandoff {
+  order: Order;
+  courierId: string;
+  courierName: string;
 }
 
 export default function PickupQueue() {
@@ -21,6 +28,7 @@ export default function PickupQueue() {
   const [courierId, setCourierId] = useState(assignedCourierId ?? '');
   const [createdFrom, setCreatedFrom] = useState('');
   const [createdTo, setCreatedTo] = useState('');
+  const [pickedUpHandoff, setPickedUpHandoff] = useState<PickedUpHandoff | null>(null);
 
   const {
     data: queuePage,
@@ -39,8 +47,17 @@ export default function PickupQueue() {
 
   const pickupMutation = useMutation({
     mutationFn: ({ orderId, assignedCourierId }: { orderId: string; assignedCourierId: string }) => markPickedUp(orderId, assignedCourierId),
-    onSuccess: async () => {
+    onSuccess: async (_result, variables) => {
+      const pickedUpOrder = orders.find((order) => order.id === variables.orderId);
+      if (pickedUpOrder) {
+        setPickedUpHandoff({
+          order: pickedUpOrder,
+          courierId: variables.assignedCourierId,
+          courierName: courierNames.get(variables.assignedCourierId) ?? variables.assignedCourierId,
+        });
+      }
       await queryClient.invalidateQueries({ queryKey: ['courier-pickup-queue'] });
+      await queryClient.invalidateQueries({ queryKey: ['courier-delivery-queue'] });
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
       await queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
     },
@@ -54,6 +71,7 @@ export default function PickupQueue() {
   const canGoBack = page > 0;
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
   const highlightedOrder = assignedOrderId ? orders.find((order) => order.id === assignedOrderId) : undefined;
+  const assignedOrderPickedUp = assignedOrderId === pickedUpHandoff?.order.id;
 
   function resetFilters() {
     setCourierId('');
@@ -166,7 +184,7 @@ export default function PickupQueue() {
         </div>
       )}
 
-      {assignedOrderId && highlightedOrder && (
+      {assignedOrderId && highlightedOrder && !assignedOrderPickedUp && (
         <section className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -182,7 +200,7 @@ export default function PickupQueue() {
         </section>
       )}
 
-      {assignedOrderId && !highlightedOrder && !isLoading && (
+      {assignedOrderId && !highlightedOrder && !isLoading && !assignedOrderPickedUp && (
         <section className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -198,6 +216,32 @@ export default function PickupQueue() {
             >
               Clear filters
             </button>
+          </div>
+        </section>
+      )}
+
+      {pickedUpHandoff && (
+        <section className="rounded-lg border border-green-200 bg-green-50 px-4 py-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-green-950">Order picked up and moved to delivery</p>
+              <p className="mt-1 text-sm text-green-800">
+                {pickedUpHandoff.order.customer.firstName} {pickedUpHandoff.order.customer.lastName} is with{' '}
+                {pickedUpHandoff.courierName}. Record delivered only after the courier reports a successful delivery.
+              </p>
+              <p className="mt-2 font-mono text-xs text-green-700">{pickedUpHandoff.order.id}</p>
+            </div>
+            <Link
+              to="/app/couriers/delivery"
+              state={{
+                pickedUpOrderId: pickedUpHandoff.order.id,
+                pickedUpCourierId: pickedUpHandoff.courierId,
+              }}
+              className="inline-flex items-center gap-2 rounded-md bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800"
+            >
+              <Truck size={16} />
+              Open delivery queue
+            </Link>
           </div>
         </section>
       )}
@@ -244,7 +288,10 @@ export default function PickupQueue() {
                       <button
                         type="button"
                         disabled={!order.courierId || pickupMutation.isPending}
-                        onClick={() => pickupMutation.mutate({ orderId: order.id, assignedCourierId: order.courierId! })}
+                        onClick={() => {
+                          setPickedUpHandoff(null);
+                          pickupMutation.mutate({ orderId: order.id, assignedCourierId: order.courierId! });
+                        }}
                         className="inline-flex items-center gap-2 rounded-md bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
                       >
                         <PackageCheck size={16} />

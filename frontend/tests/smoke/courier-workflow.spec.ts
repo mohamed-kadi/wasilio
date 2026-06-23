@@ -36,7 +36,11 @@ const baseOrder = {
 test('merchant can read courier workflow stages across queues', async ({ page }) => {
   await installMockApi(page);
   const assignments: Record<string, unknown>[] = [];
+  const pickups: Record<string, unknown>[] = [];
+  const deliveredOrders: string[] = [];
   let assigned = false;
+  let pickedUp = false;
+  let delivered = false;
   const token = fakeJwt({
     email: 'admin@example.com',
     role: 'MERCHANT',
@@ -84,7 +88,7 @@ test('merchant can read courier workflow stages across queues', async ({ page })
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(assigned ? pageResponse({ ...baseOrder, status: 'ASSIGNED_TO_COURIER' }) : emptyPage()),
+      body: JSON.stringify(assigned && !pickedUp ? pageResponse({ ...baseOrder, status: 'ASSIGNED_TO_COURIER' }) : emptyPage()),
     });
   });
 
@@ -95,12 +99,25 @@ test('merchant can read courier workflow stages across queues', async ({ page })
     await route.fulfill({ status: 204 });
   });
 
+  await page.route('**/api/orders/11111111-1111-1111-1111-111111111111/pick-up', async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    pickups.push(body);
+    pickedUp = true;
+    await route.fulfill({ status: 204 });
+  });
+
   await page.route('**/api/courier-operations/delivery-queue?**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(pageResponse({ ...baseOrder, status: 'PICKED_UP' })),
+      body: JSON.stringify(pickedUp && !delivered ? pageResponse({ ...baseOrder, status: 'PICKED_UP' }) : emptyPage()),
     });
+  });
+
+  await page.route('**/api/courier-operations/orders/11111111-1111-1111-1111-111111111111/deliver', async (route) => {
+    deliveredOrders.push(baseOrder.id);
+    delivered = true;
+    await route.fulfill({ status: 204 });
   });
 
   await page.goto('/app/couriers/assignment');
@@ -119,15 +136,33 @@ test('merchant can read courier workflow stages across queues', async ({ page })
   await expect(page.getByRole('table').getByText('From assignment', { exact: true })).toBeVisible();
   await expect(page.getByText('Mark picked up to move the order into delivery.')).toBeVisible();
   await expect(page.getByText('Confirm package pickup')).toBeVisible();
+  await page.getByRole('button', { name: 'Picked up' }).click();
+  await expect(page.getByText('Order picked up and moved to delivery')).toBeVisible();
+  await expect(page.getByText('Sara Customer is with Amine Courier')).toBeVisible();
+  await page.getByRole('link', { name: 'Open delivery queue' }).click();
 
-  await page.goto('/app/couriers/delivery');
+  await expect(page).toHaveURL(/\/app\/couriers\/delivery$/);
   await expect(page.getByRole('heading', { name: 'Delivery outcome' })).toBeVisible();
+  await expect(page.getByText('Picked up order ready for delivery outcome')).toBeVisible();
+  await expect(page.getByRole('table').getByText('From pickup', { exact: true })).toBeVisible();
   await expect(page.getByText('Choose delivered or document the failure reason.')).toBeVisible();
   await expect(page.getByText('Record delivery result')).toBeVisible();
   await expect(page.getByRole('combobox').filter({ hasText: 'Customer refused' })).toHaveCount(1);
+  await page.getByRole('button', { name: 'Delivered' }).click();
+  expect(deliveredOrders).toHaveLength(0);
+  await expect(page.getByText('Are you sure this delivery should be marked delivered?')).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByText('Are you sure this delivery should be marked delivered?')).toBeHidden();
+  await page.getByRole('button', { name: 'Delivered' }).click();
+  await page.getByRole('button', { name: 'Yes, mark delivered' }).click();
+  await expect.poll(() => deliveredOrders.length).toBe(1);
 
   expect(assignments).toHaveLength(1);
   expect(assignments[0]).toMatchObject({
+    courierId: courier.courierId,
+  });
+  expect(pickups).toHaveLength(1);
+  expect(pickups[0]).toMatchObject({
     courierId: courier.courierId,
   });
 });
