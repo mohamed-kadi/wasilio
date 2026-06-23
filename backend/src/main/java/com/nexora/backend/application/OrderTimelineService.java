@@ -6,8 +6,10 @@ import com.nexora.backend.domain.event.EventStore;
 import com.nexora.backend.domain.model.ConfirmationAttempt;
 import com.nexora.backend.domain.model.ConfirmationOutcome;
 import com.nexora.backend.domain.model.DeliveryFailure;
+import com.nexora.backend.domain.model.DeliveryFailureRecovery;
 import com.nexora.backend.domain.repository.ConfirmationAttemptRepository;
 import com.nexora.backend.domain.repository.DeliveryFailureRepository;
+import com.nexora.backend.domain.repository.DeliveryFailureRecoveryRepository;
 import com.nexora.backend.domain.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,7 @@ public class OrderTimelineService {
     private final EventStore eventStore;
     private final ConfirmationAttemptRepository confirmationAttemptRepository;
     private final DeliveryFailureRepository deliveryFailureRepository;
+    private final DeliveryFailureRecoveryRepository deliveryFailureRecoveryRepository;
 
     @Transactional(readOnly = true)
     public List<OrderTimelineItem> getTimeline(UUID tenantId, UUID orderId) {
@@ -42,6 +45,8 @@ public class OrderTimelineService {
                 .forEach(attempt -> addConfirmationItems(items, attempt));
         deliveryFailureRepository.findByTenantIdAndOrderIdOrderByCreatedAtAsc(tenantId, orderId)
                 .forEach(failure -> items.add(fromDeliveryFailure(failure)));
+        deliveryFailureRecoveryRepository.findByTenantIdAndOrderIdOrderByCreatedAtAsc(tenantId, orderId)
+                .forEach(recovery -> items.add(fromDeliveryFailureRecovery(recovery)));
 
         return items.stream()
                 .sorted(Comparator
@@ -129,6 +134,24 @@ public class OrderTimelineService {
                 null,
                 details,
                 7_000
+        );
+    }
+
+    private OrderTimelineItem fromDeliveryFailureRecovery(DeliveryFailureRecovery recovery) {
+        Map<String, Object> details = new LinkedHashMap<>();
+        details.put("decision", recovery.getDecision());
+        details.put("note", recovery.getNote());
+
+        return new OrderTimelineItem(
+                recovery.getRecoveryId().toString(),
+                TimelineSource.OPERATIONAL_RECORD,
+                TimelineCategory.DELIVERY,
+                "DeliveryFailureRecoveryRecorded",
+                "Delivery failure recovery recorded",
+                recovery.getCreatedAt(),
+                recovery.getCreatedBy(),
+                details,
+                7_500
         );
     }
 

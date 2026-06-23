@@ -148,6 +148,8 @@ test('merchant can understand order journey stage and next action', async ({ pag
 
 test('merchant can review failed delivery recovery details', async ({ page }) => {
   await installMockApi(page);
+  const recoveryRecords: Array<Record<string, unknown>> = [];
+  const recoveryRequests: Array<Record<string, unknown>> = [];
   const token = fakeJwt({
     email: 'admin@example.com',
     role: 'MERCHANT',
@@ -234,6 +236,35 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
     });
   });
 
+  await page.route('**/api/courier-operations/orders/11111111-1111-1111-1111-111111111111/failure-recoveries', async (route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      recoveryRequests.push(body);
+      const recovery = {
+        recoveryId: `recovery-${recoveryRecords.length + 1}`,
+        tenantId: failedOrder.tenantId,
+        orderId: failedOrder.id,
+        decision: body.decision,
+        note: body.note,
+        createdBy: 'admin@example.com',
+        createdAt: '2026-06-21T12:30:00Z',
+      };
+      recoveryRecords.push(recovery);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(recovery),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(recoveryRecords),
+    });
+  });
+
   await page.goto('/app/orders');
   await page.getByRole('button', { name: 'Review failed deliveries' }).click();
 
@@ -248,4 +279,18 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   await expect(page.getByText('decide whether this needs retry')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Back to failed deliveries' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Review courier performance' })).toBeVisible();
+  await expect(page.getByText('No recovery decision recorded yet.')).toBeVisible();
+
+  await page.getByLabel('Recovery decision').selectOption('REFUND_OR_CUSTOMER_FOLLOW_UP');
+  await page.getByLabel('Recovery note').fill('Customer wants a refund before another attempt');
+  await page.getByRole('button', { name: 'Record recovery decision' }).click();
+
+  await expect(page.getByText('Refund / customer follow-up').last()).toBeVisible();
+  await expect(page.getByText('Customer wants a refund before another attempt')).toBeVisible();
+  expect(recoveryRequests).toEqual([
+    {
+      decision: 'REFUND_OR_CUSTOMER_FOLLOW_UP',
+      note: 'Customer wants a refund before another attempt',
+    },
+  ]);
 });

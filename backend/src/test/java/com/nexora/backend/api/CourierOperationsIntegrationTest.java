@@ -1,11 +1,13 @@
 package com.nexora.backend.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nexora.backend.domain.model.DeliveryFailureRecoveryDecision;
 import com.nexora.backend.domain.model.DeliveryFailureReason;
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
 import com.nexora.backend.domain.repository.DeliveryFailureRepository;
+import com.nexora.backend.domain.repository.DeliveryFailureRecoveryRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,9 @@ class CourierOperationsIntegrationTest {
 
     @Autowired
     private DeliveryFailureRepository deliveryFailureRepository;
+
+    @Autowired
+    private DeliveryFailureRecoveryRepository deliveryFailureRecoveryRepository;
 
     private String jwtToken;
     private String otherTenantJwtToken;
@@ -355,11 +360,49 @@ class CourierOperationsIntegrationTest {
                 .andExpect(jsonPath("$[?(@.type=='DeliveryFailureRecorded')].details.reason").value("CUSTOMER_UNREACHABLE"))
                 .andExpect(jsonPath("$[?(@.type=='DeliveryFailureRecorded')].details.note").value("No answer after two calls"));
 
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/failure-recoveries")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
+                        DeliveryFailureRecoveryDecision.RETRY_DELIVERY,
+                        "Customer asked for retry tomorrow"
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderId").value(orderId))
+                .andExpect(jsonPath("$.decision").value("RETRY_DELIVERY"))
+                .andExpect(jsonPath("$.note").value("Customer asked for retry tomorrow"))
+                .andExpect(jsonPath("$.createdBy").value("courier@example.com"));
+
+        mockMvc.perform(get("/api/courier-operations/orders/" + orderId + "/failure-recoveries")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].orderId").value(orderId))
+                .andExpect(jsonPath("$[0].decision").value("RETRY_DELIVERY"))
+                .andExpect(jsonPath("$[0].note").value("Customer asked for retry tomorrow"));
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/timeline")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(8))
+                .andExpect(jsonPath("$[?(@.type=='DeliveryFailureRecoveryRecorded')].category").value("DELIVERY"))
+                .andExpect(jsonPath("$[?(@.type=='DeliveryFailureRecoveryRecorded')].actor").value("courier@example.com"))
+                .andExpect(jsonPath("$[?(@.type=='DeliveryFailureRecoveryRecorded')].details.decision").value("RETRY_DELIVERY"))
+                .andExpect(jsonPath("$[?(@.type=='DeliveryFailureRecoveryRecorded')].details.note").value("Customer asked for retry tomorrow"));
+
         transactionTemplate.executeWithoutResult(status -> {
             var failure = deliveryFailureRepository.findByOrderIdAndTenantId(UUID.fromString(orderId), getTenantId("courier@example.com"))
                     .orElseThrow();
             org.assertj.core.api.Assertions.assertThat(failure.getReason()).isEqualTo(DeliveryFailureReason.CUSTOMER_UNREACHABLE);
             org.assertj.core.api.Assertions.assertThat(failure.getNote()).isEqualTo("No answer after two calls");
+
+            var recoveries = deliveryFailureRecoveryRepository.findByTenantIdAndOrderIdOrderByCreatedAtAsc(
+                    getTenantId("courier@example.com"),
+                    UUID.fromString(orderId)
+            );
+            org.assertj.core.api.Assertions.assertThat(recoveries).hasSize(1);
+            org.assertj.core.api.Assertions.assertThat(recoveries.get(0).getDecision()).isEqualTo(DeliveryFailureRecoveryDecision.RETRY_DELIVERY);
+            org.assertj.core.api.Assertions.assertThat(recoveries.get(0).getNote()).isEqualTo("Customer asked for retry tomorrow");
         });
     }
 
@@ -387,7 +430,21 @@ class CourierOperationsIntegrationTest {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.title").value("Invalid state transition"));
 
+        mockMvc.perform(post("/api/courier-operations/orders/" + confirmedOrderId + "/failure-recoveries")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
+                        DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP,
+                        "Customer follow-up needed"
+                ))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Invalid state transition"));
+
         mockMvc.perform(post("/api/courier-operations/orders/" + pickedUpOrderId + "/deliver")
+                .header("Authorization", bearer(otherTenantJwtToken)))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/courier-operations/orders/" + pickedUpOrderId + "/failure-recoveries")
                 .header("Authorization", bearer(otherTenantJwtToken)))
                 .andExpect(status().isNotFound());
     }
@@ -430,6 +487,7 @@ class CourierOperationsIntegrationTest {
     }
 
     private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM delivery_failure_recoveries").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();

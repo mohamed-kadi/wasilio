@@ -61,6 +61,8 @@ class OrderProjectionServiceIntegrationTest {
     @BeforeEach
     void setup() {
         transactionTemplate.executeWithoutResult(status -> {
+            entityManager.createNativeQuery("DELETE FROM delivery_failure_recoveries").executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();

@@ -5,7 +5,9 @@ import { AlertCircle, CheckCircle2, Clock, MessageSquare, Package, PhoneCall, Tr
 import {
   assignCourier,
   confirmOrder,
+  type DeliveryFailureRecoveryDecision,
   type DeliveryFailureReason,
+  fetchDeliveryFailureRecoveries,
   fetchCouriers,
   fetchOrder,
   fetchOrderTimeline,
@@ -13,6 +15,7 @@ import {
   markDelivered,
   markFailed,
   markPickedUp,
+  recordDeliveryFailureRecovery,
   rejectOrder,
   requestConfirmation,
 } from '../api/client';
@@ -80,11 +83,27 @@ const failureReasonLabels: Record<string, string> = {
   OTHER: 'Other',
 };
 
+const recoveryDecisionLabels: Record<DeliveryFailureRecoveryDecision, string> = {
+  RETRY_DELIVERY: 'Retry delivery',
+  REFUND_OR_CUSTOMER_FOLLOW_UP: 'Refund / customer follow-up',
+  CLOSE_UNRECOVERABLE: 'Close as unrecoverable',
+};
+
+const recoveryDecisionDescriptions: Record<DeliveryFailureRecoveryDecision, string> = {
+  RETRY_DELIVERY: 'Use when the customer still wants the order and operations should prepare a new delivery attempt.',
+  REFUND_OR_CUSTOMER_FOLLOW_UP: 'Use when the merchant must refund, replace, or contact the customer before any next action.',
+  CLOSE_UNRECOVERABLE: 'Use when the order should stay closed and no further delivery action is expected.',
+};
+
 function formatFailureReason(reason?: string) {
   if (!reason) {
     return undefined;
   }
   return failureReasonLabels[reason] ?? reason.replace(/_/g, ' ').toLowerCase();
+}
+
+function formatRecoveryDecision(decision: DeliveryFailureRecoveryDecision | string) {
+  return recoveryDecisionLabels[decision as DeliveryFailureRecoveryDecision] ?? decision.replace(/_/g, ' ').toLowerCase();
 }
 
 export default function OrderDetails() {
@@ -94,6 +113,8 @@ export default function OrderDetails() {
   const [rejectReason, setRejectReason] = useState('Customer unreachable');
   const [failureReason, setFailureReason] = useState<DeliveryFailureReason>('CUSTOMER_REFUSED');
   const [confirmDeliverOpen, setConfirmDeliverOpen] = useState(false);
+  const [recoveryDecision, setRecoveryDecision] = useState<DeliveryFailureRecoveryDecision>('RETRY_DELIVERY');
+  const [recoveryNote, setRecoveryNote] = useState('');
 
   const {
     data: order,
@@ -118,6 +139,16 @@ export default function OrderDetails() {
   const { data: couriersPage } = useQuery({
     queryKey: ['couriers', { page: 0, size: 100 }],
     queryFn: () => fetchCouriers({ page: 0, size: 100 }),
+  });
+
+  const {
+    data: failureRecoveries = [],
+    error: failureRecoveriesError,
+    isLoading: loadingFailureRecoveries,
+  } = useQuery({
+    queryKey: ['delivery-failure-recoveries', id],
+    queryFn: () => fetchDeliveryFailureRecoveries(id!),
+    enabled: !!id && order?.status === 'FAILED',
   });
 
   const mutation = useMutation({
@@ -146,6 +177,25 @@ export default function OrderDetails() {
     onSuccess: () => {
       setConfirmDeliverOpen(false);
       queryClient.invalidateQueries({ queryKey: ['order', id] });
+      queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
+    },
+  });
+
+  const recoveryMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) {
+        throw new Error('Order ID is missing');
+      }
+      return recordDeliveryFailureRecovery(id, {
+        decision: recoveryDecision,
+        note: recoveryNote.trim() || undefined,
+      });
+    },
+    onSuccess: () => {
+      setRecoveryNote('');
+      queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', id] });
       queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
@@ -201,8 +251,14 @@ export default function OrderDetails() {
   };
 
   const timelineDetails = (details: Record<string, unknown>) =>
-    ['outcome', 'note', 'callbackAt', 'resolvedBy', 'courierId', 'reason', 'aggregateSequence']
-      .map((key) => [key, detailValue(details[key])] as const)
+    ['outcome', 'decision', 'note', 'callbackAt', 'resolvedBy', 'courierId', 'reason', 'aggregateSequence']
+      .map((key) => {
+        const rawValue = details[key];
+        const value = key === 'decision' && typeof rawValue === 'string'
+          ? formatRecoveryDecision(rawValue)
+          : detailValue(rawValue);
+        return [key, value] as const;
+      })
       .filter(([, value]) => value);
 
   return (
@@ -232,7 +288,7 @@ export default function OrderDetails() {
       </section>
 
       {order.status === 'FAILED' && (
-        <section className="rounded-lg border border-red-200 bg-red-50 p-5 text-red-900">
+        <section className="space-y-5 rounded-lg border border-red-200 bg-red-50 p-5 text-red-900">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -261,6 +317,90 @@ export default function OrderDetails() {
               >
                 Review courier performance
               </Link>
+            </div>
+          </div>
+
+          <div className="grid gap-4 border-t border-red-200 pt-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+            <form
+              className="space-y-4"
+              onSubmit={(event) => {
+                event.preventDefault();
+                recoveryMutation.mutate();
+              }}
+            >
+              <div>
+                <label htmlFor="recovery-decision" className="text-sm font-semibold">
+                  Recovery decision
+                </label>
+                <select
+                  id="recovery-decision"
+                  value={recoveryDecision}
+                  onChange={(event) => setRecoveryDecision(event.target.value as DeliveryFailureRecoveryDecision)}
+                  className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                >
+                  {Object.entries(recoveryDecisionLabels).map(([decision, label]) => (
+                    <option key={decision} value={decision}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-red-800">{recoveryDecisionDescriptions[recoveryDecision]}</p>
+              </div>
+
+              <div>
+                <label htmlFor="recovery-note" className="text-sm font-semibold">
+                  Recovery note
+                </label>
+                <textarea
+                  id="recovery-note"
+                  value={recoveryNote}
+                  onChange={(event) => setRecoveryNote(event.target.value)}
+                  maxLength={1000}
+                  rows={3}
+                  className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                  placeholder="Customer asked for retry tomorrow, refund requested, or closure reason"
+                />
+              </div>
+
+              {recoveryMutation.error && (
+                <div className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-red-700">
+                  {getErrorMessage(recoveryMutation.error)}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={recoveryMutation.isPending}
+                className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+              >
+                {recoveryMutation.isPending ? 'Recording...' : 'Record recovery decision'}
+              </button>
+            </form>
+
+            <div className="rounded-md border border-red-200 bg-white p-4">
+              <h4 className="text-sm font-semibold text-gray-900">Recorded recovery decisions</h4>
+              {loadingFailureRecoveries && <p className="mt-3 text-sm text-gray-500">Loading recovery decisions...</p>}
+              {failureRecoveriesError && (
+                <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {getErrorMessage(failureRecoveriesError)}
+                </div>
+              )}
+              {!loadingFailureRecoveries && !failureRecoveriesError && failureRecoveries.length === 0 && (
+                <p className="mt-3 text-sm text-gray-500">No recovery decision recorded yet.</p>
+              )}
+              {failureRecoveries.length > 0 && (
+                <div className="mt-3 space-y-3">
+                  {failureRecoveries.map((recovery) => (
+                    <div key={recovery.recoveryId} className="border-t border-gray-100 pt-3 first:border-t-0 first:pt-0">
+                      <p className="text-sm font-semibold text-gray-900">{formatRecoveryDecision(recovery.decision)}</p>
+                      {recovery.note && <p className="mt-1 text-sm text-gray-600">{recovery.note}</p>}
+                      <p className="mt-1 text-xs text-gray-500">
+                        By {recovery.createdBy} on {new Date(recovery.createdAt).toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </section>

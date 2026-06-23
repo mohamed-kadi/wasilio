@@ -2,6 +2,8 @@ package com.nexora.backend.api;
 
 import com.nexora.backend.application.DeliveryOperationsService;
 import com.nexora.backend.domain.model.DeliveryFailure;
+import com.nexora.backend.domain.model.DeliveryFailureRecovery;
+import com.nexora.backend.domain.model.DeliveryFailureRecoveryDecision;
 import com.nexora.backend.domain.model.DeliveryFailureReason;
 import com.nexora.backend.domain.model.Order;
 import com.nexora.backend.domain.model.OrderStatus;
@@ -41,6 +43,11 @@ public class CourierOperationsController {
 
     public record DeliveryFailureRequest(
             DeliveryFailureReason reason,
+            @Size(max = 1000) String note
+    ) {}
+
+    public record DeliveryFailureRecoveryRequest(
+            DeliveryFailureRecoveryDecision decision,
             @Size(max = 1000) String note
     ) {}
 
@@ -189,6 +196,28 @@ public class CourierOperationsController {
         ));
     }
 
+    @GetMapping("/orders/{orderId}/failure-recoveries")
+    public ResponseEntity<List<DeliveryFailureRecovery>> listFailureRecoveries(@PathVariable UUID orderId) {
+        return ResponseEntity.ok(deliveryOperationsService.listFailureRecoveries(getCurrentTenantId(), orderId));
+    }
+
+    @PostMapping("/orders/{orderId}/failure-recoveries")
+    public ResponseEntity<DeliveryFailureRecovery> recordFailureRecovery(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody DeliveryFailureRecoveryRequest request
+    ) {
+        if (request.decision() == null) {
+            throw new IllegalArgumentException("decision is required");
+        }
+        return ResponseEntity.ok(deliveryOperationsService.recordFailureRecovery(
+                getCurrentTenantId(),
+                orderId,
+                request.decision(),
+                request.note(),
+                getCurrentUserEmail()
+        ));
+    }
+
     @GetMapping("/courier-performance")
     public ResponseEntity<List<CourierPerformanceResponse>> courierPerformance() {
         return ResponseEntity.ok(orderRepository.findCourierPerformance(getCurrentTenantId()).stream()
@@ -216,5 +245,13 @@ public class CourierOperationsController {
             throw new IllegalStateException("Authenticated user missing in security context");
         }
         return UUID.fromString(userDetails.getTenantId());
+    }
+
+    private String getCurrentUserEmail() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomUserDetails userDetails)) {
+            throw new IllegalStateException("Authenticated user missing in security context");
+        }
+        return userDetails.getUsername();
     }
 }

@@ -139,6 +139,26 @@ export interface DeliveryFailure {
   createdAt: string;
 }
 
+export type DeliveryFailureRecoveryDecision =
+  | 'RETRY_DELIVERY'
+  | 'REFUND_OR_CUSTOMER_FOLLOW_UP'
+  | 'CLOSE_UNRECOVERABLE';
+
+export interface DeliveryFailureRecovery {
+  recoveryId: string;
+  tenantId: string;
+  orderId: string;
+  decision: DeliveryFailureRecoveryDecision;
+  note?: string;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface DeliveryFailureRecoveryPayload {
+  decision: DeliveryFailureRecoveryDecision;
+  note?: string;
+}
+
 export interface CourierPerformance {
   courierId: string;
   courierName: string;
@@ -814,6 +834,20 @@ export async function markFailed(orderId: string, reason: DeliveryFailureReason,
   return apiRequest<DeliveryFailure>(`/courier-operations/orders/${orderId}/fail`, {
     method: 'POST',
     body: JSON.stringify({ reason, note }),
+  });
+}
+
+export async function fetchDeliveryFailureRecoveries(orderId: string): Promise<DeliveryFailureRecovery[]> {
+  return apiRequest<DeliveryFailureRecovery[]>(`/courier-operations/orders/${orderId}/failure-recoveries`);
+}
+
+export async function recordDeliveryFailureRecovery(
+  orderId: string,
+  payload: DeliveryFailureRecoveryPayload,
+): Promise<DeliveryFailureRecovery> {
+  return apiRequest<DeliveryFailureRecovery>(`/courier-operations/orders/${orderId}/failure-recoveries`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   });
 }
 
