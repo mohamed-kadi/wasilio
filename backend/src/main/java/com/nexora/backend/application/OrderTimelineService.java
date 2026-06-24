@@ -7,9 +7,11 @@ import com.nexora.backend.domain.model.ConfirmationAttempt;
 import com.nexora.backend.domain.model.ConfirmationOutcome;
 import com.nexora.backend.domain.model.DeliveryFailure;
 import com.nexora.backend.domain.model.DeliveryFailureRecovery;
+import com.nexora.backend.domain.model.DeliveryFollowUpTask;
 import com.nexora.backend.domain.repository.ConfirmationAttemptRepository;
 import com.nexora.backend.domain.repository.DeliveryFailureRepository;
 import com.nexora.backend.domain.repository.DeliveryFailureRecoveryRepository;
+import com.nexora.backend.domain.repository.DeliveryFollowUpTaskRepository;
 import com.nexora.backend.domain.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ public class OrderTimelineService {
     private final ConfirmationAttemptRepository confirmationAttemptRepository;
     private final DeliveryFailureRepository deliveryFailureRepository;
     private final DeliveryFailureRecoveryRepository deliveryFailureRecoveryRepository;
+    private final DeliveryFollowUpTaskRepository deliveryFollowUpTaskRepository;
 
     @Transactional(readOnly = true)
     public List<OrderTimelineItem> getTimeline(UUID tenantId, UUID orderId) {
@@ -47,6 +50,8 @@ public class OrderTimelineService {
                 .forEach(failure -> items.add(fromDeliveryFailure(failure)));
         deliveryFailureRecoveryRepository.findByTenantIdAndOrderIdOrderByCreatedAtAsc(tenantId, orderId)
                 .forEach(recovery -> items.add(fromDeliveryFailureRecovery(recovery)));
+        deliveryFollowUpTaskRepository.findByTenantIdAndOrderIdOrderByCreatedAtAsc(tenantId, orderId)
+                .forEach(task -> addDeliveryFollowUpItems(items, task));
 
         return items.stream()
                 .sorted(Comparator
@@ -153,6 +158,50 @@ public class OrderTimelineService {
                 details,
                 7_500
         );
+    }
+
+    private void addDeliveryFollowUpItems(List<OrderTimelineItem> items, DeliveryFollowUpTask task) {
+        Map<String, Object> openedDetails = new LinkedHashMap<>();
+        openedDetails.put("status", "OPEN");
+        openedDetails.put("note", task.getNote());
+        openedDetails.put("dueAt", task.getDueAt());
+        openedDetails.put("assignedTo", task.getAssignedTo());
+        openedDetails.put("recoveryId", task.getRecoveryId());
+
+        items.add(new OrderTimelineItem(
+                task.getTaskId().toString(),
+                TimelineSource.OPERATIONAL_RECORD,
+                TimelineCategory.DELIVERY,
+                "DeliveryFollowUpOpened",
+                "Delivery follow-up opened",
+                task.getCreatedAt(),
+                task.getAssignedTo(),
+                openedDetails,
+                7_600
+        ));
+
+        if (task.getResolvedAt() == null) {
+            return;
+        }
+
+        Map<String, Object> resolvedDetails = new LinkedHashMap<>();
+        resolvedDetails.put("status", task.getStatus());
+        resolvedDetails.put("resolutionNote", task.getResolutionNote());
+        resolvedDetails.put("dueAt", task.getDueAt());
+        resolvedDetails.put("assignedTo", task.getAssignedTo());
+        resolvedDetails.put("recoveryId", task.getRecoveryId());
+
+        items.add(new OrderTimelineItem(
+                task.getTaskId() + ":resolved",
+                TimelineSource.OPERATIONAL_RECORD,
+                TimelineCategory.DELIVERY,
+                "DeliveryFollowUpResolved",
+                "Delivery follow-up resolved",
+                task.getResolvedAt(),
+                task.getResolvedBy(),
+                resolvedDetails,
+                7_700
+        ));
     }
 
     private TimelineCategory categoryForEvent(String eventType) {

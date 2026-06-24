@@ -151,6 +151,8 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   let currentOrder = { ...failedOrder };
   const recoveryRecords: Array<Record<string, unknown>> = [];
   const recoveryRequests: Array<Record<string, unknown>> = [];
+  const followUpRecords: Array<Record<string, unknown>> = [];
+  const followUpResolveRequests: Array<Record<string, unknown>> = [];
   let retryRequests = 0;
   const token = fakeJwt({
     email: 'admin@example.com',
@@ -242,8 +244,9 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON() as Record<string, unknown>;
       recoveryRequests.push(body);
+      const recoveryId = `recovery-${recoveryRecords.length + 1}`;
       const recovery = {
-        recoveryId: `recovery-${recoveryRecords.length + 1}`,
+        recoveryId,
         tenantId: failedOrder.tenantId,
         orderId: failedOrder.id,
         decision: body.decision,
@@ -252,6 +255,19 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
         createdAt: '2026-06-21T12:30:00Z',
       };
       recoveryRecords.push(recovery);
+      if (body.decision === 'REFUND_OR_CUSTOMER_FOLLOW_UP') {
+        followUpRecords.push({
+          taskId: `follow-up-${followUpRecords.length + 1}`,
+          tenantId: failedOrder.tenantId,
+          orderId: failedOrder.id,
+          recoveryId,
+          status: 'OPEN',
+          note: body.note,
+          dueAt: body.followUpDueAt,
+          assignedTo: 'admin@example.com',
+          createdAt: '2026-06-21T12:30:00Z',
+        });
+      }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -264,6 +280,32 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(recoveryRecords),
+    });
+  });
+
+  await page.route('**/api/courier-operations/orders/11111111-1111-1111-1111-111111111111/follow-ups', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(followUpRecords),
+    });
+  });
+
+  await page.route('**/api/courier-operations/orders/11111111-1111-1111-1111-111111111111/follow-ups/*/resolve', async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    followUpResolveRequests.push(body);
+    const taskId = route.request().url().split('/follow-ups/')[1].split('/resolve')[0];
+    const task = followUpRecords.find((record) => record.taskId === taskId);
+    if (task) {
+      task.status = 'RESOLVED';
+      task.resolvedBy = 'admin@example.com';
+      task.resolvedAt = '2026-06-21T12:45:00Z';
+      task.resolutionNote = body.note;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(task),
     });
   });
 
@@ -293,10 +335,13 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
 
   await page.getByLabel('Recovery decision for order 11111111').selectOption('REFUND_OR_CUSTOMER_FOLLOW_UP');
   await page.getByLabel('Recovery note for order 11111111').fill('Customer wants a refund before another attempt');
+  await page.getByLabel('Follow-up due date for order 11111111').fill('2026-06-22');
   await page.getByRole('button', { name: 'Record decision' }).click();
 
   await expect(page.locator('p').filter({ hasText: /^Refund \/ customer follow-up$/ })).toBeVisible();
-  await expect(page.getByText('Customer wants a refund before another attempt')).toBeVisible();
+  await expect(page.getByText('Customer wants a refund before another attempt').first()).toBeVisible();
+  await expect(page.getByText('Open follow-up')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Mark follow-up resolved' })).toBeVisible();
   await page.getByRole('link', { name: 'Open detail' }).click();
 
   await expect(page).toHaveURL(/\/app\/orders\/11111111-1111-1111-1111-111111111111$/);
@@ -306,7 +351,13 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   await expect(page.getByRole('link', { name: 'Back to failed deliveries' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Review courier performance' })).toBeVisible();
   await expect(page.getByText('Refund / customer follow-up').last()).toBeVisible();
-  await expect(page.getByText('Customer wants a refund before another attempt')).toBeVisible();
+  await expect(page.getByText('Customer wants a refund before another attempt').first()).toBeVisible();
+  await expect(page.getByText('Customer follow-up tasks')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Resolve follow-up' })).toBeVisible();
+  await page.getByPlaceholder('Optional resolution note').fill('Refund request sent to merchant');
+  await page.getByRole('button', { name: 'Resolve follow-up' }).click();
+  await expect(page.getByText('Resolved follow-up')).toBeVisible();
+  await expect(page.getByText('Refund request sent to merchant')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Move back to assignment queue' })).toBeDisabled();
 
   await page.getByLabel('Recovery decision').selectOption('RETRY_DELIVERY');
@@ -324,10 +375,16 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
     {
       decision: 'REFUND_OR_CUSTOMER_FOLLOW_UP',
       note: 'Customer wants a refund before another attempt',
+      followUpDueAt: '2026-06-22T23:59:59Z',
     },
     {
       decision: 'RETRY_DELIVERY',
       note: 'Customer confirmed retry for tomorrow',
+    },
+  ]);
+  expect(followUpResolveRequests).toEqual([
+    {
+      note: 'Refund request sent to merchant',
     },
   ]);
 });

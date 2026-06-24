@@ -6,6 +6,7 @@ import com.nexora.backend.domain.model.DeliveryFailure;
 import com.nexora.backend.domain.model.DeliveryFailureRecovery;
 import com.nexora.backend.domain.model.DeliveryFailureRecoveryDecision;
 import com.nexora.backend.domain.model.DeliveryFailureReason;
+import com.nexora.backend.domain.model.DeliveryFollowUpTask;
 import com.nexora.backend.domain.model.Order;
 import com.nexora.backend.domain.model.OrderStatus;
 import com.nexora.backend.domain.repository.OrderRepository;
@@ -50,6 +51,11 @@ public class CourierOperationsController {
 
     public record DeliveryFailureRecoveryRequest(
             DeliveryFailureRecoveryDecision decision,
+            @Size(max = 1000) String note,
+            Instant followUpDueAt
+    ) {}
+
+    public record DeliveryFollowUpResolutionRequest(
             @Size(max = 1000) String note
     ) {}
 
@@ -216,6 +222,27 @@ public class CourierOperationsController {
                 orderId,
                 request.decision(),
                 request.note(),
+                request.followUpDueAt(),
+                getCurrentUserEmail()
+        ));
+    }
+
+    @GetMapping("/orders/{orderId}/follow-ups")
+    public ResponseEntity<List<DeliveryFollowUpTask>> listFollowUpTasks(@PathVariable UUID orderId) {
+        return ResponseEntity.ok(deliveryOperationsService.listFollowUpTasks(getCurrentTenantId(), orderId));
+    }
+
+    @PostMapping("/orders/{orderId}/follow-ups/{taskId}/resolve")
+    public ResponseEntity<DeliveryFollowUpTask> resolveFollowUpTask(
+            @PathVariable UUID orderId,
+            @PathVariable UUID taskId,
+            @Valid @RequestBody(required = false) DeliveryFollowUpResolutionRequest request
+    ) {
+        return ResponseEntity.ok(deliveryOperationsService.resolveFollowUpTask(
+                getCurrentTenantId(),
+                orderId,
+                taskId,
+                request == null ? null : request.note(),
                 getCurrentUserEmail()
         ));
     }

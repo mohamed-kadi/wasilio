@@ -219,6 +219,7 @@ class AdminBillingIntegrationTest {
         entityManager.createNativeQuery("DELETE FROM tenant_payments").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM tenant_subscriptions").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM subscription_plans").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM delivery_follow_up_tasks").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM delivery_failure_recoveries").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();

@@ -3,11 +3,13 @@ package com.nexora.backend.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.domain.model.DeliveryFailureRecoveryDecision;
 import com.nexora.backend.domain.model.DeliveryFailureReason;
+import com.nexora.backend.domain.model.DeliveryFollowUpStatus;
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
 import com.nexora.backend.domain.repository.DeliveryFailureRepository;
 import com.nexora.backend.domain.repository.DeliveryFailureRecoveryRepository;
+import com.nexora.backend.domain.repository.DeliveryFollowUpTaskRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,6 +60,9 @@ class CourierOperationsIntegrationTest {
 
     @Autowired
     private DeliveryFailureRecoveryRepository deliveryFailureRecoveryRepository;
+
+    @Autowired
+    private DeliveryFollowUpTaskRepository deliveryFollowUpTaskRepository;
 
     private String jwtToken;
     private String otherTenantJwtToken;
@@ -365,7 +370,8 @@ class CourierOperationsIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
                         DeliveryFailureRecoveryDecision.RETRY_DELIVERY,
-                        "Customer asked for retry tomorrow"
+                        "Customer asked for retry tomorrow",
+                        null
                 ))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderId").value(orderId))
@@ -467,7 +473,8 @@ class CourierOperationsIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
                         DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP,
-                        "Customer follow-up needed"
+                        "Customer follow-up needed",
+                        null
                 ))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.title").value("Invalid state transition"));
@@ -486,7 +493,8 @@ class CourierOperationsIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
                         DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP,
-                        "Customer follow-up needed"
+                        "Customer follow-up needed",
+                        null
                 ))))
                 .andExpect(status().isOk());
 
@@ -502,6 +510,75 @@ class CourierOperationsIntegrationTest {
         mockMvc.perform(get("/api/courier-operations/orders/" + pickedUpOrderId + "/failure-recoveries")
                 .header("Authorization", bearer(otherTenantJwtToken)))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void customerFollowUpRecoveryCreatesAndResolvesTask() throws Exception {
+        String courierId = createCourier(jwtToken, "Follow Up Courier", "0611111111");
+        String orderId = createPickedUpOrder(jwtToken, "FollowUp", courierId);
+        Instant dueAt = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/fail")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRequest(
+                        DeliveryFailureReason.CUSTOMER_REFUSED,
+                        "Customer refused at delivery"
+                ))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/failure-recoveries")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
+                        DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP,
+                        "Merchant must call customer about refund",
+                        dueAt
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decision").value("REFUND_OR_CUSTOMER_FOLLOW_UP"));
+
+        MvcResult followUpsResult = mockMvc.perform(get("/api/courier-operations/orders/" + orderId + "/follow-ups")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].orderId").value(orderId))
+                .andExpect(jsonPath("$[0].status").value("OPEN"))
+                .andExpect(jsonPath("$[0].note").value("Merchant must call customer about refund"))
+                .andExpect(jsonPath("$[0].dueAt").value(dueAt.toString()))
+                .andExpect(jsonPath("$[0].assignedTo").value("courier@example.com"))
+                .andReturn();
+
+        String taskId = objectMapper.readTree(followUpsResult.getResponse().getContentAsString()).get(0).get("taskId").asText();
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/follow-ups/" + taskId + "/resolve")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFollowUpResolutionRequest(
+                        "Refund request sent to merchant"
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("RESOLVED"))
+                .andExpect(jsonPath("$.resolvedBy").value("courier@example.com"))
+                .andExpect(jsonPath("$.resolutionNote").value("Refund request sent to merchant"));
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/timeline")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.type=='DeliveryFollowUpOpened')].details.status").value("OPEN"))
+                .andExpect(jsonPath("$[?(@.type=='DeliveryFollowUpResolved')].details.status").value("RESOLVED"))
+                .andExpect(jsonPath("$[?(@.type=='DeliveryFollowUpResolved')].actor").value("courier@example.com"));
+
+        transactionTemplate.executeWithoutResult(status -> {
+            var tasks = deliveryFollowUpTaskRepository.findByTenantIdAndOrderIdOrderByCreatedAtAsc(
+                    getTenantId("courier@example.com"),
+                    UUID.fromString(orderId)
+            );
+            org.assertj.core.api.Assertions.assertThat(tasks).hasSize(1);
+            org.assertj.core.api.Assertions.assertThat(tasks.get(0).getStatus()).isEqualTo(DeliveryFollowUpStatus.RESOLVED);
+            org.assertj.core.api.Assertions.assertThat(tasks.get(0).getDueAt()).isEqualTo(dueAt);
+            org.assertj.core.api.Assertions.assertThat(tasks.get(0).getResolutionNote()).isEqualTo("Refund request sent to merchant");
+        });
     }
 
     @Test
@@ -532,7 +609,8 @@ class CourierOperationsIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
                         DeliveryFailureRecoveryDecision.RETRY_DELIVERY,
-                        "Retry after address correction"
+                        "Retry after address correction",
+                        null
                 ))))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/courier-operations/orders/" + failedOrderId + "/retry-delivery")
@@ -560,6 +638,7 @@ class CourierOperationsIntegrationTest {
     }
 
     private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM delivery_follow_up_tasks").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM delivery_failure_recoveries").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();

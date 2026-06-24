@@ -157,6 +157,28 @@ export interface DeliveryFailureRecovery {
 export interface DeliveryFailureRecoveryPayload {
   decision: DeliveryFailureRecoveryDecision;
   note?: string;
+  followUpDueAt?: string;
+}
+
+export type DeliveryFollowUpStatus = 'OPEN' | 'RESOLVED';
+
+export interface DeliveryFollowUpTask {
+  taskId: string;
+  tenantId: string;
+  orderId: string;
+  recoveryId: string;
+  status: DeliveryFollowUpStatus;
+  note?: string;
+  dueAt?: string;
+  assignedTo: string;
+  createdAt: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  resolutionNote?: string;
+}
+
+export interface DeliveryFollowUpResolutionPayload {
+  note?: string;
 }
 
 export interface CourierPerformance {
@@ -841,11 +863,26 @@ export async function fetchDeliveryFailureRecoveries(orderId: string): Promise<D
   return apiRequest<DeliveryFailureRecovery[]>(`/courier-operations/orders/${orderId}/failure-recoveries`);
 }
 
+export async function fetchDeliveryFollowUps(orderId: string): Promise<DeliveryFollowUpTask[]> {
+  return apiRequest<DeliveryFollowUpTask[]>(`/courier-operations/orders/${orderId}/follow-ups`);
+}
+
 export async function recordDeliveryFailureRecovery(
   orderId: string,
   payload: DeliveryFailureRecoveryPayload,
 ): Promise<DeliveryFailureRecovery> {
   return apiRequest<DeliveryFailureRecovery>(`/courier-operations/orders/${orderId}/failure-recoveries`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function resolveDeliveryFollowUp(
+  orderId: string,
+  taskId: string,
+  payload: DeliveryFollowUpResolutionPayload = {},
+): Promise<DeliveryFollowUpTask> {
+  return apiRequest<DeliveryFollowUpTask>(`/courier-operations/orders/${orderId}/follow-ups/${taskId}/resolve`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });

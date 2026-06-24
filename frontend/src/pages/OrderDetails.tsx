@@ -7,7 +7,9 @@ import {
   confirmOrder,
   type DeliveryFailureRecoveryDecision,
   type DeliveryFailureReason,
+  type DeliveryFollowUpTask,
   fetchDeliveryFailureRecoveries,
+  fetchDeliveryFollowUps,
   fetchCouriers,
   fetchOrder,
   fetchOrderTimeline,
@@ -18,6 +20,7 @@ import {
   recordDeliveryFailureRecovery,
   rejectOrder,
   requestConfirmation,
+  resolveDeliveryFollowUp,
   retryFailedDelivery,
 } from '../api/client';
 import type { Order, OrderStatus } from '../api/client';
@@ -107,6 +110,15 @@ function formatRecoveryDecision(decision: DeliveryFailureRecoveryDecision | stri
   return recoveryDecisionLabels[decision as DeliveryFailureRecoveryDecision] ?? decision.replace(/_/g, ' ').toLowerCase();
 }
 
+function toInstantFromDate(date: string, endOfDay = false) {
+  if (!date) return undefined;
+  return `${date}T${endOfDay ? '23:59:59' : '00:00:00'}Z`;
+}
+
+function formatFollowUpDate(value?: string) {
+  return value ? new Date(value).toLocaleString() : 'No due date';
+}
+
 export default function OrderDetails() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -116,6 +128,8 @@ export default function OrderDetails() {
   const [confirmDeliverOpen, setConfirmDeliverOpen] = useState(false);
   const [recoveryDecision, setRecoveryDecision] = useState<DeliveryFailureRecoveryDecision>('RETRY_DELIVERY');
   const [recoveryNote, setRecoveryNote] = useState('');
+  const [followUpDueDate, setFollowUpDueDate] = useState('');
+  const [followUpResolutionNotes, setFollowUpResolutionNotes] = useState<Record<string, string>>({});
 
   const {
     data: order,
@@ -149,6 +163,16 @@ export default function OrderDetails() {
   } = useQuery({
     queryKey: ['delivery-failure-recoveries', id],
     queryFn: () => fetchDeliveryFailureRecoveries(id!),
+    enabled: !!id && order?.status === 'FAILED',
+  });
+
+  const {
+    data: followUpTasks = [],
+    error: followUpTasksError,
+    isLoading: loadingFollowUpTasks,
+  } = useQuery({
+    queryKey: ['delivery-follow-ups', id],
+    queryFn: () => fetchDeliveryFollowUps(id!),
     enabled: !!id && order?.status === 'FAILED',
   });
 
@@ -192,11 +216,38 @@ export default function OrderDetails() {
       return recordDeliveryFailureRecovery(id, {
         decision: recoveryDecision,
         note: recoveryNote.trim() || undefined,
+        followUpDueAt: recoveryDecision === 'REFUND_OR_CUSTOMER_FOLLOW_UP'
+          ? toInstantFromDate(followUpDueDate, true)
+          : undefined,
       });
     },
     onSuccess: () => {
       setRecoveryNote('');
+      setFollowUpDueDate('');
       queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', id] });
+      queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', id] });
+      queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
+    },
+  });
+
+  const resolveFollowUpMutation = useMutation({
+    mutationFn: async ({ taskId, note }: { taskId: string; note: string }) => {
+      if (!id) {
+        throw new Error('Order ID is missing');
+      }
+      return resolveDeliveryFollowUp(id, taskId, {
+        note: note.trim() || undefined,
+      });
+    },
+    onSuccess: (_task, variables) => {
+      setFollowUpResolutionNotes((currentNotes) => {
+        const nextNotes = { ...currentNotes };
+        delete nextNotes[variables.taskId];
+        return nextNotes;
+      });
+      queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', id] });
       queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
@@ -256,6 +307,7 @@ export default function OrderDetails() {
   const latestFailureRecovery = failureRecoveries.length > 0
     ? failureRecoveries[failureRecoveries.length - 1]
     : undefined;
+  const openFollowUpTasks = followUpTasks.filter((task) => task.status === 'OPEN');
   const canMoveBackToAssignment = latestFailureRecovery?.decision === 'RETRY_DELIVERY';
 
   const TimelineIcon = ({ type, category }: { type: string; category: string }) => {
@@ -265,6 +317,7 @@ export default function OrderDetails() {
     if (type.includes('Confirmed')) return <CheckCircle2 className="w-5 h-5 text-indigo-500" />;
     if (type.includes('Assigned') || type.includes('PickedUp')) return <Truck className="w-5 h-5 text-yellow-500" />;
     if (type.includes('Delivered')) return <CheckCircle2 className="w-5 h-5 text-green-500" />;
+    if (type.includes('FollowUp')) return <PhoneCall className="w-5 h-5 text-amber-500" />;
     if (type.includes('Failed') || type.includes('Rejected') || type.includes('Failure')) return <XCircle className="w-5 h-5 text-red-500" />;
     return <Clock className="w-5 h-5 text-gray-400" />;
   };
@@ -280,7 +333,7 @@ export default function OrderDetails() {
   };
 
   const timelineDetails = (details: Record<string, unknown>) =>
-    ['outcome', 'decision', 'note', 'callbackAt', 'resolvedBy', 'courierId', 'reason', 'aggregateSequence']
+    ['outcome', 'decision', 'status', 'note', 'callbackAt', 'dueAt', 'assignedTo', 'resolvedBy', 'resolvedAt', 'resolutionNote', 'courierId', 'reason', 'recoveryId', 'aggregateSequence']
       .map((key) => {
         const rawValue = details[key];
         const value = key === 'decision' && typeof rawValue === 'string'
@@ -391,9 +444,30 @@ export default function OrderDetails() {
                 />
               </div>
 
+              {recoveryDecision === 'REFUND_OR_CUSTOMER_FOLLOW_UP' && (
+                <div>
+                  <label htmlFor="follow-up-due-date" className="text-sm font-semibold">
+                    Follow-up due date
+                  </label>
+                  <input
+                    id="follow-up-due-date"
+                    type="date"
+                    value={followUpDueDate}
+                    onChange={(event) => setFollowUpDueDate(event.target.value)}
+                    className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                  />
+                  <p className="mt-1 text-xs text-red-800">Assigns an open follow-up task to the current user.</p>
+                </div>
+              )}
+
               {recoveryMutation.error && (
                 <div className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-red-700">
                   {getErrorMessage(recoveryMutation.error)}
+                </div>
+              )}
+              {resolveFollowUpMutation.error && (
+                <div className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-red-700">
+                  {getErrorMessage(resolveFollowUpMutation.error)}
                 </div>
               )}
 
@@ -430,6 +504,83 @@ export default function OrderDetails() {
                   ))}
                 </div>
               )}
+              <div className="mt-4 border-t border-red-100 pt-4">
+                <h4 className="text-sm font-semibold text-gray-900">Customer follow-up tasks</h4>
+                {loadingFollowUpTasks && <p className="mt-3 text-sm text-gray-500">Loading follow-up tasks...</p>}
+                {followUpTasksError && (
+                  <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {getErrorMessage(followUpTasksError)}
+                  </div>
+                )}
+                {!loadingFollowUpTasks && !followUpTasksError && followUpTasks.length === 0 && (
+                  <p className="mt-3 text-sm text-gray-500">No customer follow-up task is open for this failure.</p>
+                )}
+                {followUpTasks.length > 0 && (
+                  <div className="mt-3 space-y-3">
+                    {followUpTasks.map((task: DeliveryFollowUpTask) => {
+                      const isResolvingTask = resolveFollowUpMutation.isPending
+                        && resolveFollowUpMutation.variables?.taskId === task.taskId;
+                      return (
+                        <div key={task.taskId} className="border-t border-gray-100 pt-3 first:border-t-0 first:pt-0">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-gray-900">
+                              {task.status === 'OPEN' ? 'Open follow-up' : 'Resolved follow-up'}
+                            </p>
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              task.status === 'OPEN'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-emerald-100 text-emerald-800'
+                            }`}>
+                              {task.status}
+                            </span>
+                          </div>
+                          {task.note && <p className="mt-1 text-sm text-gray-600">{task.note}</p>}
+                          <p className="mt-1 text-xs text-gray-500">Owner: {task.assignedTo}</p>
+                          <p className="mt-1 text-xs text-gray-500">Due: {formatFollowUpDate(task.dueAt)}</p>
+                          {task.resolvedAt && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              Resolved by {task.resolvedBy ?? 'unknown'} on {new Date(task.resolvedAt).toLocaleString()}
+                            </p>
+                          )}
+                          {task.resolutionNote && <p className="mt-1 text-xs text-gray-600">{task.resolutionNote}</p>}
+                          {task.status === 'OPEN' && (
+                            <div className="mt-3 space-y-2">
+                              <textarea
+                                value={followUpResolutionNotes[task.taskId] ?? ''}
+                                onChange={(event) => setFollowUpResolutionNotes((currentNotes) => ({
+                                  ...currentNotes,
+                                  [task.taskId]: event.target.value,
+                                }))}
+                                maxLength={1000}
+                                rows={2}
+                                aria-label={`Resolution note for follow-up ${task.taskId.slice(0, 8)}`}
+                                placeholder="Optional resolution note"
+                                className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                              />
+                              <button
+                                type="button"
+                                disabled={isResolvingTask}
+                                onClick={() => resolveFollowUpMutation.mutate({
+                                  taskId: task.taskId,
+                                  note: followUpResolutionNotes[task.taskId] ?? '',
+                                })}
+                                className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                              >
+                                {isResolvingTask ? 'Resolving...' : 'Resolve follow-up'}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {openFollowUpTasks.length > 0 && (
+                  <p className="mt-3 text-xs text-gray-500">
+                    Resolve the customer follow-up when the refund, replacement, or customer contact is complete.
+                  </p>
+                )}
+              </div>
               <div className="mt-4 border-t border-red-100 pt-4">
                 <p className="text-sm font-semibold text-gray-900">Retry execution</p>
                 <p className="mt-1 text-sm text-gray-600">

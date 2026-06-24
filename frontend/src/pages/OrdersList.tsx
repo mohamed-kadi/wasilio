@@ -5,18 +5,21 @@ import { AlertCircle, Bookmark, ChevronLeft, ChevronRight, PlusCircle, Save, Tra
 import {
   createOrderSearchSavedView,
   deleteOrderSearchSavedView,
+  fetchDeliveryFollowUps,
   fetchCouriers,
   fetchDeliveryFailureRecoveries,
   fetchOrders,
   fetchOrderSearchSavedViews,
   getErrorMessage,
   recordDeliveryFailureRecovery,
+  resolveDeliveryFollowUp,
   retryFailedDelivery,
   updateOrderSearchSavedView,
 } from '../api/client';
 import type {
   DeliveryFailureRecovery,
   DeliveryFailureRecoveryDecision,
+  DeliveryFollowUpTask,
   Order,
   OrderSearchSavedView,
   OrderStatus,
@@ -116,6 +119,7 @@ interface OrdersLocationState {
 interface QuickRecoveryForm {
   decision: DeliveryFailureRecoveryDecision;
   note: string;
+  followUpDueDate: string;
 }
 
 const emptyFilters: OrderFilters = {
@@ -131,6 +135,7 @@ const emptyFilters: OrderFilters = {
 const emptyQuickRecoveryForm: QuickRecoveryForm = {
   decision: 'RETRY_DELIVERY',
   note: '',
+  followUpDueDate: '',
 };
 
 function filtersToSavedPayload(filters: OrderFilters): Record<string, string> {
@@ -188,6 +193,10 @@ function latestRecovery(recoveries: DeliveryFailureRecovery[]) {
 
 function formatRecoveryDecision(decision: DeliveryFailureRecoveryDecision | string) {
   return recoveryDecisionLabels[decision as DeliveryFailureRecoveryDecision] ?? decision.replace(/_/g, ' ').toLowerCase();
+}
+
+function formatFollowUpDate(value?: string) {
+  return value ? new Date(value).toLocaleString() : 'No due date';
 }
 
 export default function OrdersList() {
@@ -294,6 +303,21 @@ export default function OrdersList() {
       .map((order, index) => [order.id, failureRecoveryQueries[index]?.error] as const)
       .filter(([, queryError]) => queryError),
   );
+  const followUpQueries = useQueries({
+    queries: visibleFailedOrders.map((order) => ({
+      queryKey: ['delivery-follow-ups', order.id],
+      queryFn: () => fetchDeliveryFollowUps(order.id),
+      enabled: order.status === 'FAILED',
+    })),
+  });
+  const followUpsByOrderId = new Map<string, DeliveryFollowUpTask[]>(
+    visibleFailedOrders.map((order, index) => [order.id, followUpQueries[index]?.data ?? []]),
+  );
+  const followUpQueryErrorsByOrderId = new Map<string, unknown>(
+    visibleFailedOrders
+      .map((order, index) => [order.id, followUpQueries[index]?.error] as const)
+      .filter(([, queryError]) => queryError),
+  );
   const visibleJourneyCounts = {
     confirm: countByStatus(orders, 'CREATED') + countByStatus(orders, 'CONFIRMATION_REQUESTED'),
     courier:
@@ -303,20 +327,47 @@ export default function OrdersList() {
   };
 
   const quickRecoveryMutation = useMutation({
-    mutationFn: ({ orderId, decision, note }: { orderId: string; decision: DeliveryFailureRecoveryDecision; note: string }) =>
-      recordDeliveryFailureRecovery(orderId, {
+    mutationFn: ({
+      orderId,
+      decision,
+      note,
+      followUpDueDate,
+    }: {
+      orderId: string;
+      decision: DeliveryFailureRecoveryDecision;
+      note: string;
+      followUpDueDate: string;
+    }) => {
+      const followUpDueAt = decision === 'REFUND_OR_CUSTOMER_FOLLOW_UP'
+        ? toInstantFromDate(followUpDueDate, true)
+        : undefined;
+      return recordDeliveryFailureRecovery(orderId, {
         decision,
         note: note.trim() || undefined,
-      }),
+        followUpDueAt,
+      });
+    },
     onSuccess: async (recovery, variables) => {
       setQuickRecoveryForms((currentForms) => ({
         ...currentForms,
         [variables.orderId]: {
           decision: recovery.decision,
           note: '',
+          followUpDueDate: '',
         },
       }));
       await queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', variables.orderId] });
+      await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', variables.orderId] });
+      await queryClient.invalidateQueries({ queryKey: ['orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
+    },
+  });
+
+  const quickResolveFollowUpMutation = useMutation({
+    mutationFn: ({ orderId, taskId }: { orderId: string; taskId: string }) => resolveDeliveryFollowUp(orderId, taskId),
+    onSuccess: async (_task, variables) => {
+      await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', variables.orderId] });
+      await queryClient.invalidateQueries({ queryKey: ['order-timeline', variables.orderId] });
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
       await queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
     },
@@ -400,6 +451,7 @@ export default function OrdersList() {
       orderId,
       decision: form.decision,
       note: form.note,
+      followUpDueDate: form.followUpDueDate,
     });
   }
 
@@ -667,9 +719,9 @@ export default function OrdersList() {
           )}
         </div>
       )}
-      {(quickRecoveryMutation.error || quickRetryMutation.error) && (
+      {(quickRecoveryMutation.error || quickRetryMutation.error || quickResolveFollowUpMutation.error) && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {getErrorMessage(quickRecoveryMutation.error ?? quickRetryMutation.error)}
+          {getErrorMessage(quickRecoveryMutation.error ?? quickRetryMutation.error ?? quickResolveFollowUpMutation.error)}
         </div>
       )}
 
@@ -693,11 +745,17 @@ export default function OrdersList() {
                 const failureReason = formatFailureReason(order.failureReason);
                 const recoveries = recoveriesByOrderId.get(order.id) ?? [];
                 const latestFailureRecovery = latestRecovery(recoveries);
+                const followUps = followUpsByOrderId.get(order.id) ?? [];
+                const openFollowUp = followUps.find((followUp) => followUp.status === 'OPEN');
+                const latestFollowUp = followUps.length > 0 ? followUps[followUps.length - 1] : undefined;
                 const recoveryForm = getQuickRecoveryForm(order.id);
                 const recoveryQueryError = recoveryQueryErrorsByOrderId.get(order.id);
+                const followUpQueryError = followUpQueryErrorsByOrderId.get(order.id);
                 const canMoveToAssignment = latestFailureRecovery?.decision === 'RETRY_DELIVERY';
                 const isRecordingThisOrder = quickRecoveryMutation.isPending
                   && quickRecoveryMutation.variables?.orderId === order.id;
+                const isResolvingThisOrder = quickResolveFollowUpMutation.isPending
+                  && quickResolveFollowUpMutation.variables?.orderId === order.id;
                 const isRetryingThisOrder = quickRetryMutation.isPending
                   && quickRetryMutation.variables === order.id;
 
@@ -745,6 +803,21 @@ export default function OrdersList() {
                                 {latestFailureRecovery.note && (
                                   <p className="mt-1 text-xs text-gray-600">{latestFailureRecovery.note}</p>
                                 )}
+                                {followUpQueryError && (
+                                  <p className="mt-2 text-xs text-red-700">{getErrorMessage(followUpQueryError)}</p>
+                                )}
+                                {openFollowUp && (
+                                  <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-xs text-amber-900">
+                                    <p className="font-semibold">Open follow-up</p>
+                                    <p>Owner: {openFollowUp.assignedTo}</p>
+                                    <p>Due: {formatFollowUpDate(openFollowUp.dueAt)}</p>
+                                  </div>
+                                )}
+                                {!openFollowUp && latestFollowUp && (
+                                  <p className="mt-2 text-xs text-gray-500">
+                                    Follow-up task: {latestFollowUp.status === 'RESOLVED' ? 'Resolved' : latestFollowUp.status}
+                                  </p>
+                                )}
                               </>
                             ) : (
                               <p className="mt-1 text-sm font-semibold text-red-800">No recovery decision recorded</p>
@@ -775,19 +848,50 @@ export default function OrdersList() {
                               placeholder="Optional note for customer follow-up or retry timing"
                               className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
                             />
+                            {recoveryForm.decision === 'REFUND_OR_CUSTOMER_FOLLOW_UP' && (
+                              <div>
+                                <label
+                                  htmlFor={`follow-up-due-${order.id}`}
+                                  className="block text-xs font-semibold uppercase text-red-800"
+                                >
+                                  Follow-up due date
+                                </label>
+                                <input
+                                  id={`follow-up-due-${order.id}`}
+                                  type="date"
+                                  value={recoveryForm.followUpDueDate}
+                                  onChange={(event) => updateQuickRecoveryForm(order.id, { followUpDueDate: event.target.value })}
+                                  aria-label={`Follow-up due date for order ${order.id.slice(0, 8)}`}
+                                  className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                                />
+                              </div>
+                            )}
                             <div className="flex flex-wrap gap-2">
                               <button
                                 type="button"
                                 onClick={() => recordQuickRecovery(order.id)}
-                                disabled={isRecordingThisOrder || isRetryingThisOrder}
+                                disabled={isRecordingThisOrder || isRetryingThisOrder || isResolvingThisOrder}
                                 className="rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
                               >
                                 {isRecordingThisOrder ? 'Recording...' : 'Record decision'}
                               </button>
+                              {openFollowUp && (
+                                <button
+                                  type="button"
+                                  onClick={() => quickResolveFollowUpMutation.mutate({
+                                    orderId: order.id,
+                                    taskId: openFollowUp.taskId,
+                                  })}
+                                  disabled={isRecordingThisOrder || isRetryingThisOrder || isResolvingThisOrder}
+                                  className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                                >
+                                  {isResolvingThisOrder ? 'Resolving...' : 'Mark follow-up resolved'}
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => quickRetryMutation.mutate(order.id)}
-                                disabled={!canMoveToAssignment || isRecordingThisOrder || isRetryingThisOrder}
+                                disabled={!canMoveToAssignment || isRecordingThisOrder || isRetryingThisOrder || isResolvingThisOrder}
                                 className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                               >
                                 {isRetryingThisOrder ? 'Moving...' : 'Move to assignment'}

@@ -422,6 +422,7 @@ class ConfirmationWorkflowIntegrationTest {
     }
 
     private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM delivery_follow_up_tasks").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM delivery_failure_recoveries").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();
