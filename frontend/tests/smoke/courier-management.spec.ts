@@ -86,8 +86,8 @@ test('merchant can manage courier availability and performance visibility', asyn
   await expect(page.getByText('Courier profile')).toBeVisible();
 
   await page.goto('/app/couriers/performance');
-  await expect(page.getByText('Courier workload, delivery outcomes')).toBeVisible();
-  await expect(page.getByText('Assigned orders')).toBeVisible();
+  await expect(page.getByText('Historical assignment attempts, delivery outcomes')).toBeVisible();
+  await expect(page.getByText('Assignment attempts', { exact: true })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Success rate' })).toBeVisible();
   await expect(page.getByText('Active - can receive assignments')).toBeVisible();
 });

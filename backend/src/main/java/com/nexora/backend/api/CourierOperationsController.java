@@ -1,5 +1,6 @@
 package com.nexora.backend.api;
 
+import com.nexora.backend.application.CourierPerformanceService;
 import com.nexora.backend.application.DeliveryOperationsService;
 import com.nexora.backend.domain.model.DeliveryFailure;
 import com.nexora.backend.domain.model.DeliveryFailureRecovery;
@@ -40,6 +41,7 @@ public class CourierOperationsController {
 
     private final OrderRepository orderRepository;
     private final DeliveryOperationsService deliveryOperationsService;
+    private final CourierPerformanceService courierPerformanceService;
 
     public record DeliveryFailureRequest(
             DeliveryFailureReason reason,
@@ -61,17 +63,17 @@ public class CourierOperationsController {
             long failedOrdersCount,
             double deliverySuccessRate
     ) {
-        static CourierPerformanceResponse from(OrderRepository.CourierPerformanceRow row) {
-            long delivered = row.getDeliveredOrdersCount();
-            long failed = row.getFailedOrdersCount();
+        static CourierPerformanceResponse from(CourierPerformanceService.CourierPerformanceMetric metric) {
+            long delivered = metric.deliveredOrdersCount();
+            long failed = metric.failedOrdersCount();
             long completed = delivered + failed;
             double successRate = completed == 0 ? 0.0 : (double) delivered / completed;
             return new CourierPerformanceResponse(
-                    row.getCourierId(),
-                    row.getCourierName(),
-                    row.getActive(),
-                    row.getAssignedOrdersCount(),
-                    row.getPickedUpOrdersCount(),
+                    metric.courierId(),
+                    metric.courierName(),
+                    metric.active(),
+                    metric.assignedOrdersCount(),
+                    metric.pickedUpOrdersCount(),
                     delivered,
                     failed,
                     successRate
@@ -226,7 +228,7 @@ public class CourierOperationsController {
 
     @GetMapping("/courier-performance")
     public ResponseEntity<List<CourierPerformanceResponse>> courierPerformance() {
-        return ResponseEntity.ok(orderRepository.findCourierPerformance(getCurrentTenantId()).stream()
+        return ResponseEntity.ok(courierPerformanceService.listPerformance(getCurrentTenantId()).stream()
                 .map(CourierPerformanceResponse::from)
                 .toList());
     }

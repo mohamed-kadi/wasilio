@@ -8,7 +8,7 @@ export default function CourierPerformance() {
     queryFn: fetchCourierPerformance,
   });
   const activeCouriers = metrics.filter((metric) => metric.active).length;
-  const assignedOrders = metrics.reduce((total, metric) => total + metric.assignedOrdersCount, 0);
+  const assignmentAttempts = metrics.reduce((total, metric) => total + metric.assignedOrdersCount, 0);
   const deliveredOrders = metrics.reduce((total, metric) => total + metric.deliveredOrdersCount, 0);
   const failedOrders = metrics.reduce((total, metric) => total + metric.failedOrdersCount, 0);
   const completedOrders = deliveredOrders + failedOrders;
@@ -18,12 +18,12 @@ export default function CourierPerformance() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Courier Performance</h2>
-        <p className="text-sm text-gray-500">Courier workload, delivery outcomes, and active resource visibility</p>
+        <p className="text-sm text-gray-500">Historical assignment attempts, delivery outcomes, and active resource visibility</p>
       </div>
 
       <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <PerformanceMetric title="Active couriers" value={activeCouriers} detail="Can receive work" tone="blue" />
-        <PerformanceMetric title="Assigned orders" value={assignedOrders} detail="Currently assigned" tone="amber" />
+        <PerformanceMetric title="Assignment attempts" value={assignmentAttempts} detail="Historical courier assignments" tone="amber" />
         <PerformanceMetric title="Delivered" value={deliveredOrders} detail="Successful outcomes" tone="green" />
         <PerformanceMetric title="Success rate" value={`${overallSuccessRate}%`} detail={`${failedOrders} failed orders`} tone={overallSuccessRate >= 80 ? 'green' : 'red'} />
       </section>
@@ -39,8 +39,8 @@ export default function CourierPerformance() {
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
               <th className="p-4 font-medium">Courier</th>
-              <th className="p-4 font-medium">Assigned</th>
-              <th className="p-4 font-medium">Picked up</th>
+              <th className="p-4 font-medium">Assignments</th>
+              <th className="p-4 font-medium">Pickups</th>
               <th className="p-4 font-medium">Delivered</th>
               <th className="p-4 font-medium">Failed</th>
               <th className="p-4 font-medium">Success rate</th>

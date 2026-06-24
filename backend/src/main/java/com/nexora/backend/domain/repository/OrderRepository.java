@@ -94,35 +94,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
             Pageable pageable
     );
 
-    @Query(value = """
-            select
-                cast(c.courier_id as varchar) as courierId,
-                c.name as courierName,
-                c.active as active,
-                count(case when o.status in ('ASSIGNED_TO_COURIER', 'PICKED_UP', 'DELIVERED', 'FAILED') then 1 end) as assignedOrdersCount,
-                count(case when o.status in ('PICKED_UP', 'DELIVERED', 'FAILED') then 1 end) as pickedUpOrdersCount,
-                count(case when o.status = 'DELIVERED' then 1 end) as deliveredOrdersCount,
-                count(case when o.status = 'FAILED' then 1 end) as failedOrdersCount
-            from couriers c
-            left join orders o
-                on o.tenant_id = c.tenant_id
-                and o.courier_id = cast(c.courier_id as varchar)
-            where c.tenant_id = :tenantId
-            group by c.courier_id, c.name, c.active
-            order by c.name asc, c.courier_id asc
-            """, nativeQuery = true)
-    List<CourierPerformanceRow> findCourierPerformance(@Param("tenantId") UUID tenantId);
-
-    interface CourierPerformanceRow {
-        String getCourierId();
-        String getCourierName();
-        boolean getActive();
-        long getAssignedOrdersCount();
-        long getPickedUpOrdersCount();
-        long getDeliveredOrdersCount();
-        long getFailedOrdersCount();
-    }
-
     @Query("""
             select orderProjection
             from Order orderProjection

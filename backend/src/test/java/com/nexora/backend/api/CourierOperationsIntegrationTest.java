@@ -505,7 +505,7 @@ class CourierOperationsIntegrationTest {
     }
 
     @Test
-    void courierPerformanceCalculatesTenantScopedCountsAndSuccessRate() throws Exception {
+    void courierPerformanceUsesHistoricalAttemptsAfterRetry() throws Exception {
         String firstCourierId = createCourier(jwtToken, "Metrics First", "0611111111");
         String secondCourierId = createCourier(jwtToken, "Metrics Second", "0622222222");
         String assignedOrderId = createConfirmedOrder(jwtToken, "MetricsAssigned");
@@ -527,6 +527,24 @@ class CourierOperationsIntegrationTest {
                         "Address missing apartment"
                 ))))
                 .andExpect(status().isOk());
+        mockMvc.perform(post("/api/courier-operations/orders/" + failedOrderId + "/failure-recoveries")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
+                        DeliveryFailureRecoveryDecision.RETRY_DELIVERY,
+                        "Retry after address correction"
+                ))))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/courier-operations/orders/" + failedOrderId + "/retry-delivery")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/orders/" + failedOrderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.courierId").doesNotExist())
+                .andExpect(jsonPath("$.failureReason").doesNotExist());
 
         mockMvc.perform(get("/api/courier-operations/courier-performance")
                 .header("Authorization", bearer(jwtToken)))
