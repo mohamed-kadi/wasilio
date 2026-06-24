@@ -288,8 +288,16 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
 
   await expect(page.getByText('Failed delivery recovery')).toBeVisible();
   await expect(page.getByText('Reason: Customer refused')).toBeVisible();
-  await expect(page.getByText('Contact customer or courier')).toBeVisible();
-  await page.getByRole('link', { name: 'Open failure review' }).click();
+  await expect(page.getByText('No recovery decision recorded')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Move to assignment' })).toBeDisabled();
+
+  await page.getByLabel('Recovery decision for order 11111111').selectOption('REFUND_OR_CUSTOMER_FOLLOW_UP');
+  await page.getByLabel('Recovery note for order 11111111').fill('Customer wants a refund before another attempt');
+  await page.getByRole('button', { name: 'Record decision' }).click();
+
+  await expect(page.locator('p').filter({ hasText: /^Refund \/ customer follow-up$/ })).toBeVisible();
+  await expect(page.getByText('Customer wants a refund before another attempt')).toBeVisible();
+  await page.getByRole('link', { name: 'Open detail' }).click();
 
   await expect(page).toHaveURL(/\/app\/orders\/11111111-1111-1111-1111-111111111111$/);
   await expect(page.getByRole('heading', { name: 'Failed delivery' })).toBeVisible();
@@ -297,12 +305,6 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   await expect(page.getByText('decide whether this needs retry')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Back to failed deliveries' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Review courier performance' })).toBeVisible();
-  await expect(page.getByText('No recovery decision recorded yet.')).toBeVisible();
-
-  await page.getByLabel('Recovery decision').selectOption('REFUND_OR_CUSTOMER_FOLLOW_UP');
-  await page.getByLabel('Recovery note').fill('Customer wants a refund before another attempt');
-  await page.getByRole('button', { name: 'Record recovery decision' }).click();
-
   await expect(page.getByText('Refund / customer follow-up').last()).toBeVisible();
   await expect(page.getByText('Customer wants a refund before another attempt')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Move back to assignment queue' })).toBeDisabled();

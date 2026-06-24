@@ -1,17 +1,26 @@
 import { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { AlertCircle, Bookmark, ChevronLeft, ChevronRight, PlusCircle, Save, Trash2, X } from 'lucide-react';
 import {
   createOrderSearchSavedView,
   deleteOrderSearchSavedView,
   fetchCouriers,
+  fetchDeliveryFailureRecoveries,
   fetchOrders,
   fetchOrderSearchSavedViews,
   getErrorMessage,
+  recordDeliveryFailureRecovery,
+  retryFailedDelivery,
   updateOrderSearchSavedView,
 } from '../api/client';
-import type { Order, OrderSearchSavedView, OrderStatus } from '../api/client';
+import type {
+  DeliveryFailureRecovery,
+  DeliveryFailureRecoveryDecision,
+  Order,
+  OrderSearchSavedView,
+  OrderStatus,
+} from '../api/client';
 
 const statusColors: Record<string, string> = {
   CREATED: 'bg-gray-100 text-gray-800',
@@ -66,6 +75,18 @@ const failureReasonLabels: Record<string, string> = {
   OTHER: 'Other',
 };
 
+const recoveryDecisionLabels: Record<DeliveryFailureRecoveryDecision, string> = {
+  RETRY_DELIVERY: 'Retry delivery',
+  REFUND_OR_CUSTOMER_FOLLOW_UP: 'Refund / customer follow-up',
+  CLOSE_UNRECOVERABLE: 'Close as unrecoverable',
+};
+
+const recoveryDecisionHints: Record<DeliveryFailureRecoveryDecision, string> = {
+  RETRY_DELIVERY: 'Customer still wants the order. Move it back to assignment after recording.',
+  REFUND_OR_CUSTOMER_FOLLOW_UP: 'Customer needs refund, replacement, or manual merchant contact.',
+  CLOSE_UNRECOVERABLE: 'No more delivery action is expected for this failed order.',
+};
+
 const statuses: OrderStatus[] = [
   'CREATED',
   'CONFIRMATION_REQUESTED',
@@ -92,6 +113,11 @@ interface OrdersLocationState {
   recoveryFocus?: boolean;
 }
 
+interface QuickRecoveryForm {
+  decision: DeliveryFailureRecoveryDecision;
+  note: string;
+}
+
 const emptyFilters: OrderFilters = {
   statuses: [],
   phone: '',
@@ -100,6 +126,11 @@ const emptyFilters: OrderFilters = {
   courierId: '',
   createdFrom: '',
   createdTo: '',
+};
+
+const emptyQuickRecoveryForm: QuickRecoveryForm = {
+  decision: 'RETRY_DELIVERY',
+  note: '',
 };
 
 function filtersToSavedPayload(filters: OrderFilters): Record<string, string> {
@@ -151,6 +182,14 @@ function formatFailureReason(reason?: string) {
   return failureReasonLabels[reason] ?? reason.replace(/_/g, ' ').toLowerCase();
 }
 
+function latestRecovery(recoveries: DeliveryFailureRecovery[]) {
+  return recoveries.length > 0 ? recoveries[recoveries.length - 1] : undefined;
+}
+
+function formatRecoveryDecision(decision: DeliveryFailureRecoveryDecision | string) {
+  return recoveryDecisionLabels[decision as DeliveryFailureRecoveryDecision] ?? decision.replace(/_/g, ' ').toLowerCase();
+}
+
 export default function OrdersList() {
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -165,6 +204,7 @@ export default function OrdersList() {
   const [recoveryFocus, setRecoveryFocus] = useState(Boolean(locationState?.recoveryFocus));
   const [selectedSavedViewId, setSelectedSavedViewId] = useState('');
   const [savedViewName, setSavedViewName] = useState('');
+  const [quickRecoveryForms, setQuickRecoveryForms] = useState<Record<string, QuickRecoveryForm>>({});
 
   const {
     data: ordersPage,
@@ -239,6 +279,21 @@ export default function OrdersList() {
   const selectedSavedView = savedViews.find((view) => view.viewId === selectedSavedViewId);
   const visibleFailedOrders = orders.filter((order) => order.status === 'FAILED');
   const isFailureRecoveryView = recoveryFocus || filters.statuses.includes('FAILED');
+  const failureRecoveryQueries = useQueries({
+    queries: visibleFailedOrders.map((order) => ({
+      queryKey: ['delivery-failure-recoveries', order.id],
+      queryFn: () => fetchDeliveryFailureRecoveries(order.id),
+      enabled: order.status === 'FAILED',
+    })),
+  });
+  const recoveriesByOrderId = new Map<string, DeliveryFailureRecovery[]>(
+    visibleFailedOrders.map((order, index) => [order.id, failureRecoveryQueries[index]?.data ?? []]),
+  );
+  const recoveryQueryErrorsByOrderId = new Map<string, unknown>(
+    visibleFailedOrders
+      .map((order, index) => [order.id, failureRecoveryQueries[index]?.error] as const)
+      .filter(([, queryError]) => queryError),
+  );
   const visibleJourneyCounts = {
     confirm: countByStatus(orders, 'CREATED') + countByStatus(orders, 'CONFIRMATION_REQUESTED'),
     courier:
@@ -246,6 +301,37 @@ export default function OrdersList() {
     closed: countByStatus(orders, 'DELIVERED') + countByStatus(orders, 'FAILED') + countByStatus(orders, 'REJECTED'),
     failed: visibleFailedOrders.length,
   };
+
+  const quickRecoveryMutation = useMutation({
+    mutationFn: ({ orderId, decision, note }: { orderId: string; decision: DeliveryFailureRecoveryDecision; note: string }) =>
+      recordDeliveryFailureRecovery(orderId, {
+        decision,
+        note: note.trim() || undefined,
+      }),
+    onSuccess: async (recovery, variables) => {
+      setQuickRecoveryForms((currentForms) => ({
+        ...currentForms,
+        [variables.orderId]: {
+          decision: recovery.decision,
+          note: '',
+        },
+      }));
+      await queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', variables.orderId] });
+      await queryClient.invalidateQueries({ queryKey: ['orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
+    },
+  });
+
+  const quickRetryMutation = useMutation({
+    mutationFn: (orderId: string) => retryFailedDelivery(orderId),
+    onSuccess: async (_result, orderId) => {
+      await queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+      await queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', orderId] });
+      await queryClient.invalidateQueries({ queryKey: ['orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
+      await queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] });
+    },
+  });
 
   function updateFilter<K extends keyof OrderFilters>(key: K, value: OrderFilters[K]) {
     setFilters((currentFilters) => ({ ...currentFilters, [key]: value }));
@@ -293,6 +379,30 @@ export default function OrdersList() {
     setPage(0);
   }
 
+  function getQuickRecoveryForm(orderId: string) {
+    return quickRecoveryForms[orderId] ?? emptyQuickRecoveryForm;
+  }
+
+  function updateQuickRecoveryForm(orderId: string, patch: Partial<QuickRecoveryForm>) {
+    setQuickRecoveryForms((currentForms) => ({
+      ...currentForms,
+      [orderId]: {
+        ...emptyQuickRecoveryForm,
+        ...currentForms[orderId],
+        ...patch,
+      },
+    }));
+  }
+
+  function recordQuickRecovery(orderId: string) {
+    const form = getQuickRecoveryForm(orderId);
+    quickRecoveryMutation.mutate({
+      orderId,
+      decision: form.decision,
+      note: form.note,
+    });
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-4">
@@ -322,8 +432,8 @@ export default function OrdersList() {
             <div>
               <p className="text-sm font-semibold text-red-950">Failed delivery recovery</p>
               <p className="mt-1 max-w-3xl text-sm text-red-800">
-                Review the failure reason, contact the customer or courier when needed, then decide whether to retry,
-                refund, or close the recovery outside the active courier queue.
+                Record the recovery decision from each failed row. Retry-ready orders can be moved back to the
+                assignment queue without opening another screen.
               </p>
             </div>
             <Link
@@ -557,6 +667,11 @@ export default function OrdersList() {
           )}
         </div>
       )}
+      {(quickRecoveryMutation.error || quickRetryMutation.error) && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {getErrorMessage(quickRecoveryMutation.error ?? quickRetryMutation.error)}
+        </div>
+      )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
@@ -576,6 +691,15 @@ export default function OrdersList() {
             <tbody className="divide-y divide-gray-100 text-sm">
               {orders.map((order) => {
                 const failureReason = formatFailureReason(order.failureReason);
+                const recoveries = recoveriesByOrderId.get(order.id) ?? [];
+                const latestFailureRecovery = latestRecovery(recoveries);
+                const recoveryForm = getQuickRecoveryForm(order.id);
+                const recoveryQueryError = recoveryQueryErrorsByOrderId.get(order.id);
+                const canMoveToAssignment = latestFailureRecovery?.decision === 'RETRY_DELIVERY';
+                const isRecordingThisOrder = quickRecoveryMutation.isPending
+                  && quickRecoveryMutation.variables?.orderId === order.id;
+                const isRetryingThisOrder = quickRetryMutation.isPending
+                  && quickRetryMutation.variables === order.id;
 
                 return (
                   <tr key={order.id} className={order.status === 'FAILED' ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-gray-50'}>
@@ -605,17 +729,80 @@ export default function OrdersList() {
                     </td>
                     <td className="p-4">
                       {order.status === 'FAILED' ? (
-                        <div className="max-w-xs">
+                        <div className="max-w-sm space-y-3">
                           <p className="text-sm font-medium text-red-900">
                             Reason: {failureReason ?? 'Not recorded'}
                           </p>
-                          <p className="mt-1 text-xs text-red-700">Contact customer or courier, then decide retry, refund, or close.</p>
-                          <Link
-                            to={`/app/orders/${order.id}`}
-                            className="mt-2 inline-flex text-sm font-medium text-blue-600 hover:underline"
-                          >
-                            Open failure review
-                          </Link>
+                          <div className="rounded-md border border-red-100 bg-white p-3">
+                            <p className="text-xs font-semibold uppercase text-gray-500">Latest recovery</p>
+                            {recoveryQueryError ? (
+                              <p className="mt-1 text-xs text-red-700">{getErrorMessage(recoveryQueryError)}</p>
+                            ) : latestFailureRecovery ? (
+                              <>
+                                <p className="mt-1 text-sm font-semibold text-gray-900">
+                                  {formatRecoveryDecision(latestFailureRecovery.decision)}
+                                </p>
+                                {latestFailureRecovery.note && (
+                                  <p className="mt-1 text-xs text-gray-600">{latestFailureRecovery.note}</p>
+                                )}
+                              </>
+                            ) : (
+                              <p className="mt-1 text-sm font-semibold text-red-800">No recovery decision recorded</p>
+                            )}
+                          </div>
+                          <div className="space-y-2">
+                            <select
+                              value={recoveryForm.decision}
+                              onChange={(event) => updateQuickRecoveryForm(order.id, {
+                                decision: event.target.value as DeliveryFailureRecoveryDecision,
+                              })}
+                              aria-label={`Recovery decision for order ${order.id.slice(0, 8)}`}
+                              className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                            >
+                              {Object.entries(recoveryDecisionLabels).map(([decision, label]) => (
+                                <option key={decision} value={decision}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-red-700">{recoveryDecisionHints[recoveryForm.decision]}</p>
+                            <textarea
+                              value={recoveryForm.note}
+                              onChange={(event) => updateQuickRecoveryForm(order.id, { note: event.target.value })}
+                              maxLength={1000}
+                              rows={2}
+                              aria-label={`Recovery note for order ${order.id.slice(0, 8)}`}
+                              placeholder="Optional note for customer follow-up or retry timing"
+                              className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                            />
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                onClick={() => recordQuickRecovery(order.id)}
+                                disabled={isRecordingThisOrder || isRetryingThisOrder}
+                                className="rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+                              >
+                                {isRecordingThisOrder ? 'Recording...' : 'Record decision'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => quickRetryMutation.mutate(order.id)}
+                                disabled={!canMoveToAssignment || isRecordingThisOrder || isRetryingThisOrder}
+                                className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                {isRetryingThisOrder ? 'Moving...' : 'Move to assignment'}
+                              </button>
+                              <Link
+                                to={`/app/orders/${order.id}`}
+                                className="inline-flex items-center rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                              >
+                                Open detail
+                              </Link>
+                            </div>
+                            {!canMoveToAssignment && (
+                              <p className="text-xs text-gray-500">Record Retry delivery as latest decision to enable reassignment.</p>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <span className="text-sm text-gray-400">-</span>
