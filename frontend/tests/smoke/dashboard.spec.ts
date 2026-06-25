@@ -55,7 +55,7 @@ test('merchant can see the operational dashboard and next queue to work', async 
   await page.route('**/api/orders?**', async (route) => {
     const url = new URL(route.request().url());
     const statuses = url.searchParams.getAll('status');
-    const totalElements = statuses.includes('DELIVERED') ? 12 : statuses.includes('FAILED') ? 1 : 0;
+    const totalElements = statuses.includes('DELIVERED') ? 12 : statuses.includes('FAILED') ? 3 : 0;
 
     await route.fulfill({
       status: 200,
@@ -83,23 +83,26 @@ test('merchant can see the operational dashboard and next queue to work', async 
   await loginAs(page, 'admin@example.com');
 
   await expect(page.getByRole('heading', { name: 'Operations dashboard' })).toBeVisible();
-  await expect(page.getByText('20 active orders across confirmation, courier flow, and delivery exceptions')).toBeVisible();
+  await expect(page.getByText('22 active orders need confirmation, courier movement, or recovery')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Call due callbacks' })).toBeVisible();
   await expect(page.getByText('2 customer callbacks are due now')).toBeVisible();
+  await expect(page.getByText('Operations command center')).toBeVisible();
 
   await expect(page.getByText('Needs confirmation', { exact: true })).toBeVisible();
-  await expect(page.getByText('2 due callbacks need attention')).toBeVisible();
-  await expect(page.getByText('Needs courier', { exact: true })).toBeVisible();
-  await expect(page.getByText('With couriers', { exact: true })).toBeVisible();
-  await expect(page.getByText('4 waiting pickup, 5 out for delivery')).toBeVisible();
+  await expect(page.getByText('2 due callbacks should be handled first.')).toBeVisible();
+  await expect(page.getByText('Needs courier')).toBeVisible();
+  await expect(page.getByText('3 need assignment. 9 are already with couriers.')).toBeVisible();
+  await expect(page.getByText('Waiting pickup')).toBeVisible();
+  await expect(page.getByText('Out for delivery')).toBeVisible();
   await expect(page.getByText('Failed recovery')).toBeVisible();
-  await expect(page.getByText('2 open customer follow-ups')).toBeVisible();
-  await expect(page.getByText('Closed outcomes')).toBeVisible();
+  await expect(page.getByText('2 failures have active customer follow-up tasks.')).toBeVisible();
+  await expect(page.getByText('Delivery outcomes')).toBeVisible();
+  await expect(page.getByText('Success')).toBeVisible();
 
-  await expect(page.getByText('Resolve customer follow-ups')).toBeVisible();
-  await expect(page.getByText('Confirm customers')).toBeVisible();
-  await expect(page.getByText('Confirmed orders without a courier')).toBeVisible();
-  await expect(page.getByText('Picked up orders with couriers')).toBeVisible();
+  await expect(page.getByText('Operational map')).toBeVisible();
+  await expect(page.getByText('Confirm', { exact: true })).toBeVisible();
+  await expect(page.getByText('Assign', { exact: true })).toBeVisible();
+  await expect(page.getByText('Recover', { exact: true })).toBeVisible();
 
   await page.getByRole('link', { name: 'Open follow-ups', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/delivery-follow-ups$/);
