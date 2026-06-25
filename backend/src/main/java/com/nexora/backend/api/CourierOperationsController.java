@@ -12,6 +12,7 @@ import com.nexora.backend.domain.model.DeliveryFollowUpStatus;
 import com.nexora.backend.domain.model.DeliveryFollowUpTask;
 import com.nexora.backend.domain.model.Order;
 import com.nexora.backend.domain.model.OrderStatus;
+import com.nexora.backend.domain.repository.DeliveryFailureRepository;
 import com.nexora.backend.domain.repository.OrderRepository;
 import com.nexora.backend.infrastructure.security.CustomUserDetails;
 import jakarta.validation.Valid;
@@ -48,6 +49,7 @@ import java.util.UUID;
 public class CourierOperationsController {
 
     private final OrderRepository orderRepository;
+    private final DeliveryFailureRepository deliveryFailureRepository;
     private final DeliveryOperationsService deliveryOperationsService;
     private final CourierPerformanceService courierPerformanceService;
 
@@ -165,6 +167,63 @@ public class CourierOperationsController {
             DeliveryFollowUpTask task,
             DeliveryFollowUpOrderSummary order
     ) {}
+
+    public record DeliveryFailureOrderSummary(
+            UUID orderId,
+            OrderStatus status,
+            String customerFirstName,
+            String customerLastName,
+            String customerPhone,
+            BigDecimal amount,
+            String courierId,
+            String failureReason
+    ) {
+        static DeliveryFailureOrderSummary from(Order order) {
+            return new DeliveryFailureOrderSummary(
+                    order.getId(),
+                    order.getStatus(),
+                    order.getCustomer().getFirstName(),
+                    order.getCustomer().getLastName(),
+                    order.getCustomer().getPhone(),
+                    order.getAmount(),
+                    order.getCourierId(),
+                    order.getFailureReason()
+            );
+        }
+    }
+
+    public record DeliveryFailureDrilldownItem(
+            DeliveryFailure failure,
+            DeliveryFailureOrderSummary order
+    ) {}
+
+    public record DeliveryFailureDrilldownPageResponse(
+            List<DeliveryFailureDrilldownItem> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages
+    ) {
+        static DeliveryFailureDrilldownPageResponse from(Page<DeliveryFailure> failures, List<Order> orders) {
+            Map<UUID, Order> ordersById = orders.stream()
+                    .collect(Collectors.toMap(Order::getId, Function.identity()));
+            return new DeliveryFailureDrilldownPageResponse(
+                    failures.getContent().stream()
+                            .map(failure -> {
+                                Order order = ordersById.get(failure.getOrderId());
+                                return new DeliveryFailureDrilldownItem(
+                                        failure,
+                                        order == null ? null : DeliveryFailureOrderSummary.from(order)
+                                );
+                            })
+                            .toList(),
+                    failures.getNumber(),
+                    failures.getSize(),
+                    failures.getTotalElements(),
+                    failures.getTotalPages()
+            );
+        }
+    }
 
     public record DeliveryFollowUpTasksPageResponse(
             List<DeliveryFollowUpQueueItem> content,
@@ -368,10 +427,44 @@ public class CourierOperationsController {
     }
 
     @GetMapping("/courier-performance")
-    public ResponseEntity<List<CourierPerformanceResponse>> courierPerformance() {
-        return ResponseEntity.ok(courierPerformanceService.listPerformance(getCurrentTenantId()).stream()
+    public ResponseEntity<List<CourierPerformanceResponse>> courierPerformance(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo
+    ) {
+        validateRange(createdFrom, createdTo);
+        return ResponseEntity.ok(courierPerformanceService.listPerformance(getCurrentTenantId(), createdFrom, createdTo).stream()
                 .map(CourierPerformanceResponse::from)
                 .toList());
+    }
+
+    @GetMapping("/delivery-failures")
+    public ResponseEntity<DeliveryFailureDrilldownPageResponse> deliveryFailures(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) UUID courierId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo
+    ) {
+        validateRange(createdFrom, createdTo);
+        UUID tenantId = getCurrentTenantId();
+        Page<DeliveryFailure> failures = deliveryFailureRepository.findFailureDrilldown(
+                tenantId,
+                courierId,
+                createdFrom != null,
+                createdFrom,
+                createdTo != null,
+                createdTo,
+                unsortedPageRequest(page, size)
+        );
+        List<UUID> orderIds = failures.getContent().stream()
+                .map(DeliveryFailure::getOrderId)
+                .distinct()
+                .toList();
+        List<Order> orders = orderIds.isEmpty()
+                ? List.of()
+                : orderRepository.findByTenantIdAndIdIn(tenantId, orderIds);
+
+        return ResponseEntity.ok(DeliveryFailureDrilldownPageResponse.from(failures, orders));
     }
 
     private PageRequest pageRequest(int page, int size) {
@@ -400,6 +493,22 @@ public class CourierOperationsController {
                 size,
                 Sort.by(Sort.Direction.ASC, "createdAt").and(Sort.by(Sort.Direction.ASC, "taskId"))
         );
+    }
+
+    private PageRequest unsortedPageRequest(int page, int size) {
+        if (page < 0) {
+            throw new IllegalArgumentException("page must be greater than or equal to 0");
+        }
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException("size must be between 1 and 100");
+        }
+        return PageRequest.of(page, size);
+    }
+
+    private void validateRange(Instant createdFrom, Instant createdTo) {
+        if (createdFrom != null && createdTo != null && !createdFrom.isBefore(createdTo)) {
+            throw new IllegalArgumentException("createdFrom must be before createdTo");
+        }
     }
 
     private UUID getCurrentTenantId() {

@@ -73,7 +73,7 @@ Failed recovery decisions sit on top of the failed order state:
 
 ## Courier Performance
 
-The current performance endpoint is query-based and tenant-scoped. For each courier it returns assigned, picked up, delivered, and failed order counts plus delivery success rate.
+The current performance endpoint is query-based and tenant-scoped. For each courier it returns assigned, picked up, delivered, and failed order counts plus delivery success rate. Merchants can review today, the last 7 days, or the last 30 days, then drill into the exact failed delivery records for a courier and date window.
 
 This is an operational summary, not a full analytics dashboard.
 

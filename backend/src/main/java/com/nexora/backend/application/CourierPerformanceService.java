@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -46,6 +47,11 @@ public class CourierPerformanceService {
 
     @Transactional(readOnly = true)
     public List<CourierPerformanceMetric> listPerformance(UUID tenantId) {
+        return listPerformance(tenantId, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CourierPerformanceMetric> listPerformance(UUID tenantId, Instant createdFrom, Instant createdToExclusive) {
         Map<String, MetricAccumulator> metricsByCourierId = new LinkedHashMap<>();
         for (Courier courier : courierRepository.findByTenantIdOrderByNameAscCourierIdAsc(tenantId)) {
             metricsByCourierId.put(courier.getCourierId().toString(), new MetricAccumulator(courier));
@@ -56,7 +62,7 @@ public class CourierPerformanceService {
                 tenantId,
                 PERFORMANCE_EVENT_TYPES
         )) {
-            apply(event, metricsByCourierId, currentCourierByOrderId);
+            apply(event, metricsByCourierId, currentCourierByOrderId, eventIsInRange(event, createdFrom, createdToExclusive));
         }
 
         return metricsByCourierId.values().stream()
@@ -67,30 +73,45 @@ public class CourierPerformanceService {
     private void apply(
             DomainEvent event,
             Map<String, MetricAccumulator> metricsByCourierId,
-            Map<UUID, String> currentCourierByOrderId
+            Map<UUID, String> currentCourierByOrderId,
+            boolean countEvent
     ) {
         switch (event.getEventType()) {
             case "OrderAssignedToCourier" -> {
                 String courierId = readAssignedCourierId(event);
                 currentCourierByOrderId.put(event.getAggregateId(), courierId);
-                recordAssigned(metricsByCourierId, courierId);
+                if (countEvent) {
+                    recordAssigned(metricsByCourierId, courierId);
+                }
             }
             case "OrderPickedUp" -> {
                 String courierId = readPickupCourierId(event);
                 currentCourierByOrderId.put(event.getAggregateId(), courierId);
-                recordPickedUp(metricsByCourierId, courierId);
+                if (countEvent) {
+                    recordPickedUp(metricsByCourierId, courierId);
+                }
             }
-            case "OrderDelivered" -> recordDelivered(
-                    metricsByCourierId,
-                    currentCourierByOrderId.remove(event.getAggregateId())
-            );
-            case "OrderDeliveryFailed" -> recordFailed(
-                    metricsByCourierId,
-                    currentCourierByOrderId.remove(event.getAggregateId())
-            );
+            case "OrderDelivered" -> {
+                String courierId = currentCourierByOrderId.remove(event.getAggregateId());
+                if (countEvent) {
+                    recordDelivered(metricsByCourierId, courierId);
+                }
+            }
+            case "OrderDeliveryFailed" -> {
+                String courierId = currentCourierByOrderId.remove(event.getAggregateId());
+                if (countEvent) {
+                    recordFailed(metricsByCourierId, courierId);
+                }
+            }
             case "OrderDeliveryRetryRequested" -> currentCourierByOrderId.remove(event.getAggregateId());
             default -> throw new IllegalStateException("Unsupported courier performance event: " + event.getEventType());
         }
+    }
+
+    private boolean eventIsInRange(DomainEvent event, Instant createdFrom, Instant createdToExclusive) {
+        Instant timestamp = event.getTimestamp();
+        return (createdFrom == null || !timestamp.isBefore(createdFrom))
+                && (createdToExclusive == null || timestamp.isBefore(createdToExclusive));
     }
 
     private String readAssignedCourierId(DomainEvent event) {

@@ -117,7 +117,7 @@ function recoverySubmitLabel(decision: DeliveryFailureRecoveryDecision) {
   if (decision === 'REFUND_OR_CUSTOMER_FOLLOW_UP') {
     return 'Create follow-up task';
   }
-  return 'Close failed recovery';
+  return 'Close as unreachable';
 }
 
 function toInstantFromDate(date: string, endOfDay = false) {
@@ -138,6 +138,7 @@ export default function OrderDetails() {
   const [confirmDeliverOpen, setConfirmDeliverOpen] = useState(false);
   const [recoveryDecision, setRecoveryDecision] = useState<DeliveryFailureRecoveryDecision>('RETRY_DELIVERY');
   const [recoveryNote, setRecoveryNote] = useState('');
+  const [recoveryFormError, setRecoveryFormError] = useState<string | null>(null);
   const [followUpDueDate, setFollowUpDueDate] = useState('');
   const [followUpResolutionNotes, setFollowUpResolutionNotes] = useState<Record<string, string>>({});
 
@@ -232,6 +233,7 @@ export default function OrderDetails() {
       });
     },
     onSuccess: (recovery) => {
+      setRecoveryFormError(null);
       setRecoveryNote('');
       setFollowUpDueDate('');
       queryClient.setQueryData<DeliveryFailureRecovery[] | undefined>(
@@ -502,6 +504,11 @@ export default function OrderDetails() {
               className="space-y-4 rounded-md border border-red-200 bg-white p-4"
               onSubmit={(event) => {
                 event.preventDefault();
+                if (closeDecisionMissingNote) {
+                  setRecoveryFormError('Add a closure note before closing this failed recovery.');
+                  return;
+                }
+                setRecoveryFormError(null);
                 recoveryMutation.mutate();
               }}
             >
@@ -516,7 +523,10 @@ export default function OrderDetails() {
                 <select
                   id="recovery-decision"
                   value={recoveryDecision}
-                  onChange={(event) => setRecoveryDecision(event.target.value as DeliveryFailureRecoveryDecision)}
+                  onChange={(event) => {
+                    setRecoveryDecision(event.target.value as DeliveryFailureRecoveryDecision);
+                    setRecoveryFormError(null);
+                  }}
                   className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
                 >
                   {Object.entries(recoveryDecisionLabels).map(([decision, label]) => (
@@ -535,7 +545,12 @@ export default function OrderDetails() {
                 <textarea
                   id="recovery-note"
                   value={recoveryNote}
-                  onChange={(event) => setRecoveryNote(event.target.value)}
+                  onChange={(event) => {
+                    setRecoveryNote(event.target.value);
+                    if (event.target.value.trim()) {
+                      setRecoveryFormError(null);
+                    }
+                  }}
                   maxLength={1000}
                   rows={3}
                   className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
@@ -571,6 +586,11 @@ export default function OrderDetails() {
                   {getErrorMessage(recoveryMutation.error)}
                 </div>
               )}
+              {recoveryFormError && (
+                <div className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-red-700">
+                  {recoveryFormError}
+                </div>
+              )}
               {resolveFollowUpMutation.error && (
                 <div className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-red-700">
                   {getErrorMessage(resolveFollowUpMutation.error)}
@@ -579,7 +599,7 @@ export default function OrderDetails() {
 
               <button
                 type="submit"
-                disabled={recoveryMutation.isPending || closeDecisionMissingNote}
+                disabled={recoveryMutation.isPending}
                 className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
               >
                 {recoveryMutation.isPending ? 'Recording...' : recoverySubmitLabel(recoveryDecision)}

@@ -9,6 +9,7 @@ const courier = {
   active: true,
   createdAt: '2026-06-20T10:00:00Z',
 };
+const failedOrderId = '11111111-1111-1111-1111-111111111111';
 
 test('merchant can manage courier availability and performance visibility', async ({ page }) => {
   await installMockApi(page);
@@ -55,7 +56,7 @@ test('merchant can manage courier availability and performance visibility', asyn
     });
   });
 
-  await page.route('**/api/courier-operations/courier-performance', async (route) => {
+  await page.route(/\/api\/courier-operations\/courier-performance(\?.*)?$/, async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -74,6 +75,44 @@ test('merchant can manage courier availability and performance visibility', asyn
     });
   });
 
+  await page.route(/\/api\/courier-operations\/delivery-failures\?.*$/, async (route) => {
+    const url = new URL(route.request().url());
+    expect(url.searchParams.get('courierId')).toBe(courier.courierId);
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content: [
+          {
+            failure: {
+              failureId: '33333333-3333-3333-3333-333333333333',
+              tenantId: courier.tenantId,
+              orderId: failedOrderId,
+              courierId: courier.courierId,
+              reason: 'CUSTOMER_UNREACHABLE',
+              note: 'Customer did not answer at delivery',
+              createdAt: '2026-06-25T12:00:00Z',
+            },
+            order: {
+              orderId: failedOrderId,
+              status: 'FAILED',
+              customerFirstName: 'Failed',
+              customerLastName: 'Customer',
+              customerPhone: '0612345678',
+              amount: 300,
+              courierId: courier.courierId,
+              failureReason: 'CUSTOMER_UNREACHABLE',
+            },
+          },
+        ],
+        page: 0,
+        size: 10,
+        totalElements: 1,
+        totalPages: 1,
+      }),
+    });
+  });
+
   await page.goto('/app/couriers');
   await expect(page.getByText('Active couriers', { exact: true })).toBeVisible();
   await expect(page.getByText('Available for new assignments')).toBeVisible();
@@ -86,8 +125,14 @@ test('merchant can manage courier availability and performance visibility', asyn
   await expect(page.getByText('Courier profile')).toBeVisible();
 
   await page.goto('/app/couriers/performance');
-  await expect(page.getByText('Historical assignment attempts, delivery outcomes')).toBeVisible();
+  await expect(page.getByText('Assignment attempts, delivery outcomes')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Today Since local midnight' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Last 7 days Rolling 7-day window' })).toBeVisible();
   await expect(page.getByText('Assignment attempts', { exact: true })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Success rate' })).toBeVisible();
   await expect(page.getByText('Active - can receive assignments')).toBeVisible();
+  await page.getByRole('button', { name: /1 View failures/ }).click();
+  await expect(page.getByText('Failed delivery records')).toBeVisible();
+  await expect(page.getByText('Failed Customer')).toBeVisible();
+  await expect(page.getByText('Customer did not answer at delivery')).toBeVisible();
 });

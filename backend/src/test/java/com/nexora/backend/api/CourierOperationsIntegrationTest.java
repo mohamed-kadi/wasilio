@@ -783,6 +783,36 @@ class CourierOperationsIntegrationTest {
                 .andExpect(jsonPath("$[0].deliverySuccessRate").value(0.5))
                 .andExpect(jsonPath("$[1].courierId").value(secondCourierId))
                 .andExpect(jsonPath("$[1].assignedOrdersCount").value(0));
+
+        Instant futureFrom = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
+        Instant futureTo = futureFrom.plus(1, ChronoUnit.DAYS);
+        mockMvc.perform(get("/api/courier-operations/courier-performance")
+                .param("createdFrom", futureFrom.toString())
+                .param("createdTo", futureTo.toString())
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].courierId").value(firstCourierId))
+                .andExpect(jsonPath("$[0].assignedOrdersCount").value(0))
+                .andExpect(jsonPath("$[0].pickedUpOrdersCount").value(0))
+                .andExpect(jsonPath("$[0].deliveredOrdersCount").value(0))
+                .andExpect(jsonPath("$[0].failedOrdersCount").value(0));
+
+        Instant pastFrom = Instant.now().minus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
+        Instant pastTo = Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
+        mockMvc.perform(get("/api/courier-operations/delivery-failures")
+                .param("courierId", firstCourierId)
+                .param("createdFrom", pastFrom.toString())
+                .param("createdTo", pastTo.toString())
+                .param("page", "0")
+                .param("size", "10")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].failure.orderId").value(failedOrderId))
+                .andExpect(jsonPath("$.content[0].failure.reason").value("INVALID_ADDRESS"))
+                .andExpect(jsonPath("$.content[0].order.orderId").value(failedOrderId))
+                .andExpect(jsonPath("$.content[0].order.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.content[0].order.customerFirstName").value("MetricsFailed"));
     }
 
     private void cleanDatabase() {

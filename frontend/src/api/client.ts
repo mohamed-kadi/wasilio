@@ -225,6 +225,41 @@ export interface CourierPerformance {
   deliverySuccessRate: number;
 }
 
+export interface CourierPerformanceQuery {
+  createdFrom?: string;
+  createdTo?: string;
+}
+
+export interface DeliveryFailureOrderSummary {
+  orderId: string;
+  status: OrderStatus;
+  customerFirstName: string;
+  customerLastName: string;
+  customerPhone: string;
+  amount: number;
+  courierId?: string;
+  failureReason?: string;
+}
+
+export interface DeliveryFailureDrilldownItem {
+  failure: DeliveryFailure;
+  order?: DeliveryFailureOrderSummary;
+}
+
+export interface DeliveryFailureDrilldownPageResponse {
+  content: DeliveryFailureDrilldownItem[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface DeliveryFailuresQuery extends CourierPerformanceQuery {
+  page?: number;
+  size?: number;
+  courierId?: string;
+}
+
 export interface OrdersQuery {
   page?: number;
   size?: number;
@@ -770,8 +805,35 @@ export async function fetchDeliveryQueue(query: CourierOperationsQueueQuery = {}
   return apiRequest<OrdersPageResponse>(`/courier-operations/delivery-queue?${params.toString()}`);
 }
 
-export async function fetchCourierPerformance(): Promise<CourierPerformance[]> {
-  return apiRequest<CourierPerformance[]>('/courier-operations/courier-performance');
+export async function fetchCourierPerformance(query: CourierPerformanceQuery = {}): Promise<CourierPerformance[]> {
+  const params = new URLSearchParams();
+  if (query.createdFrom) {
+    params.set('createdFrom', query.createdFrom);
+  }
+  if (query.createdTo) {
+    params.set('createdTo', query.createdTo);
+  }
+  const suffix = params.toString();
+  return apiRequest<CourierPerformance[]>(`/courier-operations/courier-performance${suffix ? `?${suffix}` : ''}`);
+}
+
+export async function fetchDeliveryFailures(
+  query: DeliveryFailuresQuery = {},
+): Promise<DeliveryFailureDrilldownPageResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+  if (query.courierId) {
+    params.set('courierId', query.courierId);
+  }
+  if (query.createdFrom) {
+    params.set('createdFrom', query.createdFrom);
+  }
+  if (query.createdTo) {
+    params.set('createdTo', query.createdTo);
+  }
+
+  return apiRequest<DeliveryFailureDrilldownPageResponse>(`/courier-operations/delivery-failures?${params.toString()}`);
 }
 
 export async function fetchConfirmationQueue(query: ConfirmationQueueQuery = {}): Promise<OrdersPageResponse> {

@@ -363,9 +363,10 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
 
   await page.getByLabel('Recovery decision').selectOption('CLOSE_UNRECOVERABLE');
   await expect(page.getByText('A closure note is required')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Close failed recovery' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Close as unreachable' }).click();
+  await expect(page.getByText('Add a closure note before closing this failed recovery.')).toBeVisible();
   await page.getByLabel('Recovery note').fill('Customer unreachable after repeated attempts');
-  await page.getByRole('button', { name: 'Close failed recovery' }).click();
+  await page.getByRole('button', { name: 'Close as unreachable' }).click();
   await expect(page.getByText('Close as unreachable / unrecoverable').last()).toBeVisible();
   await expect(page.getByText('Recovery closed').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Move back to assignment queue' })).toBeDisabled();
