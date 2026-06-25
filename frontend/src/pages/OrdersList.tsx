@@ -11,7 +11,6 @@ import {
   fetchOrders,
   fetchOrderSearchSavedViews,
   getErrorMessage,
-  recordDeliveryFailureRecovery,
   resolveDeliveryFollowUp,
   retryFailedDelivery,
   updateOrderSearchSavedView,
@@ -84,12 +83,6 @@ const recoveryDecisionLabels: Record<DeliveryFailureRecoveryDecision, string> = 
   CLOSE_UNRECOVERABLE: 'Close as unrecoverable',
 };
 
-const recoveryDecisionHints: Record<DeliveryFailureRecoveryDecision, string> = {
-  RETRY_DELIVERY: 'Customer still wants the order. Move it back to assignment after recording.',
-  REFUND_OR_CUSTOMER_FOLLOW_UP: 'Customer needs refund, replacement, or manual merchant contact.',
-  CLOSE_UNRECOVERABLE: 'No more delivery action is expected for this failed order.',
-};
-
 const statuses: OrderStatus[] = [
   'CREATED',
   'CONFIRMATION_REQUESTED',
@@ -116,12 +109,6 @@ interface OrdersLocationState {
   recoveryFocus?: boolean;
 }
 
-interface QuickRecoveryForm {
-  decision: DeliveryFailureRecoveryDecision;
-  note: string;
-  followUpDueDate: string;
-}
-
 const emptyFilters: OrderFilters = {
   statuses: [],
   phone: '',
@@ -130,12 +117,6 @@ const emptyFilters: OrderFilters = {
   courierId: '',
   createdFrom: '',
   createdTo: '',
-};
-
-const emptyQuickRecoveryForm: QuickRecoveryForm = {
-  decision: 'RETRY_DELIVERY',
-  note: '',
-  followUpDueDate: '',
 };
 
 function filtersToSavedPayload(filters: OrderFilters): Record<string, string> {
@@ -199,6 +180,22 @@ function formatFollowUpDate(value?: string) {
   return value ? new Date(value).toLocaleString() : 'No due date';
 }
 
+function failedOrderNextAction(latestRecovery?: DeliveryFailureRecovery, openFollowUp?: DeliveryFollowUpTask) {
+  if (openFollowUp) {
+    return 'Resolve customer follow-up';
+  }
+  if (!latestRecovery) {
+    return 'Record recovery decision';
+  }
+  if (latestRecovery.decision === 'RETRY_DELIVERY') {
+    return 'Move to assignment';
+  }
+  if (latestRecovery.decision === 'CLOSE_UNRECOVERABLE') {
+    return 'No active recovery action';
+  }
+  return 'Review recovery';
+}
+
 export default function OrdersList() {
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -213,7 +210,6 @@ export default function OrdersList() {
   const [recoveryFocus, setRecoveryFocus] = useState(Boolean(locationState?.recoveryFocus));
   const [selectedSavedViewId, setSelectedSavedViewId] = useState('');
   const [savedViewName, setSavedViewName] = useState('');
-  const [quickRecoveryForms, setQuickRecoveryForms] = useState<Record<string, QuickRecoveryForm>>({});
 
   const {
     data: ordersPage,
@@ -326,46 +322,13 @@ export default function OrdersList() {
     failed: visibleFailedOrders.length,
   };
 
-  const quickRecoveryMutation = useMutation({
-    mutationFn: ({
-      orderId,
-      decision,
-      note,
-      followUpDueDate,
-    }: {
-      orderId: string;
-      decision: DeliveryFailureRecoveryDecision;
-      note: string;
-      followUpDueDate: string;
-    }) => {
-      const followUpDueAt = decision === 'REFUND_OR_CUSTOMER_FOLLOW_UP'
-        ? toInstantFromDate(followUpDueDate, true)
-        : undefined;
-      return recordDeliveryFailureRecovery(orderId, {
-        decision,
-        note: note.trim() || undefined,
-        followUpDueAt,
-      });
-    },
-    onSuccess: async (recovery, variables) => {
-      setQuickRecoveryForms((currentForms) => ({
-        ...currentForms,
-        [variables.orderId]: {
-          decision: recovery.decision,
-          note: '',
-          followUpDueDate: '',
-        },
-      }));
-      await queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', variables.orderId] });
-      await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', variables.orderId] });
-      await queryClient.invalidateQueries({ queryKey: ['orders'] });
-      await queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
-    },
-  });
-
   const quickResolveFollowUpMutation = useMutation({
     mutationFn: ({ orderId, taskId }: { orderId: string; taskId: string }) => resolveDeliveryFollowUp(orderId, taskId),
-    onSuccess: async (_task, variables) => {
+    onSuccess: async (task, variables) => {
+      queryClient.setQueryData<DeliveryFollowUpTask[] | undefined>(
+        ['delivery-follow-ups', variables.orderId],
+        (currentTasks) => currentTasks?.map((currentTask) => currentTask.taskId === task.taskId ? task : currentTask) ?? [task],
+      );
       await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', variables.orderId] });
       await queryClient.invalidateQueries({ queryKey: ['order-timeline', variables.orderId] });
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -430,31 +393,6 @@ export default function OrdersList() {
     setPage(0);
   }
 
-  function getQuickRecoveryForm(orderId: string) {
-    return quickRecoveryForms[orderId] ?? emptyQuickRecoveryForm;
-  }
-
-  function updateQuickRecoveryForm(orderId: string, patch: Partial<QuickRecoveryForm>) {
-    setQuickRecoveryForms((currentForms) => ({
-      ...currentForms,
-      [orderId]: {
-        ...emptyQuickRecoveryForm,
-        ...currentForms[orderId],
-        ...patch,
-      },
-    }));
-  }
-
-  function recordQuickRecovery(orderId: string) {
-    const form = getQuickRecoveryForm(orderId);
-    quickRecoveryMutation.mutate({
-      orderId,
-      decision: form.decision,
-      note: form.note,
-      followUpDueDate: form.followUpDueDate,
-    });
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap justify-between items-center gap-4">
@@ -484,8 +422,8 @@ export default function OrdersList() {
             <div>
               <p className="text-sm font-semibold text-red-950">Failed delivery recovery</p>
               <p className="mt-1 max-w-3xl text-sm text-red-800">
-                Record the recovery decision from each failed row. Retry-ready orders can be moved back to the
-                assignment queue without opening another screen.
+                Use this view to see the current recovery state. Record decisions on the order detail page; retry-ready
+                orders can still be moved back to assignment from here.
               </p>
             </div>
             <Link
@@ -719,9 +657,9 @@ export default function OrdersList() {
           )}
         </div>
       )}
-      {(quickRecoveryMutation.error || quickRetryMutation.error || quickResolveFollowUpMutation.error) && (
+      {(quickRetryMutation.error || quickResolveFollowUpMutation.error) && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {getErrorMessage(quickRecoveryMutation.error ?? quickRetryMutation.error ?? quickResolveFollowUpMutation.error)}
+          {getErrorMessage(quickRetryMutation.error ?? quickResolveFollowUpMutation.error)}
         </div>
       )}
 
@@ -748,12 +686,10 @@ export default function OrdersList() {
                 const followUps = followUpsByOrderId.get(order.id) ?? [];
                 const openFollowUp = followUps.find((followUp) => followUp.status === 'OPEN');
                 const latestFollowUp = followUps.length > 0 ? followUps[followUps.length - 1] : undefined;
-                const recoveryForm = getQuickRecoveryForm(order.id);
                 const recoveryQueryError = recoveryQueryErrorsByOrderId.get(order.id);
                 const followUpQueryError = followUpQueryErrorsByOrderId.get(order.id);
                 const canMoveToAssignment = latestFailureRecovery?.decision === 'RETRY_DELIVERY';
-                const isRecordingThisOrder = quickRecoveryMutation.isPending
-                  && quickRecoveryMutation.variables?.orderId === order.id;
+                const failedAction = failedOrderNextAction(latestFailureRecovery, openFollowUp);
                 const isResolvingThisOrder = quickResolveFollowUpMutation.isPending
                   && quickResolveFollowUpMutation.variables?.orderId === order.id;
                 const isRetryingThisOrder = quickRetryMutation.isPending
@@ -783,7 +719,9 @@ export default function OrdersList() {
                       <p className="mt-1 text-xs text-gray-500">{statusStages[order.status]} stage</p>
                     </td>
                     <td className="p-4">
-                      <span className="text-sm font-medium text-gray-900">{nextActions[order.status]}</span>
+                      <span className="text-sm font-medium text-gray-900">
+                        {order.status === 'FAILED' ? failedAction : nextActions[order.status]}
+                      </span>
                     </td>
                     <td className="p-4">
                       {order.status === 'FAILED' ? (
@@ -823,90 +761,51 @@ export default function OrdersList() {
                               <p className="mt-1 text-sm font-semibold text-red-800">No recovery decision recorded</p>
                             )}
                           </div>
-                          <div className="space-y-2">
-                            <select
-                              value={recoveryForm.decision}
-                              onChange={(event) => updateQuickRecoveryForm(order.id, {
-                                decision: event.target.value as DeliveryFailureRecoveryDecision,
-                              })}
-                              aria-label={`Recovery decision for order ${order.id.slice(0, 8)}`}
-                              className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
-                            >
-                              {Object.entries(recoveryDecisionLabels).map(([decision, label]) => (
-                                <option key={decision} value={decision}>
-                                  {label}
-                                </option>
-                              ))}
-                            </select>
-                            <p className="text-xs text-red-700">{recoveryDecisionHints[recoveryForm.decision]}</p>
-                            <textarea
-                              value={recoveryForm.note}
-                              onChange={(event) => updateQuickRecoveryForm(order.id, { note: event.target.value })}
-                              maxLength={1000}
-                              rows={2}
-                              aria-label={`Recovery note for order ${order.id.slice(0, 8)}`}
-                              placeholder="Optional note for customer follow-up or retry timing"
-                              className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
-                            />
-                            {recoveryForm.decision === 'REFUND_OR_CUSTOMER_FOLLOW_UP' && (
-                              <div>
-                                <label
-                                  htmlFor={`follow-up-due-${order.id}`}
-                                  className="block text-xs font-semibold uppercase text-red-800"
-                                >
-                                  Follow-up due date
-                                </label>
-                                <input
-                                  id={`follow-up-due-${order.id}`}
-                                  type="date"
-                                  value={recoveryForm.followUpDueDate}
-                                  onChange={(event) => updateQuickRecoveryForm(order.id, { followUpDueDate: event.target.value })}
-                                  aria-label={`Follow-up due date for order ${order.id.slice(0, 8)}`}
-                                  className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
-                                />
-                              </div>
+                          <div className="flex flex-wrap gap-2">
+                            {!latestFailureRecovery && (
+                              <Link
+                                to={`/app/orders/${order.id}`}
+                                className="inline-flex items-center rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800"
+                              >
+                                Record decision
+                              </Link>
                             )}
-                            <div className="flex flex-wrap gap-2">
+                            {openFollowUp && (
                               <button
                                 type="button"
-                                onClick={() => recordQuickRecovery(order.id)}
-                                disabled={isRecordingThisOrder || isRetryingThisOrder || isResolvingThisOrder}
-                                className="rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+                                onClick={() => quickResolveFollowUpMutation.mutate({
+                                  orderId: order.id,
+                                  taskId: openFollowUp.taskId,
+                                })}
+                                disabled={isRetryingThisOrder || isResolvingThisOrder}
+                                className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
                               >
-                                {isRecordingThisOrder ? 'Recording...' : 'Record decision'}
+                                {isResolvingThisOrder ? 'Resolving...' : 'Mark follow-up resolved'}
                               </button>
-                              {openFollowUp && (
-                                <button
-                                  type="button"
-                                  onClick={() => quickResolveFollowUpMutation.mutate({
-                                    orderId: order.id,
-                                    taskId: openFollowUp.taskId,
-                                  })}
-                                  disabled={isRecordingThisOrder || isRetryingThisOrder || isResolvingThisOrder}
-                                  className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
-                                >
-                                  {isResolvingThisOrder ? 'Resolving...' : 'Mark follow-up resolved'}
-                                </button>
-                              )}
+                            )}
+                            {canMoveToAssignment && (
                               <button
                                 type="button"
                                 onClick={() => quickRetryMutation.mutate(order.id)}
-                                disabled={!canMoveToAssignment || isRecordingThisOrder || isRetryingThisOrder || isResolvingThisOrder}
-                                className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                disabled={isRetryingThisOrder || isResolvingThisOrder}
+                                className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50 disabled:opacity-50"
                               >
                                 {isRetryingThisOrder ? 'Moving...' : 'Move to assignment'}
                               </button>
-                              <Link
-                                to={`/app/orders/${order.id}`}
-                                className="inline-flex items-center rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-                              >
-                                Open detail
-                              </Link>
-                            </div>
-                            {!canMoveToAssignment && (
-                              <p className="text-xs text-gray-500">Record Retry delivery as latest decision to enable reassignment.</p>
                             )}
+                            <Link
+                              to={`/app/orders/${order.id}`}
+                              className="inline-flex items-center rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
+                            >
+                              Open recovery detail
+                            </Link>
                           </div>
+                          {!latestFailureRecovery && (
+                            <p className="text-xs text-gray-500">Open the order detail to choose retry, customer follow-up, or closure.</p>
+                          )}
+                          {latestFailureRecovery && !canMoveToAssignment && !openFollowUp && (
+                            <p className="text-xs text-gray-500">No row action is pending. Open the detail page to review or record another decision.</p>
+                          )}
                         </div>
                       ) : (
                         <span className="text-sm text-gray-400">-</span>

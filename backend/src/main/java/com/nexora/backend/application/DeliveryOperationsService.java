@@ -32,6 +32,11 @@ public class DeliveryOperationsService {
     private final DeliveryFollowUpTaskRepository deliveryFollowUpTaskRepository;
     private final Clock clock;
 
+    public record DeliveryFailureRecoveryResult(
+            DeliveryFailureRecovery recovery,
+            DeliveryFollowUpTask followUpTask
+    ) {}
+
     @Transactional
     public void markDelivered(UUID tenantId, UUID orderId) {
         requirePickedUpOrder(tenantId, orderId);
@@ -69,7 +74,7 @@ public class DeliveryOperationsService {
     }
 
     @Transactional
-    public DeliveryFailureRecovery recordFailureRecovery(
+    public DeliveryFailureRecoveryResult recordFailureRecovery(
             UUID tenantId,
             UUID orderId,
             DeliveryFailureRecoveryDecision decision,
@@ -95,8 +100,9 @@ public class DeliveryOperationsService {
                 .createdAt(now)
                 .build());
 
+        DeliveryFollowUpTask followUpTask = null;
         if (decision == DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP) {
-            deliveryFollowUpTaskRepository.save(DeliveryFollowUpTask.builder()
+            followUpTask = deliveryFollowUpTaskRepository.save(DeliveryFollowUpTask.builder()
                     .taskId(UUID.randomUUID())
                     .tenantId(tenantId)
                     .orderId(orderId)
@@ -117,7 +123,7 @@ public class DeliveryOperationsService {
             );
         }
 
-        return recovery;
+        return new DeliveryFailureRecoveryResult(recovery, followUpTask);
     }
 
     @Transactional

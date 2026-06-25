@@ -152,6 +152,7 @@ export interface DeliveryFailureRecovery {
   note?: string;
   createdBy: string;
   createdAt: string;
+  followUpTask?: DeliveryFollowUpTask;
 }
 
 export interface DeliveryFailureRecoveryPayload {

@@ -23,7 +23,7 @@ import {
   resolveDeliveryFollowUp,
   retryFailedDelivery,
 } from '../api/client';
-import type { Order, OrderStatus } from '../api/client';
+import type { DeliveryFailureRecovery, Order, OrderStatus } from '../api/client';
 
 type LifecycleCommand =
   | { action: 'request-confirmation' }
@@ -221,9 +221,46 @@ export default function OrderDetails() {
           : undefined,
       });
     },
-    onSuccess: () => {
+    onSuccess: (recovery) => {
       setRecoveryNote('');
       setFollowUpDueDate('');
+      queryClient.setQueryData<DeliveryFailureRecovery[] | undefined>(
+        ['delivery-failure-recoveries', id],
+        (currentRecoveries) => {
+          const recoveries = currentRecoveries ?? [];
+          if (recoveries.some((currentRecovery) => currentRecovery.recoveryId === recovery.recoveryId)) {
+            return recoveries;
+          }
+          return [...recoveries, recovery];
+        },
+      );
+      if (recovery.followUpTask) {
+        queryClient.setQueryData<DeliveryFollowUpTask[] | undefined>(
+          ['delivery-follow-ups', id],
+          (currentTasks) => {
+            const tasks = currentTasks ?? [];
+            if (tasks.some((currentTask) => currentTask.taskId === recovery.followUpTask?.taskId)) {
+              return tasks;
+            }
+            return [...tasks, recovery.followUpTask!];
+          },
+        );
+      } else if (recovery.decision !== 'REFUND_OR_CUSTOMER_FOLLOW_UP') {
+        queryClient.setQueryData<DeliveryFollowUpTask[] | undefined>(
+          ['delivery-follow-ups', id],
+          (currentTasks) => currentTasks?.map((task) => (
+            task.status === 'OPEN'
+              ? {
+                  ...task,
+                  status: 'RESOLVED',
+                  resolvedAt: recovery.createdAt,
+                  resolvedBy: recovery.createdBy,
+                  resolutionNote: `Superseded by ${formatRecoveryDecision(recovery.decision)}`,
+                }
+              : task
+          )),
+        );
+      }
       queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', id] });
       queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', id] });
       queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
@@ -241,12 +278,16 @@ export default function OrderDetails() {
         note: note.trim() || undefined,
       });
     },
-    onSuccess: (_task, variables) => {
+    onSuccess: (task, variables) => {
       setFollowUpResolutionNotes((currentNotes) => {
         const nextNotes = { ...currentNotes };
         delete nextNotes[variables.taskId];
         return nextNotes;
       });
+      queryClient.setQueryData<DeliveryFollowUpTask[] | undefined>(
+        ['delivery-follow-ups', id],
+        (currentTasks) => currentTasks?.map((currentTask) => currentTask.taskId === task.taskId ? task : currentTask) ?? [task],
+      );
       queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', id] });
       queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -309,6 +350,15 @@ export default function OrderDetails() {
     : undefined;
   const openFollowUpTasks = followUpTasks.filter((task) => task.status === 'OPEN');
   const canMoveBackToAssignment = latestFailureRecovery?.decision === 'RETRY_DELIVERY';
+  const recoveryNextAction = openFollowUpTasks.length > 0
+    ? 'Resolve customer follow-up'
+    : canMoveBackToAssignment
+      ? 'Move back to assignment queue'
+      : latestFailureRecovery
+        ? latestFailureRecovery.decision === 'CLOSE_UNRECOVERABLE'
+          ? 'No active recovery action'
+          : 'Record next decision'
+        : 'Record recovery decision';
 
   const TimelineIcon = ({ type, category }: { type: string; category: string }) => {
     if (category === 'CALLBACK') return <PhoneCall className="w-5 h-5 text-purple-500" />;
@@ -402,14 +452,36 @@ export default function OrderDetails() {
             </div>
           </div>
 
-          <div className="grid gap-4 border-t border-red-200 pt-5 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+          <div className="grid gap-3 border-t border-red-200 pt-5 md:grid-cols-3">
+            <RecoveryMetric
+              title="Latest decision"
+              value={latestFailureRecovery ? formatRecoveryDecision(latestFailureRecovery.decision) : 'None recorded'}
+              detail={latestFailureRecovery ? `By ${latestFailureRecovery.createdBy}` : 'Choose the next recovery path below'}
+            />
+            <RecoveryMetric
+              title="Open follow-ups"
+              value={String(openFollowUpTasks.length)}
+              detail={openFollowUpTasks[0] ? `Due: ${formatFollowUpDate(openFollowUpTasks[0].dueAt)}` : 'No customer task waiting'}
+            />
+            <RecoveryMetric
+              title="Next action"
+              value={recoveryNextAction}
+              detail="Use the action panel for the current recovery step"
+            />
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
             <form
-              className="space-y-4"
+              className="space-y-4 rounded-md border border-red-200 bg-white p-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 recoveryMutation.mutate();
               }}
             >
+              <div>
+                <p className="text-xs font-semibold uppercase text-gray-500">1. Record next decision</p>
+                <h4 className="mt-1 text-sm font-semibold text-gray-900">Set the recovery path</h4>
+              </div>
               <div>
                 <label htmlFor="recovery-decision" className="text-sm font-semibold">
                   Recovery decision
@@ -481,7 +553,19 @@ export default function OrderDetails() {
             </form>
 
             <div className="rounded-md border border-red-200 bg-white p-4">
-              <h4 className="text-sm font-semibold text-gray-900">Recorded recovery decisions</h4>
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                <p className="text-xs font-semibold uppercase text-gray-500">2. Current action</p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">{recoveryNextAction}</p>
+                <p className="mt-1 text-xs text-gray-600">
+                  {openFollowUpTasks.length > 0
+                    ? 'Resolve the customer task when the refund, replacement, or customer contact is complete.'
+                    : canMoveBackToAssignment
+                      ? 'The latest decision is Retry delivery, so this order can return to assignment.'
+                      : 'Record a decision to unlock the next recovery action.'}
+                </p>
+              </div>
+
+              <h4 className="mt-4 text-sm font-semibold text-gray-900">Recorded recovery decisions</h4>
               {loadingFailureRecoveries && <p className="mt-3 text-sm text-gray-500">Loading recovery decisions...</p>}
               {failureRecoveriesError && (
                 <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -870,6 +954,24 @@ export default function OrderDetails() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function RecoveryMetric({
+  title,
+  value,
+  detail,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-md border border-red-200 bg-white p-4">
+      <p className="text-xs font-semibold uppercase text-gray-500">{title}</p>
+      <p className="mt-2 text-base font-semibold text-gray-900">{value}</p>
+      <p className="mt-1 text-xs text-gray-600">{detail}</p>
     </div>
   );
 }

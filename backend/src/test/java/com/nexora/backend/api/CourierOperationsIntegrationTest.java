@@ -536,7 +536,11 @@ class CourierOperationsIntegrationTest {
                         dueAt
                 ))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.decision").value("REFUND_OR_CUSTOMER_FOLLOW_UP"));
+                .andExpect(jsonPath("$.decision").value("REFUND_OR_CUSTOMER_FOLLOW_UP"))
+                .andExpect(jsonPath("$.followUpTask.status").value("OPEN"))
+                .andExpect(jsonPath("$.followUpTask.note").value("Merchant must call customer about refund"))
+                .andExpect(jsonPath("$.followUpTask.dueAt").value(dueAt.toString()))
+                .andExpect(jsonPath("$.followUpTask.assignedTo").value("courier@example.com"));
 
         MvcResult followUpsResult = mockMvc.perform(get("/api/courier-operations/orders/" + orderId + "/follow-ups")
                 .header("Authorization", bearer(jwtToken)))

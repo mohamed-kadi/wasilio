@@ -2,6 +2,7 @@ package com.nexora.backend.api;
 
 import com.nexora.backend.application.CourierPerformanceService;
 import com.nexora.backend.application.DeliveryOperationsService;
+import com.nexora.backend.application.DeliveryOperationsService.DeliveryFailureRecoveryResult;
 import com.nexora.backend.domain.model.DeliveryFailure;
 import com.nexora.backend.domain.model.DeliveryFailureRecovery;
 import com.nexora.backend.domain.model.DeliveryFailureRecoveryDecision;
@@ -58,6 +59,31 @@ public class CourierOperationsController {
     public record DeliveryFollowUpResolutionRequest(
             @Size(max = 1000) String note
     ) {}
+
+    public record DeliveryFailureRecoveryResponse(
+            UUID recoveryId,
+            UUID tenantId,
+            UUID orderId,
+            DeliveryFailureRecoveryDecision decision,
+            String note,
+            String createdBy,
+            Instant createdAt,
+            DeliveryFollowUpTask followUpTask
+    ) {
+        static DeliveryFailureRecoveryResponse from(DeliveryFailureRecoveryResult result) {
+            DeliveryFailureRecovery recovery = result.recovery();
+            return new DeliveryFailureRecoveryResponse(
+                    recovery.getRecoveryId(),
+                    recovery.getTenantId(),
+                    recovery.getOrderId(),
+                    recovery.getDecision(),
+                    recovery.getNote(),
+                    recovery.getCreatedBy(),
+                    recovery.getCreatedAt(),
+                    result.followUpTask()
+            );
+        }
+    }
 
     public record CourierPerformanceResponse(
             String courierId,
@@ -210,21 +236,21 @@ public class CourierOperationsController {
     }
 
     @PostMapping("/orders/{orderId}/failure-recoveries")
-    public ResponseEntity<DeliveryFailureRecovery> recordFailureRecovery(
+    public ResponseEntity<DeliveryFailureRecoveryResponse> recordFailureRecovery(
             @PathVariable UUID orderId,
             @Valid @RequestBody DeliveryFailureRecoveryRequest request
     ) {
         if (request.decision() == null) {
             throw new IllegalArgumentException("decision is required");
         }
-        return ResponseEntity.ok(deliveryOperationsService.recordFailureRecovery(
+        return ResponseEntity.ok(DeliveryFailureRecoveryResponse.from(deliveryOperationsService.recordFailureRecovery(
                 getCurrentTenantId(),
                 orderId,
                 request.decision(),
                 request.note(),
                 request.followUpDueAt(),
                 getCurrentUserEmail()
-        ));
+        )));
     }
 
     @GetMapping("/orders/{orderId}/follow-ups")
