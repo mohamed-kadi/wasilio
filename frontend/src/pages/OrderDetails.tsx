@@ -90,13 +90,13 @@ const failureReasonLabels: Record<string, string> = {
 const recoveryDecisionLabels: Record<DeliveryFailureRecoveryDecision, string> = {
   RETRY_DELIVERY: 'Retry delivery',
   REFUND_OR_CUSTOMER_FOLLOW_UP: 'Refund / customer follow-up',
-  CLOSE_UNRECOVERABLE: 'Close as unrecoverable',
+  CLOSE_UNRECOVERABLE: 'Close as unreachable / unrecoverable',
 };
 
 const recoveryDecisionDescriptions: Record<DeliveryFailureRecoveryDecision, string> = {
   RETRY_DELIVERY: 'Use when the customer still wants the order and operations should prepare a new delivery attempt.',
   REFUND_OR_CUSTOMER_FOLLOW_UP: 'Use when the merchant must refund, replace, or contact the customer before any next action.',
-  CLOSE_UNRECOVERABLE: 'Use when the order should stay closed and no further delivery action is expected.',
+  CLOSE_UNRECOVERABLE: 'Use when the customer cannot be reached or the order should stay failed with no more delivery action.',
 };
 
 function formatFailureReason(reason?: string) {
@@ -108,6 +108,16 @@ function formatFailureReason(reason?: string) {
 
 function formatRecoveryDecision(decision: DeliveryFailureRecoveryDecision | string) {
   return recoveryDecisionLabels[decision as DeliveryFailureRecoveryDecision] ?? decision.replace(/_/g, ' ').toLowerCase();
+}
+
+function recoverySubmitLabel(decision: DeliveryFailureRecoveryDecision) {
+  if (decision === 'RETRY_DELIVERY') {
+    return 'Record retry decision';
+  }
+  if (decision === 'REFUND_OR_CUSTOMER_FOLLOW_UP') {
+    return 'Create follow-up task';
+  }
+  return 'Close failed recovery';
 }
 
 function toInstantFromDate(date: string, endOfDay = false) {
@@ -263,6 +273,7 @@ export default function OrderDetails() {
       }
       queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', id] });
       queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', id] });
+      queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups-summary'] });
       queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
@@ -289,6 +300,7 @@ export default function OrderDetails() {
         (currentTasks) => currentTasks?.map((currentTask) => currentTask.taskId === task.taskId ? task : currentTask) ?? [task],
       );
       queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', id] });
+      queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups-summary'] });
       queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
@@ -363,13 +375,15 @@ export default function OrderDetails() {
     : undefined;
   const openFollowUpTasks = followUpTasks.filter((task) => task.status === 'OPEN');
   const canMoveBackToAssignment = latestFailureRecovery?.decision === 'RETRY_DELIVERY';
+  const latestRecoveryClosed = latestFailureRecovery?.decision === 'CLOSE_UNRECOVERABLE';
+  const closeDecisionMissingNote = recoveryDecision === 'CLOSE_UNRECOVERABLE' && !recoveryNote.trim();
   const recoveryNextAction = openFollowUpTasks.length > 0
     ? 'Resolve customer follow-up'
     : canMoveBackToAssignment
       ? 'Move back to assignment queue'
       : latestFailureRecovery
-        ? latestFailureRecovery.decision === 'CLOSE_UNRECOVERABLE'
-          ? 'No active recovery action'
+        ? latestRecoveryClosed
+          ? 'Recovery closed'
           : 'Record next decision'
         : 'Record recovery decision';
 
@@ -444,8 +458,8 @@ export default function OrderDetails() {
                 Failure reason: <span className="font-semibold">{formattedFailureReason ?? 'Not recorded'}</span>
               </p>
               <p className="mt-1 max-w-3xl text-sm text-red-800">
-                Contact the customer or courier, confirm what happened, then decide whether this needs retry,
-                refund, or closure outside the active courier queue.
+                Contact the customer or courier, confirm what happened, then choose retry, customer follow-up,
+                or close as unreachable when no further contact is realistic.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -525,8 +539,15 @@ export default function OrderDetails() {
                   maxLength={1000}
                   rows={3}
                   className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
-                  placeholder="Customer asked for retry tomorrow, refund requested, or closure reason"
+                  placeholder={recoveryDecision === 'CLOSE_UNRECOVERABLE'
+                    ? 'Required: why this failed order is being closed'
+                    : 'Customer asked for retry tomorrow, refund requested, or closure reason'}
                 />
+                {closeDecisionMissingNote && (
+                  <p className="mt-1 text-xs font-medium text-red-800">
+                    A closure note is required so the team can audit why this recovery was closed.
+                  </p>
+                )}
               </div>
 
               {recoveryDecision === 'REFUND_OR_CUSTOMER_FOLLOW_UP' && (
@@ -558,10 +579,10 @@ export default function OrderDetails() {
 
               <button
                 type="submit"
-                disabled={recoveryMutation.isPending}
+                disabled={recoveryMutation.isPending || closeDecisionMissingNote}
                 className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
               >
-                {recoveryMutation.isPending ? 'Recording...' : 'Record recovery decision'}
+                {recoveryMutation.isPending ? 'Recording...' : recoverySubmitLabel(recoveryDecision)}
               </button>
             </form>
 
@@ -574,7 +595,9 @@ export default function OrderDetails() {
                     ? 'Resolve the customer task when the refund, replacement, or customer contact is complete.'
                     : canMoveBackToAssignment
                       ? 'The latest decision is Retry delivery, so this order can return to assignment.'
-                      : 'Record a decision to unlock the next recovery action.'}
+                      : latestRecoveryClosed
+                        ? 'This failed order recovery is closed. Record another decision only if new information arrives.'
+                        : 'Record a decision to unlock the next recovery action.'}
                 </p>
               </div>
 

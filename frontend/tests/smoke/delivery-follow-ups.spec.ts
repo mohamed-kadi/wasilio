@@ -3,6 +3,7 @@ import { installMockApi, loginAs } from './helpers';
 
 const firstOrderId = '11111111-1111-1111-1111-111111111111';
 const secondOrderId = '22222222-2222-2222-2222-222222222222';
+const thirdOrderId = '33333333-3333-3333-3333-333333333333';
 
 test('merchant can work open delivery follow-ups by due date', async ({ page }) => {
   await installMockApi(page);
@@ -20,27 +21,55 @@ test('merchant can work open delivery follow-ups by due date', async ({ page }) 
       note: 'Refund must be confirmed with customer',
       dueAt: '2026-06-24T10:00:00Z',
     }),
+    followUpTask({
+      taskId: 'follow-up-no-date',
+      orderId: thirdOrderId,
+      note: 'Customer unreachable after three attempts',
+    }),
   ];
   const resolveRequests: Array<Record<string, unknown>> = [];
   let orderDetailRequests = 0;
 
   await page.route('**/api/courier-operations/follow-ups?**', async (route) => {
+    const url = new URL(route.request().url());
+    const dueFilter = url.searchParams.get('dueFilter') ?? 'ALL';
+    const pageNumber = Number(url.searchParams.get('page') ?? '0');
+    const size = Number(url.searchParams.get('size') ?? '10');
+    const now = new Date('2026-06-25T12:00:00Z').getTime();
     const openTasks = followUps
       .filter((task) => task.status === 'OPEN')
-      .sort((left, right) => String(left.dueAt).localeCompare(String(right.dueAt)));
+      .filter((task) => {
+        if (dueFilter === 'DUE_NOW') {
+          return Boolean(task.dueAt) && new Date(task.dueAt).getTime() <= now;
+        }
+        if (dueFilter === 'SCHEDULED') {
+          return Boolean(task.dueAt) && new Date(task.dueAt).getTime() > now;
+        }
+        if (dueFilter === 'NO_DUE_DATE') {
+          return !task.dueAt;
+        }
+        return true;
+      })
+      .sort((left, right) => {
+        if (!left.dueAt && !right.dueAt) return left.createdAt.localeCompare(right.createdAt);
+        if (!left.dueAt) return 1;
+        if (!right.dueAt) return -1;
+        return left.dueAt.localeCompare(right.dueAt);
+      });
+    const pagedTasks = openTasks.slice(pageNumber * size, pageNumber * size + size);
 
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        content: openTasks.map((task) => ({
+        content: pagedTasks.map((task) => ({
           task,
           order: orderSummary(task.orderId),
         })),
-        page: 0,
-        size: 10,
+        page: pageNumber,
+        size,
         totalElements: openTasks.length,
-        totalPages: openTasks.length > 0 ? 1 : 0,
+        totalPages: openTasks.length > 0 ? Math.ceil(openTasks.length / size) : 0,
       }),
     });
   });
@@ -79,19 +108,39 @@ test('merchant can work open delivery follow-ups by due date', async ({ page }) 
 
   await expect(page.getByRole('heading', { name: 'Customer follow-ups' })).toBeVisible();
   await expect(page.getByText('Open follow-up queue')).toBeVisible();
-  await expect(page.locator('article')).toHaveCount(2);
+  await expect(page.getByRole('button', { name: /All open \(3\)/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Due now \(1\)/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Scheduled \(1\)/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /No due date \(1\)/ })).toBeVisible();
+  await expect(page.locator('article')).toHaveCount(3);
   await expect(page.locator('article').first()).toContainText('Overdue');
   await expect(page.locator('article').first()).toContainText('Earlier Customer');
-  await expect(page.locator('article').last()).toContainText('Later Customer');
+  await expect(page.locator('article').nth(1)).toContainText('Later Customer');
+  await expect(page.locator('article').last()).toContainText('Manual Customer');
   expect(orderDetailRequests).toBe(0);
 
+  await page.getByRole('button', { name: /Due now \(1\)/ }).click();
+  await expect(page.locator('article')).toHaveCount(1);
+  await expect(page.locator('article')).toContainText('Earlier Customer');
+
+  await page.getByRole('button', { name: /Scheduled \(1\)/ }).click();
+  await expect(page.locator('article')).toHaveCount(1);
+  await expect(page.locator('article')).toContainText('Later Customer');
+
+  await page.getByRole('button', { name: /No due date \(1\)/ }).click();
+  await expect(page.locator('article')).toHaveCount(1);
+  await expect(page.locator('article')).toContainText('Manual Customer');
+
+  await page.getByRole('button', { name: /All open \(3\)/ }).click();
+  await expect(page.locator('article')).toHaveCount(3);
   await page.locator('article').first().getByPlaceholder('Optional note, e.g. refund sent or customer reached').fill('Refund confirmed with customer');
   await page.locator('article').first().getByRole('button', { name: 'Resolve follow-up' }).click();
 
   await expect.poll(() => resolveRequests.length).toBe(1);
   expect(resolveRequests[0]).toEqual({ note: 'Refund confirmed with customer' });
-  await expect(page.locator('article')).toHaveCount(1);
+  await expect(page.locator('article')).toHaveCount(2);
   await expect(page.getByText('Later Customer')).toBeVisible();
+  await expect(page.getByText('Manual Customer')).toBeVisible();
   await expect(page.getByText('Earlier Customer')).not.toBeVisible();
 });
 
@@ -104,7 +153,7 @@ function followUpTask({
   taskId: string;
   orderId: string;
   note: string;
-  dueAt: string;
+  dueAt?: string;
 }) {
   return {
     taskId,
@@ -120,7 +169,7 @@ function followUpTask({
 }
 
 function orderSummary(orderId: string) {
-  const firstName = orderId === firstOrderId ? 'Earlier' : 'Later';
+  const firstName = orderId === firstOrderId ? 'Earlier' : orderId === secondOrderId ? 'Later' : 'Manual';
   const lastName = 'Customer';
   return {
     orderId,

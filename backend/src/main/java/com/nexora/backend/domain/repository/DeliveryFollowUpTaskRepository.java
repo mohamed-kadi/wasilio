@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,6 +34,58 @@ public interface DeliveryFollowUpTaskRepository extends JpaRepository<DeliveryFo
               task.taskId asc
             """)
     Page<DeliveryFollowUpTask> findQueueByTenantIdAndStatus(
+            @Param("tenantId") UUID tenantId,
+            @Param("status") DeliveryFollowUpStatus status,
+            Pageable pageable
+    );
+
+    @Query("""
+            select task
+            from DeliveryFollowUpTask task
+            where task.tenantId = :tenantId
+              and task.status = :status
+              and task.dueAt <= :now
+            order by
+              task.dueAt asc,
+              task.createdAt asc,
+              task.taskId asc
+            """)
+    Page<DeliveryFollowUpTask> findDueNowQueueByTenantIdAndStatus(
+            @Param("tenantId") UUID tenantId,
+            @Param("status") DeliveryFollowUpStatus status,
+            @Param("now") Instant now,
+            Pageable pageable
+    );
+
+    @Query("""
+            select task
+            from DeliveryFollowUpTask task
+            where task.tenantId = :tenantId
+              and task.status = :status
+              and task.dueAt > :now
+            order by
+              task.dueAt asc,
+              task.createdAt asc,
+              task.taskId asc
+            """)
+    Page<DeliveryFollowUpTask> findScheduledQueueByTenantIdAndStatus(
+            @Param("tenantId") UUID tenantId,
+            @Param("status") DeliveryFollowUpStatus status,
+            @Param("now") Instant now,
+            Pageable pageable
+    );
+
+    @Query("""
+            select task
+            from DeliveryFollowUpTask task
+            where task.tenantId = :tenantId
+              and task.status = :status
+              and task.dueAt is null
+            order by
+              task.createdAt asc,
+              task.taskId asc
+            """)
+    Page<DeliveryFollowUpTask> findNoDueDateQueueByTenantIdAndStatus(
             @Param("tenantId") UUID tenantId,
             @Param("status") DeliveryFollowUpStatus status,
             Pageable pageable

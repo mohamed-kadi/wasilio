@@ -4,6 +4,7 @@ import com.nexora.backend.domain.model.DeliveryFailure;
 import com.nexora.backend.domain.model.DeliveryFailureRecovery;
 import com.nexora.backend.domain.model.DeliveryFailureRecoveryDecision;
 import com.nexora.backend.domain.model.DeliveryFailureReason;
+import com.nexora.backend.domain.model.DeliveryFollowUpDueFilter;
 import com.nexora.backend.domain.model.DeliveryFollowUpStatus;
 import com.nexora.backend.domain.model.DeliveryFollowUpTask;
 import com.nexora.backend.domain.model.Order;
@@ -76,15 +77,41 @@ public class DeliveryOperationsService {
     }
 
     @Transactional(readOnly = true)
-    public Page<DeliveryFollowUpTask> listFollowUpTasks(UUID tenantId, DeliveryFollowUpStatus status, Pageable pageable) {
+    public Page<DeliveryFollowUpTask> listFollowUpTasks(
+            UUID tenantId,
+            DeliveryFollowUpStatus status,
+            DeliveryFollowUpDueFilter dueFilter,
+            Pageable pageable
+    ) {
         if (status == null) {
             throw new IllegalArgumentException("status is required");
         }
-        return deliveryFollowUpTaskRepository.findQueueByTenantIdAndStatus(
-                tenantId,
-                status,
-                pageable
-        );
+        DeliveryFollowUpDueFilter selectedFilter = dueFilter == null ? DeliveryFollowUpDueFilter.ALL : dueFilter;
+        Instant now = Instant.now(clock);
+        return switch (selectedFilter) {
+            case ALL -> deliveryFollowUpTaskRepository.findQueueByTenantIdAndStatus(
+                    tenantId,
+                    status,
+                    pageable
+            );
+            case DUE_NOW -> deliveryFollowUpTaskRepository.findDueNowQueueByTenantIdAndStatus(
+                    tenantId,
+                    status,
+                    now,
+                    pageable
+            );
+            case SCHEDULED -> deliveryFollowUpTaskRepository.findScheduledQueueByTenantIdAndStatus(
+                    tenantId,
+                    status,
+                    now,
+                    pageable
+            );
+            case NO_DUE_DATE -> deliveryFollowUpTaskRepository.findNoDueDateQueueByTenantIdAndStatus(
+                    tenantId,
+                    status,
+                    pageable
+            );
+        };
     }
 
     @Transactional
@@ -103,6 +130,9 @@ public class DeliveryOperationsService {
         Instant now = Instant.now(clock);
         String actor = normalizeActor(createdBy);
         String normalizedNote = normalize(note);
+        if (decision == DeliveryFailureRecoveryDecision.CLOSE_UNRECOVERABLE && normalizedNote == null) {
+            throw new IllegalArgumentException("closure note is required");
+        }
 
         DeliveryFailureRecovery recovery = deliveryFailureRecoveryRepository.save(DeliveryFailureRecovery.builder()
                 .recoveryId(UUID.randomUUID())

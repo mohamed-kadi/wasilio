@@ -331,6 +331,7 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   await page.getByRole('button', { name: 'Review failed deliveries' }).click();
 
   await expect(page.getByText('Failed delivery recovery')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Needs decision \(1\)/ })).toBeVisible();
   await expect(page.getByText('Reason: Customer refused')).toBeVisible();
   await expect(page.getByText('No recovery decision recorded')).toBeVisible();
   await expect(page.getByText('Record recovery decision')).toBeVisible();
@@ -339,7 +340,7 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   await expect(page).toHaveURL(/\/app\/orders\/11111111-1111-1111-1111-111111111111$/);
   await expect(page.getByRole('heading', { name: 'Failed delivery' })).toBeVisible();
   await expect(page.getByText('Failure reason: Customer refused')).toBeVisible();
-  await expect(page.getByText('decide whether this needs retry')).toBeVisible();
+  await expect(page.getByText('choose retry, customer follow-up')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Back to failed deliveries' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Review courier performance' })).toBeVisible();
   await expect(page.getByText('Latest decision', { exact: true }).first()).toBeVisible();
@@ -348,7 +349,7 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   await page.getByLabel('Recovery decision').selectOption('REFUND_OR_CUSTOMER_FOLLOW_UP');
   await page.getByLabel('Recovery note').fill('Customer wants a refund before another attempt');
   await page.getByLabel('Follow-up due date').fill('2026-06-22');
-  await page.getByRole('button', { name: 'Record recovery decision' }).click();
+  await page.getByRole('button', { name: 'Create follow-up task' }).click();
 
   await expect(page.getByText('Refund / customer follow-up').last()).toBeVisible();
   await expect(page.getByText('Customer wants a refund before another attempt').first()).toBeVisible();
@@ -360,9 +361,18 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   await expect(page.getByText('Refund request sent to merchant')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Move back to assignment queue' })).toBeDisabled();
 
+  await page.getByLabel('Recovery decision').selectOption('CLOSE_UNRECOVERABLE');
+  await expect(page.getByText('A closure note is required')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Close failed recovery' })).toBeDisabled();
+  await page.getByLabel('Recovery note').fill('Customer unreachable after repeated attempts');
+  await page.getByRole('button', { name: 'Close failed recovery' }).click();
+  await expect(page.getByText('Close as unreachable / unrecoverable').last()).toBeVisible();
+  await expect(page.getByText('Recovery closed').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Move back to assignment queue' })).toBeDisabled();
+
   await page.getByLabel('Recovery decision').selectOption('RETRY_DELIVERY');
   await page.getByLabel('Recovery note').fill('Customer confirmed retry for tomorrow');
-  await page.getByRole('button', { name: 'Record recovery decision' }).click();
+  await page.getByRole('button', { name: 'Record retry decision' }).click();
 
   await expect(page.getByText('Retry delivery').last()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Move back to assignment queue' })).toBeEnabled();
@@ -376,6 +386,10 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
       decision: 'REFUND_OR_CUSTOMER_FOLLOW_UP',
       note: 'Customer wants a refund before another attempt',
       followUpDueAt: '2026-06-22T23:59:59Z',
+    },
+    {
+      decision: 'CLOSE_UNRECOVERABLE',
+      note: 'Customer unreachable after repeated attempts',
     },
     {
       decision: 'RETRY_DELIVERY',

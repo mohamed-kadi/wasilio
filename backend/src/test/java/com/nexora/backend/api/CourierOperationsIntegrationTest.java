@@ -608,16 +608,68 @@ class CourierOperationsIntegrationTest {
     }
 
     @Test
+    void closeUnrecoverableRecoveryRequiresNoteAndResolvesOpenFollowUps() throws Exception {
+        String courierId = createCourier(jwtToken, "Closure Courier", "0617171717");
+        String orderId = createPickedUpOrder(jwtToken, "ClosureFollowUp", courierId);
+        Instant dueAt = Instant.now().minus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+
+        createFailedCustomerFollowUp(jwtToken, orderId, dueAt, "Customer unreachable after failed delivery");
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/failure-recoveries")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
+                        DeliveryFailureRecoveryDecision.CLOSE_UNRECOVERABLE,
+                        "",
+                        null
+                ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("closure note is required"));
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/failure-recoveries")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
+                        DeliveryFailureRecoveryDecision.CLOSE_UNRECOVERABLE,
+                        "Customer unreachable after repeated attempts; close recovery",
+                        null
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.decision").value("CLOSE_UNRECOVERABLE"))
+                .andExpect(jsonPath("$.note").value("Customer unreachable after repeated attempts; close recovery"))
+                .andExpect(jsonPath("$.followUpTask").doesNotExist());
+
+        mockMvc.perform(get("/api/courier-operations/follow-ups")
+                .param("status", "OPEN")
+                .param("dueFilter", "DUE_NOW")
+                .param("page", "0")
+                .param("size", "10")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
+
+        mockMvc.perform(get("/api/courier-operations/orders/" + orderId + "/follow-ups")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("RESOLVED"))
+                .andExpect(jsonPath("$[0].resolvedBy").value("courier@example.com"))
+                .andExpect(jsonPath("$[0].resolutionNote").value("Superseded by recovery decision CLOSE_UNRECOVERABLE"));
+    }
+
+    @Test
     void openFollowUpsAreListedByDueDate() throws Exception {
         String courierId = createCourier(jwtToken, "Queue Follow Up Courier", "0619191919");
+        String overdueOrderId = createPickedUpOrder(jwtToken, "OverdueFollowUp", courierId);
         String laterOrderId = createPickedUpOrder(jwtToken, "LaterFollowUp", courierId);
         String earlierOrderId = createPickedUpOrder(jwtToken, "EarlierFollowUp", courierId);
         String noDateOrderId = createPickedUpOrder(jwtToken, "NoDateFollowUp", courierId);
         String otherTenantCourierId = createCourier(otherTenantJwtToken, "Other Follow Up Courier", "0629292929");
         String otherTenantOrderId = createPickedUpOrder(otherTenantJwtToken, "OtherTenantFollowUp", otherTenantCourierId);
+        Instant overdueDueAt = Instant.now().minus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
         Instant laterDueAt = Instant.now().plus(2, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
         Instant earlierDueAt = Instant.now().plus(3, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
 
+        createFailedCustomerFollowUp(jwtToken, overdueOrderId, overdueDueAt, "Overdue customer follow-up");
         createFailedCustomerFollowUp(jwtToken, laterOrderId, laterDueAt, "Later customer follow-up");
         createFailedCustomerFollowUp(jwtToken, earlierOrderId, earlierDueAt, "Earlier customer follow-up");
         createFailedCustomerFollowUp(jwtToken, noDateOrderId, null, "No due date customer follow-up");
@@ -629,18 +681,52 @@ class CourierOperationsIntegrationTest {
                 .param("size", "10")
                 .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(3))
-                .andExpect(jsonPath("$.content[0].task.orderId").value(earlierOrderId))
-                .andExpect(jsonPath("$.content[0].task.dueAt").value(earlierDueAt.toString()))
-                .andExpect(jsonPath("$.content[0].order.customerFirstName").value("EarlierFollowUp"))
+                .andExpect(jsonPath("$.totalElements").value(4))
+                .andExpect(jsonPath("$.content[0].task.orderId").value(overdueOrderId))
+                .andExpect(jsonPath("$.content[0].task.dueAt").value(overdueDueAt.toString()))
+                .andExpect(jsonPath("$.content[0].order.customerFirstName").value("OverdueFollowUp"))
                 .andExpect(jsonPath("$.content[0].order.status").value("FAILED"))
                 .andExpect(jsonPath("$.content[0].order.amount").value(100.00))
-                .andExpect(jsonPath("$.content[1].task.orderId").value(laterOrderId))
-                .andExpect(jsonPath("$.content[1].task.dueAt").value(laterDueAt.toString()))
-                .andExpect(jsonPath("$.content[1].order.customerFirstName").value("LaterFollowUp"))
-                .andExpect(jsonPath("$.content[2].task.orderId").value(noDateOrderId))
-                .andExpect(jsonPath("$.content[2].task.dueAt").doesNotExist())
-                .andExpect(jsonPath("$.content[2].order.customerFirstName").value("NoDateFollowUp"));
+                .andExpect(jsonPath("$.content[1].task.orderId").value(earlierOrderId))
+                .andExpect(jsonPath("$.content[1].task.dueAt").value(earlierDueAt.toString()))
+                .andExpect(jsonPath("$.content[1].order.customerFirstName").value("EarlierFollowUp"))
+                .andExpect(jsonPath("$.content[2].task.orderId").value(laterOrderId))
+                .andExpect(jsonPath("$.content[2].task.dueAt").value(laterDueAt.toString()))
+                .andExpect(jsonPath("$.content[2].order.customerFirstName").value("LaterFollowUp"))
+                .andExpect(jsonPath("$.content[3].task.orderId").value(noDateOrderId))
+                .andExpect(jsonPath("$.content[3].task.dueAt").doesNotExist())
+                .andExpect(jsonPath("$.content[3].order.customerFirstName").value("NoDateFollowUp"));
+
+        mockMvc.perform(get("/api/courier-operations/follow-ups")
+                .param("status", "OPEN")
+                .param("dueFilter", "DUE_NOW")
+                .param("page", "0")
+                .param("size", "10")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].task.orderId").value(overdueOrderId));
+
+        mockMvc.perform(get("/api/courier-operations/follow-ups")
+                .param("status", "OPEN")
+                .param("dueFilter", "SCHEDULED")
+                .param("page", "0")
+                .param("size", "10")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[0].task.orderId").value(earlierOrderId))
+                .andExpect(jsonPath("$.content[1].task.orderId").value(laterOrderId));
+
+        mockMvc.perform(get("/api/courier-operations/follow-ups")
+                .param("status", "OPEN")
+                .param("dueFilter", "NO_DUE_DATE")
+                .param("page", "0")
+                .param("size", "10")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].task.orderId").value(noDateOrderId));
     }
 
     @Test

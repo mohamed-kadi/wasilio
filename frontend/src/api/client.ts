@@ -162,6 +162,7 @@ export interface DeliveryFailureRecoveryPayload {
 }
 
 export type DeliveryFollowUpStatus = 'OPEN' | 'RESOLVED';
+export type DeliveryFollowUpDueFilter = 'ALL' | 'DUE_NOW' | 'SCHEDULED' | 'NO_DUE_DATE';
 
 export interface DeliveryFollowUpTask {
   taskId: string;
@@ -206,6 +207,7 @@ export interface DeliveryFollowUpsQuery {
   page?: number;
   size?: number;
   status?: DeliveryFollowUpStatus;
+  dueFilter?: DeliveryFollowUpDueFilter;
 }
 
 export interface DeliveryFollowUpResolutionPayload {
@@ -905,6 +907,7 @@ export async function fetchDeliveryFollowUpTasks(
   params.set('page', String(query.page ?? 0));
   params.set('size', String(query.size ?? 20));
   params.set('status', query.status ?? 'OPEN');
+  params.set('dueFilter', query.dueFilter ?? 'ALL');
 
   return apiRequest<DeliveryFollowUpTasksPageResponse>(`/courier-operations/follow-ups?${params.toString()}`);
 }

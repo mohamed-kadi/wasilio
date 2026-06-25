@@ -81,7 +81,7 @@ const failureReasonLabels: Record<string, string> = {
 const recoveryDecisionLabels: Record<DeliveryFailureRecoveryDecision, string> = {
   RETRY_DELIVERY: 'Retry delivery',
   REFUND_OR_CUSTOMER_FOLLOW_UP: 'Refund / customer follow-up',
-  CLOSE_UNRECOVERABLE: 'Close as unrecoverable',
+  CLOSE_UNRECOVERABLE: 'Close as unreachable / unrecoverable',
 };
 
 const statuses: OrderStatus[] = [
@@ -109,6 +109,23 @@ interface OrdersLocationState {
   statuses?: OrderStatus[];
   recoveryFocus?: boolean;
 }
+
+type FailureRecoveryFilter =
+  | 'ALL'
+  | 'NEEDS_DECISION'
+  | 'OPEN_FOLLOW_UP'
+  | 'RETRY_READY'
+  | 'REFUND_REVIEW'
+  | 'CLOSED_UNRECOVERABLE';
+
+const failureRecoveryFilters: Array<{ value: FailureRecoveryFilter; label: string; detail: string }> = [
+  { value: 'ALL', label: 'All failures', detail: 'Visible failed orders' },
+  { value: 'NEEDS_DECISION', label: 'Needs decision', detail: 'No recovery path recorded' },
+  { value: 'OPEN_FOLLOW_UP', label: 'Open follow-up', detail: 'Customer task is still active' },
+  { value: 'RETRY_READY', label: 'Retry ready', detail: 'Can return to assignment' },
+  { value: 'REFUND_REVIEW', label: 'Refund review', detail: 'Follow-up/refund path recorded' },
+  { value: 'CLOSED_UNRECOVERABLE', label: 'Closed', detail: 'No further recovery action' },
+];
 
 const emptyFilters: OrderFilters = {
   statuses: [],
@@ -192,9 +209,40 @@ function failedOrderNextAction(latestRecovery?: DeliveryFailureRecovery, openFol
     return 'Move to assignment';
   }
   if (latestRecovery.decision === 'CLOSE_UNRECOVERABLE') {
-    return 'No active recovery action';
+    return 'Recovery closed';
   }
   return 'Review recovery';
+}
+
+function failureRecoveryState(
+  latestRecovery?: DeliveryFailureRecovery,
+  openFollowUp?: DeliveryFollowUpTask,
+): FailureRecoveryFilter {
+  if (openFollowUp) {
+    return 'OPEN_FOLLOW_UP';
+  }
+  if (!latestRecovery) {
+    return 'NEEDS_DECISION';
+  }
+  if (latestRecovery.decision === 'RETRY_DELIVERY') {
+    return 'RETRY_READY';
+  }
+  if (latestRecovery.decision === 'CLOSE_UNRECOVERABLE') {
+    return 'CLOSED_UNRECOVERABLE';
+  }
+  return 'REFUND_REVIEW';
+}
+
+function failureRecoveryRank(state: FailureRecoveryFilter) {
+  const ranks: Record<FailureRecoveryFilter, number> = {
+    OPEN_FOLLOW_UP: 0,
+    NEEDS_DECISION: 1,
+    RETRY_READY: 2,
+    REFUND_REVIEW: 3,
+    CLOSED_UNRECOVERABLE: 4,
+    ALL: 5,
+  };
+  return ranks[state];
 }
 
 function orderMovedToAssignment(order: Order): Order {
@@ -246,6 +294,7 @@ export default function OrdersList() {
     statuses: locationStatuses,
   }));
   const [recoveryFocus, setRecoveryFocus] = useState(Boolean(locationState?.recoveryFocus));
+  const [failureRecoveryFilter, setFailureRecoveryFilter] = useState<FailureRecoveryFilter>('ALL');
   const [selectedSavedViewId, setSelectedSavedViewId] = useState('');
   const [savedViewName, setSavedViewName] = useState('');
   const ordersQueryKey = ['orders', { page, size, filters }] as const;
@@ -360,6 +409,39 @@ export default function OrdersList() {
     closed: countByStatus(orders, 'DELIVERED') + countByStatus(orders, 'FAILED') + countByStatus(orders, 'REJECTED'),
     failed: visibleFailedOrders.length,
   };
+  const recoveryStateByOrderId = new Map<string, FailureRecoveryFilter>(
+    visibleFailedOrders.map((order) => {
+      const recoveries = recoveriesByOrderId.get(order.id) ?? [];
+      const followUps = followUpsByOrderId.get(order.id) ?? [];
+      const latestFailureRecovery = latestRecovery(recoveries);
+      const openFollowUp = followUps.find((followUp) => followUp.status === 'OPEN');
+      return [order.id, failureRecoveryState(latestFailureRecovery, openFollowUp)];
+    }),
+  );
+  const recoveryFilterCounts = new Map<FailureRecoveryFilter, number>(
+    failureRecoveryFilters.map((filterOption) => [
+      filterOption.value,
+      filterOption.value === 'ALL'
+        ? visibleFailedOrders.length
+        : visibleFailedOrders.filter((order) => recoveryStateByOrderId.get(order.id) === filterOption.value).length,
+    ]),
+  );
+  const displayedOrders = isFailureRecoveryView
+    ? visibleFailedOrders
+        .filter((order) => (
+          failureRecoveryFilter === 'ALL'
+            ? true
+            : recoveryStateByOrderId.get(order.id) === failureRecoveryFilter
+        ))
+        .sort((left, right) => {
+          const leftRank = failureRecoveryRank(recoveryStateByOrderId.get(left.id) ?? 'NEEDS_DECISION');
+          const rightRank = failureRecoveryRank(recoveryStateByOrderId.get(right.id) ?? 'NEEDS_DECISION');
+          if (leftRank !== rightRank) {
+            return leftRank - rightRank;
+          }
+          return new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+        })
+    : orders;
 
   const quickResolveFollowUpMutation = useMutation({
     mutationFn: ({ orderId, taskId }: { orderId: string; taskId: string }) => resolveDeliveryFollowUp(orderId, taskId),
@@ -369,6 +451,7 @@ export default function OrdersList() {
         (currentTasks) => currentTasks?.map((currentTask) => currentTask.taskId === task.taskId ? task : currentTask) ?? [task],
       );
       await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', variables.orderId] });
+      await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups-summary'] });
       await queryClient.invalidateQueries({ queryKey: ['order-timeline', variables.orderId] });
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
       await queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
@@ -416,6 +499,9 @@ export default function OrdersList() {
     setFilters((currentFilters) => ({ ...currentFilters, [key]: value }));
     if (key === 'statuses') {
       setRecoveryFocus((value as OrderStatus[]).includes('FAILED'));
+      if (!(value as OrderStatus[]).includes('FAILED')) {
+        setFailureRecoveryFilter('ALL');
+      }
     }
     setPage(0);
   }
@@ -442,6 +528,7 @@ export default function OrdersList() {
   function clearFilters() {
     setFilters(emptyFilters);
     setRecoveryFocus(false);
+    setFailureRecoveryFilter('ALL');
     setSelectedSavedViewId('');
     setSavedViewName('');
     setPage(0);
@@ -453,6 +540,7 @@ export default function OrdersList() {
       statuses: ['FAILED'],
     });
     setRecoveryFocus(true);
+    setFailureRecoveryFilter('ALL');
     setSelectedSavedViewId('');
     setSavedViewName('');
     setPage(0);
@@ -497,6 +585,28 @@ export default function OrdersList() {
             >
               Review courier performance
             </Link>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {failureRecoveryFilters.map((filterOption) => {
+              const isActive = failureRecoveryFilter === filterOption.value;
+              const count = recoveryFilterCounts.get(filterOption.value) ?? 0;
+
+              return (
+                <button
+                  key={filterOption.value}
+                  type="button"
+                  onClick={() => setFailureRecoveryFilter(filterOption.value)}
+                  className={`rounded-md border px-3 py-2 text-left text-sm ${
+                    isActive
+                      ? 'border-red-500 bg-white text-red-950'
+                      : 'border-red-200 bg-red-50 text-red-800 hover:bg-white'
+                  }`}
+                >
+                  <span className="block font-semibold">{filterOption.label} ({count})</span>
+                  <span className="block text-xs text-red-700">{filterOption.detail}</span>
+                </button>
+              );
+            })}
           </div>
         </section>
       )}
@@ -744,7 +854,7 @@ export default function OrdersList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
-              {orders.map((order) => {
+              {displayedOrders.map((order) => {
                 const failureReason = formatFailureReason(order.failureReason);
                 const recoveries = recoveriesByOrderId.get(order.id) ?? [];
                 const latestFailureRecovery = latestRecovery(recoveries);
@@ -869,7 +979,11 @@ export default function OrdersList() {
                             <p className="text-xs text-gray-500">Open the order detail to choose retry, customer follow-up, or closure.</p>
                           )}
                           {latestFailureRecovery && !canMoveToAssignment && !openFollowUp && (
-                            <p className="text-xs text-gray-500">No row action is pending. Open the detail page to review or record another decision.</p>
+                            <p className="text-xs text-gray-500">
+                              {latestFailureRecovery.decision === 'CLOSE_UNRECOVERABLE'
+                                ? 'Recovery is closed as unreachable or unrecoverable. Open detail only if new information arrives.'
+                                : 'No row action is pending. Open the detail page to review or record another decision.'}
+                            </p>
                           )}
                         </div>
                       ) : (
@@ -880,10 +994,10 @@ export default function OrdersList() {
                   </tr>
                 );
               })}
-              {!isLoading && orders.length === 0 && (
+              {!isLoading && displayedOrders.length === 0 && (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-gray-500">
-                    No orders found.
+                    {isFailureRecoveryView ? 'No failed orders match this recovery filter.' : 'No orders found.'}
                   </td>
                 </tr>
               )}

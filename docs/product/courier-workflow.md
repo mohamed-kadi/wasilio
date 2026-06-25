@@ -65,6 +65,12 @@ Supported reasons are `CUSTOMER_UNREACHABLE`, `CUSTOMER_REFUSED`, `INVALID_ADDRE
 
 The event remains the source of final order state. The failure record supports operations review and later reporting.
 
+Failed recovery decisions sit on top of the failed order state:
+
+- `RETRY_DELIVERY` keeps the failed event for history, then allows the order to return to courier assignment.
+- `REFUND_OR_CUSTOMER_FOLLOW_UP` opens a customer follow-up task until refund, replacement, or contact is completed.
+- `CLOSE_UNRECOVERABLE` closes recovery when the customer cannot be reached or no further delivery action is expected. A closure note is required, and open follow-up tasks are resolved as superseded.
+
 ## Courier Performance
 
 The current performance endpoint is query-based and tenant-scoped. For each courier it returns assigned, picked up, delivered, and failed order counts plus delivery success rate.

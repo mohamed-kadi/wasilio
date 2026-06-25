@@ -7,6 +7,7 @@ import com.nexora.backend.domain.model.DeliveryFailure;
 import com.nexora.backend.domain.model.DeliveryFailureRecovery;
 import com.nexora.backend.domain.model.DeliveryFailureRecoveryDecision;
 import com.nexora.backend.domain.model.DeliveryFailureReason;
+import com.nexora.backend.domain.model.DeliveryFollowUpDueFilter;
 import com.nexora.backend.domain.model.DeliveryFollowUpStatus;
 import com.nexora.backend.domain.model.DeliveryFollowUpTask;
 import com.nexora.backend.domain.model.Order;
@@ -324,12 +325,14 @@ public class CourierOperationsController {
     public ResponseEntity<DeliveryFollowUpTasksPageResponse> listFollowUpTasks(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "OPEN") DeliveryFollowUpStatus status
+            @RequestParam(defaultValue = "OPEN") DeliveryFollowUpStatus status,
+            @RequestParam(defaultValue = "ALL") DeliveryFollowUpDueFilter dueFilter
     ) {
         UUID tenantId = getCurrentTenantId();
         Page<DeliveryFollowUpTask> tasks = deliveryOperationsService.listFollowUpTasks(
                 tenantId,
                 status,
+                dueFilter,
                 followUpPageRequest(page, size)
         );
         List<UUID> orderIds = tasks.getContent().stream()

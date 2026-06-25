@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Clock, MessageSquare } from 'lucide-react';
 import {
@@ -8,18 +8,30 @@ import {
   resolveDeliveryFollowUp,
 } from '../api/client';
 import type {
+  DeliveryFollowUpDueFilter,
   DeliveryFollowUpOrderSummary,
   DeliveryFollowUpTask,
   DeliveryFollowUpTasksPageResponse,
 } from '../api/client';
 
 const pageSize = 10;
+const dueFilterOptions: Array<{
+  value: DeliveryFollowUpDueFilter;
+  label: string;
+  detail: string;
+}> = [
+  { value: 'ALL', label: 'All open', detail: 'Every unresolved task' },
+  { value: 'DUE_NOW', label: 'Due now', detail: 'Overdue or due at this moment' },
+  { value: 'SCHEDULED', label: 'Scheduled', detail: 'Due later' },
+  { value: 'NO_DUE_DATE', label: 'No due date', detail: 'Needs manual priority' },
+];
 
 export default function DeliveryFollowUps() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
+  const [dueFilter, setDueFilter] = useState<DeliveryFollowUpDueFilter>('ALL');
   const [resolutionNotes, setResolutionNotes] = useState<Record<string, string>>({});
-  const queueQueryKey = ['delivery-follow-ups', { page, size: pageSize, status: 'OPEN' }] as const;
+  const queueQueryKey = ['delivery-follow-ups', { page, size: pageSize, status: 'OPEN', dueFilter }] as const;
 
   const {
     data: followUpsPage,
@@ -28,17 +40,33 @@ export default function DeliveryFollowUps() {
     isFetching,
   } = useQuery({
     queryKey: queueQueryKey,
-    queryFn: () => fetchDeliveryFollowUpTasks({ page, size: pageSize, status: 'OPEN' }),
+    queryFn: () => fetchDeliveryFollowUpTasks({ page, size: pageSize, status: 'OPEN', dueFilter }),
   });
 
+  const summaryQueries = useQueries({
+    queries: dueFilterOptions.map((option) => ({
+      queryKey: ['delivery-follow-ups-summary', { page: 0, size: 1, status: 'OPEN', dueFilter: option.value }],
+      queryFn: () => fetchDeliveryFollowUpTasks({
+        page: 0,
+        size: 1,
+        status: 'OPEN',
+        dueFilter: option.value,
+      }),
+    })),
+  });
+
+  const summaryCounts = new Map<DeliveryFollowUpDueFilter, number>(
+    dueFilterOptions.map((option, index) => [
+      option.value,
+      summaryQueries[index]?.data?.totalElements ?? 0,
+    ]),
+  );
   const queueItems = followUpsPage?.content ?? [];
   const tasks = queueItems.map((item) => item.task);
-  const totalElements = followUpsPage?.totalElements ?? 0;
   const totalPages = followUpsPage?.totalPages ?? 0;
   const canGoBack = page > 0;
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
-  const dueNowCount = tasks.filter((task) => isDueNow(task.dueAt)).length;
-  const noDueDateCount = tasks.filter((task) => !task.dueAt).length;
+  const activeFilterLabel = dueFilterOptions.find((option) => option.value === dueFilter)?.label ?? 'All open';
 
   const resolveMutation = useMutation({
     mutationFn: ({ task }: { task: DeliveryFollowUpTask }) => resolveDeliveryFollowUp(task.orderId, task.taskId, {
@@ -62,6 +90,7 @@ export default function DeliveryFollowUps() {
       );
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups'] }),
+        queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups-summary'] }),
         queryClient.invalidateQueries({ queryKey: ['order-timeline', resolvedTask.orderId] }),
         queryClient.invalidateQueries({ queryKey: ['orders'] }),
         queryClient.invalidateQueries({ queryKey: ['orders-summary'] }),
@@ -75,7 +104,7 @@ export default function DeliveryFollowUps() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Customer follow-ups</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Open failed-delivery tasks sorted by due date
+            Filter failed-delivery recovery tasks by urgency and due date
             {isFetching && !isLoading ? ' - Refreshing' : ''}
           </p>
         </div>
@@ -106,29 +135,65 @@ export default function DeliveryFollowUps() {
       <section className="grid gap-4 md:grid-cols-3">
         <QueueMetric
           title="Open follow-ups"
-          value={isLoading ? '...' : String(totalElements)}
+          value={summaryQueries[0]?.isLoading ? '...' : String(summaryCounts.get('ALL') ?? 0)}
           detail="Unresolved customer recovery tasks"
           icon={<MessageSquare size={20} />}
         />
         <QueueMetric
           title="Due now"
-          value={isLoading ? '...' : String(dueNowCount)}
-          detail="Overdue or due today on this page"
+          value={summaryQueries[1]?.isLoading ? '...' : String(summaryCounts.get('DUE_NOW') ?? 0)}
+          detail="Needs immediate contact"
           icon={<Clock size={20} />}
         />
         <QueueMetric
           title="No due date"
-          value={isLoading ? '...' : String(noDueDateCount)}
+          value={summaryQueries[3]?.isLoading ? '...' : String(summaryCounts.get('NO_DUE_DATE') ?? 0)}
           detail="Needs manual priority review"
           icon={<CheckCircle2 size={20} />}
         />
+      </section>
+
+      <section className="rounded-lg border border-gray-200 bg-white px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="font-semibold text-gray-900">Follow-up filters</h3>
+            <p className="text-sm text-gray-500">Switch queues without losing due-date sorting or pagination.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {dueFilterOptions.map((option, index) => {
+              const isActive = dueFilter === option.value;
+              const count = summaryQueries[index]?.isLoading ? '...' : summaryCounts.get(option.value) ?? 0;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => {
+                    setDueFilter(option.value);
+                    setPage(0);
+                  }}
+                  className={`rounded-md border px-3 py-2 text-left text-sm ${
+                    isActive
+                      ? 'border-blue-500 bg-blue-50 text-blue-900'
+                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="block font-semibold">{option.label} ({count})</span>
+                  <span className="block text-xs text-gray-500">{option.detail}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
           <div>
             <h3 className="font-semibold text-gray-900">Open follow-up queue</h3>
-            <p className="text-sm text-gray-500">Resolve tasks after refund, replacement, or customer contact is complete.</p>
+            <p className="text-sm text-gray-500">
+              Showing {activeFilterLabel.toLowerCase()} tasks. Resolve after refund, replacement, or customer contact is complete.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -157,8 +222,8 @@ export default function DeliveryFollowUps() {
 
         {!isLoading && tasks.length === 0 && (
           <div className="px-5 py-10 text-center">
-            <p className="font-medium text-gray-900">No open customer follow-ups</p>
-            <p className="mt-1 text-sm text-gray-500">Failed delivery tasks that need customer contact will appear here.</p>
+            <p className="font-medium text-gray-900">No {activeFilterLabel.toLowerCase()} customer follow-ups</p>
+            <p className="mt-1 text-sm text-gray-500">Use another filter or review failed orders that still need a recovery decision.</p>
           </div>
         )}
 
@@ -311,16 +376,6 @@ function getDueBadge(value?: string) {
     label: `Due ${dueAt.toLocaleDateString()}`,
     className: 'bg-blue-100 text-blue-800',
   };
-}
-
-function isDueNow(value?: string) {
-  if (!value) {
-    return false;
-  }
-  const dueAt = new Date(value);
-  const todayEnd = new Date();
-  todayEnd.setHours(23, 59, 59, 999);
-  return dueAt.getTime() <= todayEnd.getTime();
 }
 
 function customerName(order: DeliveryFollowUpOrderSummary) {
