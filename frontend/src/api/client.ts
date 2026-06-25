@@ -178,8 +178,24 @@ export interface DeliveryFollowUpTask {
   resolutionNote?: string;
 }
 
+export interface DeliveryFollowUpOrderSummary {
+  orderId: string;
+  status: OrderStatus;
+  customerFirstName: string;
+  customerLastName: string;
+  customerPhone: string;
+  amount: number;
+  courierId?: string;
+  failureReason?: string;
+}
+
+export interface DeliveryFollowUpQueueItem {
+  task: DeliveryFollowUpTask;
+  order?: DeliveryFollowUpOrderSummary;
+}
+
 export interface DeliveryFollowUpTasksPageResponse {
-  content: DeliveryFollowUpTask[];
+  content: DeliveryFollowUpQueueItem[];
   page: number;
   size: number;
   totalElements: number;

@@ -1,17 +1,16 @@
 import { useState, type ReactNode } from 'react';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, Clock, MessageSquare } from 'lucide-react';
 import {
   fetchDeliveryFollowUpTasks,
-  fetchOrder,
   getErrorMessage,
   resolveDeliveryFollowUp,
 } from '../api/client';
 import type {
+  DeliveryFollowUpOrderSummary,
   DeliveryFollowUpTask,
   DeliveryFollowUpTasksPageResponse,
-  Order,
 } from '../api/client';
 
 const pageSize = 10;
@@ -32,23 +31,14 @@ export default function DeliveryFollowUps() {
     queryFn: () => fetchDeliveryFollowUpTasks({ page, size: pageSize, status: 'OPEN' }),
   });
 
-  const tasks = followUpsPage?.content ?? [];
+  const queueItems = followUpsPage?.content ?? [];
+  const tasks = queueItems.map((item) => item.task);
   const totalElements = followUpsPage?.totalElements ?? 0;
   const totalPages = followUpsPage?.totalPages ?? 0;
   const canGoBack = page > 0;
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
   const dueNowCount = tasks.filter((task) => isDueNow(task.dueAt)).length;
   const noDueDateCount = tasks.filter((task) => !task.dueAt).length;
-
-  const orderQueries = useQueries({
-    queries: tasks.map((task) => ({
-      queryKey: ['order', task.orderId],
-      queryFn: () => fetchOrder(task.orderId),
-    })),
-  });
-  const ordersById = new Map<string, Order | undefined>(
-    tasks.map((task, index) => [task.orderId, orderQueries[index]?.data]),
-  );
 
   const resolveMutation = useMutation({
     mutationFn: ({ task }: { task: DeliveryFollowUpTask }) => resolveDeliveryFollowUp(task.orderId, task.taskId, {
@@ -174,9 +164,8 @@ export default function DeliveryFollowUps() {
 
         {!isLoading && tasks.length > 0 && (
           <div className="divide-y divide-gray-100">
-            {tasks.map((task, index) => {
-              const order = ordersById.get(task.orderId);
-              const orderQuery = orderQueries[index];
+            {queueItems.map((item) => {
+              const { task, order } = item;
               const dueBadge = getDueBadge(task.dueAt);
               const isResolving = resolveMutation.isPending && resolveMutation.variables?.task.taskId === task.taskId;
 
@@ -192,15 +181,15 @@ export default function DeliveryFollowUps() {
 
                     <div className="mt-3">
                       <h4 className="text-base font-semibold text-gray-900">
-                        {order ? customerName(order) : orderQuery?.isLoading ? 'Loading customer...' : 'Order unavailable'}
+                        {order ? customerName(order) : 'Order unavailable'}
                       </h4>
                       {order ? (
                         <p className="mt-1 text-sm text-gray-600">
-                          {order.customer.phone} · {formatMoney(order.amount)} · {order.status.replace(/_/g, ' ')}
+                          {order.customerPhone} · {formatMoney(order.amount)} · {order.status.replace(/_/g, ' ')}
                         </p>
                       ) : (
                         <p className="mt-1 text-sm text-gray-500">
-                          {orderQuery?.error ? getErrorMessage(orderQuery.error) : `Order ${task.orderId.slice(0, 8)}`}
+                          Order {task.orderId.slice(0, 8)}
                         </p>
                       )}
                     </div>
@@ -258,13 +247,13 @@ function removeResolvedTask(
   currentPage: DeliveryFollowUpTasksPageResponse | undefined,
   taskId: string,
 ) {
-  if (!currentPage || !currentPage.content.some((task) => task.taskId === taskId)) {
+  if (!currentPage || !currentPage.content.some((item) => item.task.taskId === taskId)) {
     return currentPage;
   }
   const totalElements = Math.max(0, currentPage.totalElements - 1);
   return {
     ...currentPage,
-    content: currentPage.content.filter((task) => task.taskId !== taskId),
+    content: currentPage.content.filter((item) => item.task.taskId !== taskId),
     totalElements,
     totalPages: currentPage.size > 0 ? Math.ceil(totalElements / currentPage.size) : currentPage.totalPages,
   };
@@ -334,8 +323,8 @@ function isDueNow(value?: string) {
   return dueAt.getTime() <= todayEnd.getTime();
 }
 
-function customerName(order: Order) {
-  return `${order.customer.firstName} ${order.customer.lastName}`;
+function customerName(order: DeliveryFollowUpOrderSummary) {
+  return `${order.customerFirstName} ${order.customerLastName}`;
 }
 
 function formatDate(value?: string) {

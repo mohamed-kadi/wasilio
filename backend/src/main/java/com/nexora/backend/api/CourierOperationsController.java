@@ -32,8 +32,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 @RestController
@@ -132,16 +136,55 @@ public class CourierOperationsController {
         }
     }
 
+    public record DeliveryFollowUpOrderSummary(
+            UUID orderId,
+            OrderStatus status,
+            String customerFirstName,
+            String customerLastName,
+            String customerPhone,
+            BigDecimal amount,
+            String courierId,
+            String failureReason
+    ) {
+        static DeliveryFollowUpOrderSummary from(Order order) {
+            return new DeliveryFollowUpOrderSummary(
+                    order.getId(),
+                    order.getStatus(),
+                    order.getCustomer().getFirstName(),
+                    order.getCustomer().getLastName(),
+                    order.getCustomer().getPhone(),
+                    order.getAmount(),
+                    order.getCourierId(),
+                    order.getFailureReason()
+            );
+        }
+    }
+
+    public record DeliveryFollowUpQueueItem(
+            DeliveryFollowUpTask task,
+            DeliveryFollowUpOrderSummary order
+    ) {}
+
     public record DeliveryFollowUpTasksPageResponse(
-            List<DeliveryFollowUpTask> content,
+            List<DeliveryFollowUpQueueItem> content,
             int page,
             int size,
             long totalElements,
             int totalPages
     ) {
-        static DeliveryFollowUpTasksPageResponse from(Page<DeliveryFollowUpTask> tasks) {
+        static DeliveryFollowUpTasksPageResponse from(Page<DeliveryFollowUpTask> tasks, List<Order> orders) {
+            Map<UUID, Order> ordersById = orders.stream()
+                    .collect(Collectors.toMap(Order::getId, Function.identity()));
             return new DeliveryFollowUpTasksPageResponse(
-                    tasks.getContent(),
+                    tasks.getContent().stream()
+                            .map(task -> {
+                                Order order = ordersById.get(task.getOrderId());
+                                return new DeliveryFollowUpQueueItem(
+                                        task,
+                                        order == null ? null : DeliveryFollowUpOrderSummary.from(order)
+                                );
+                            })
+                            .toList(),
                     tasks.getNumber(),
                     tasks.getSize(),
                     tasks.getTotalElements(),
@@ -283,11 +326,21 @@ public class CourierOperationsController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "OPEN") DeliveryFollowUpStatus status
     ) {
-        return ResponseEntity.ok(DeliveryFollowUpTasksPageResponse.from(deliveryOperationsService.listFollowUpTasks(
-                getCurrentTenantId(),
+        UUID tenantId = getCurrentTenantId();
+        Page<DeliveryFollowUpTask> tasks = deliveryOperationsService.listFollowUpTasks(
+                tenantId,
                 status,
                 followUpPageRequest(page, size)
-        )));
+        );
+        List<UUID> orderIds = tasks.getContent().stream()
+                .map(DeliveryFollowUpTask::getOrderId)
+                .distinct()
+                .toList();
+        List<Order> orders = orderIds.isEmpty()
+                ? List.of()
+                : orderRepository.findByTenantIdAndIdIn(tenantId, orderIds);
+
+        return ResponseEntity.ok(DeliveryFollowUpTasksPageResponse.from(tasks, orders));
     }
 
     @PostMapping("/orders/{orderId}/follow-ups/{taskId}/resolve")

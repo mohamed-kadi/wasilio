@@ -562,8 +562,12 @@ class CourierOperationsIntegrationTest {
                 .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
-                .andExpect(jsonPath("$.content[0].taskId").value(taskId))
-                .andExpect(jsonPath("$.content[0].status").value("OPEN"));
+                .andExpect(jsonPath("$.content[0].task.taskId").value(taskId))
+                .andExpect(jsonPath("$.content[0].task.status").value("OPEN"))
+                .andExpect(jsonPath("$.content[0].order.orderId").value(orderId))
+                .andExpect(jsonPath("$.content[0].order.customerFirstName").value("FollowUp"))
+                .andExpect(jsonPath("$.content[0].order.customerPhone").value("0612345678"))
+                .andExpect(jsonPath("$.content[0].order.amount").value(100.00));
 
         mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/follow-ups/" + taskId + "/resolve")
                 .header("Authorization", bearer(jwtToken))
@@ -626,12 +630,17 @@ class CourierOperationsIntegrationTest {
                 .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(3))
-                .andExpect(jsonPath("$.content[0].orderId").value(earlierOrderId))
-                .andExpect(jsonPath("$.content[0].dueAt").value(earlierDueAt.toString()))
-                .andExpect(jsonPath("$.content[1].orderId").value(laterOrderId))
-                .andExpect(jsonPath("$.content[1].dueAt").value(laterDueAt.toString()))
-                .andExpect(jsonPath("$.content[2].orderId").value(noDateOrderId))
-                .andExpect(jsonPath("$.content[2].dueAt").doesNotExist());
+                .andExpect(jsonPath("$.content[0].task.orderId").value(earlierOrderId))
+                .andExpect(jsonPath("$.content[0].task.dueAt").value(earlierDueAt.toString()))
+                .andExpect(jsonPath("$.content[0].order.customerFirstName").value("EarlierFollowUp"))
+                .andExpect(jsonPath("$.content[0].order.status").value("FAILED"))
+                .andExpect(jsonPath("$.content[0].order.amount").value(100.00))
+                .andExpect(jsonPath("$.content[1].task.orderId").value(laterOrderId))
+                .andExpect(jsonPath("$.content[1].task.dueAt").value(laterDueAt.toString()))
+                .andExpect(jsonPath("$.content[1].order.customerFirstName").value("LaterFollowUp"))
+                .andExpect(jsonPath("$.content[2].task.orderId").value(noDateOrderId))
+                .andExpect(jsonPath("$.content[2].task.dueAt").doesNotExist())
+                .andExpect(jsonPath("$.content[2].order.customerFirstName").value("NoDateFollowUp"));
     }
 
     @Test

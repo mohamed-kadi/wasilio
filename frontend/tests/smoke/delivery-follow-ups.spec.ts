@@ -22,6 +22,7 @@ test('merchant can work open delivery follow-ups by due date', async ({ page }) 
     }),
   ];
   const resolveRequests: Array<Record<string, unknown>> = [];
+  let orderDetailRequests = 0;
 
   await page.route('**/api/courier-operations/follow-ups?**', async (route) => {
     const openTasks = followUps
@@ -32,7 +33,10 @@ test('merchant can work open delivery follow-ups by due date', async ({ page }) 
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        content: openTasks,
+        content: openTasks.map((task) => ({
+          task,
+          order: orderSummary(task.orderId),
+        })),
         page: 0,
         size: 10,
         totalElements: openTasks.length,
@@ -41,19 +45,12 @@ test('merchant can work open delivery follow-ups by due date', async ({ page }) 
     });
   });
 
-  await page.route(`**/api/orders/${firstOrderId}`, async (route) => {
+  await page.route(/\/api\/orders\/[0-9a-f-]{36}$/, async (route) => {
+    orderDetailRequests += 1;
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(order(firstOrderId, 'Earlier', 'Customer')),
-    });
-  });
-
-  await page.route(`**/api/orders/${secondOrderId}`, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(order(secondOrderId, 'Later', 'Customer')),
+      body: JSON.stringify({}),
     });
   });
 
@@ -86,6 +83,7 @@ test('merchant can work open delivery follow-ups by due date', async ({ page }) 
   await expect(page.locator('article').first()).toContainText('Overdue');
   await expect(page.locator('article').first()).toContainText('Earlier Customer');
   await expect(page.locator('article').last()).toContainText('Later Customer');
+  expect(orderDetailRequests).toBe(0);
 
   await page.locator('article').first().getByPlaceholder('Optional note, e.g. refund sent or customer reached').fill('Refund confirmed with customer');
   await page.locator('article').first().getByRole('button', { name: 'Resolve follow-up' }).click();
@@ -121,29 +119,17 @@ function followUpTask({
   };
 }
 
-function order(id: string, firstName: string, lastName: string) {
+function orderSummary(orderId: string) {
+  const firstName = orderId === firstOrderId ? 'Earlier' : 'Later';
+  const lastName = 'Customer';
   return {
-    id,
-    tenantId: '00000000-0000-0000-0000-000000000001',
+    orderId,
     status: 'FAILED',
-    customer: {
-      firstName,
-      lastName,
-      email: `${firstName.toLowerCase()}@example.com`,
-      phone: '0612345678',
-    },
-    address: {
-      street: '1 Main St',
-      city: 'Casablanca',
-      state: 'Casablanca-Settat',
-      zipCode: '20000',
-      country: 'Morocco',
-    },
+    customerFirstName: firstName,
+    customerLastName: lastName,
+    customerPhone: '0612345678',
     amount: 250,
     courierId: '33333333-3333-3333-3333-333333333333',
     failureReason: 'CUSTOMER_REFUSED',
-    createdAt: '2026-06-20T10:00:00Z',
-    updatedAt: '2026-06-24T10:00:00Z',
-    version: 4,
   };
 }
