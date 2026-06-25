@@ -275,6 +275,7 @@ export default function OrderDetails() {
       }
       queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', id] });
       queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', id] });
+      queryClient.invalidateQueries({ queryKey: ['failed-order-recovery-summaries'] });
       queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups-summary'] });
       queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -302,6 +303,7 @@ export default function OrderDetails() {
         (currentTasks) => currentTasks?.map((currentTask) => currentTask.taskId === task.taskId ? task : currentTask) ?? [task],
       );
       queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', id] });
+      queryClient.invalidateQueries({ queryKey: ['failed-order-recovery-summaries'] });
       queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups-summary'] });
       queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -339,6 +341,7 @@ export default function OrderDetails() {
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: ['order', id] }),
         queryClient.invalidateQueries({ queryKey: ['order-timeline', id] }),
+        queryClient.invalidateQueries({ queryKey: ['failed-order-recovery-summaries'] }),
         queryClient.invalidateQueries({ queryKey: ['orders'] }),
         queryClient.invalidateQueries({ queryKey: ['orders-summary'] }),
         queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] }),

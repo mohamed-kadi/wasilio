@@ -13,6 +13,8 @@ import com.nexora.backend.domain.model.DeliveryFollowUpTask;
 import com.nexora.backend.domain.model.Order;
 import com.nexora.backend.domain.model.OrderStatus;
 import com.nexora.backend.domain.repository.DeliveryFailureRepository;
+import com.nexora.backend.domain.repository.DeliveryFailureRecoveryRepository;
+import com.nexora.backend.domain.repository.DeliveryFollowUpTaskRepository;
 import com.nexora.backend.domain.repository.OrderRepository;
 import com.nexora.backend.infrastructure.security.CustomUserDetails;
 import jakarta.validation.Valid;
@@ -50,6 +52,8 @@ public class CourierOperationsController {
 
     private final OrderRepository orderRepository;
     private final DeliveryFailureRepository deliveryFailureRepository;
+    private final DeliveryFailureRecoveryRepository deliveryFailureRecoveryRepository;
+    private final DeliveryFollowUpTaskRepository deliveryFollowUpTaskRepository;
     private final DeliveryOperationsService deliveryOperationsService;
     private final CourierPerformanceService courierPerformanceService;
 
@@ -253,6 +257,13 @@ public class CourierOperationsController {
         }
     }
 
+    public record FailedOrderRecoverySummary(
+            UUID orderId,
+            DeliveryFailureRecovery latestRecovery,
+            DeliveryFollowUpTask openFollowUp,
+            DeliveryFollowUpTask latestFollowUp
+    ) {}
+
     @GetMapping("/assignment-queue")
     public ResponseEntity<CourierOperationsQueueResponse> assignmentQueue(
             @RequestParam(defaultValue = "0") int page,
@@ -355,6 +366,55 @@ public class CourierOperationsController {
     @GetMapping("/orders/{orderId}/failure-recoveries")
     public ResponseEntity<List<DeliveryFailureRecovery>> listFailureRecoveries(@PathVariable UUID orderId) {
         return ResponseEntity.ok(deliveryOperationsService.listFailureRecoveries(getCurrentTenantId(), orderId));
+    }
+
+    @GetMapping("/orders/recovery-summaries")
+    public ResponseEntity<List<FailedOrderRecoverySummary>> listFailedOrderRecoverySummaries(
+            @RequestParam(name = "orderId") List<UUID> orderIds
+    ) {
+        List<UUID> requestedOrderIds = orderIds.stream().distinct().toList();
+        if (requestedOrderIds.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+        if (requestedOrderIds.size() > 100) {
+            throw new IllegalArgumentException("orderId can include at most 100 values");
+        }
+
+        UUID tenantId = getCurrentTenantId();
+        List<Order> failedOrders = orderRepository.findByTenantIdAndIdIn(tenantId, requestedOrderIds).stream()
+                .filter(order -> order.getStatus() == OrderStatus.FAILED)
+                .toList();
+        List<UUID> failedOrderIds = failedOrders.stream()
+                .map(Order::getId)
+                .toList();
+        if (failedOrderIds.isEmpty()) {
+            return ResponseEntity.ok(List.of());
+        }
+
+        Map<UUID, Order> failedOrdersById = failedOrders.stream()
+                .collect(Collectors.toMap(Order::getId, Function.identity()));
+        Map<UUID, List<DeliveryFailureRecovery>> recoveriesByOrderId = deliveryFailureRecoveryRepository
+                .findByTenantIdAndOrderIdInOrderByOrderIdAscCreatedAtAsc(tenantId, failedOrderIds)
+                .stream()
+                .collect(Collectors.groupingBy(DeliveryFailureRecovery::getOrderId));
+        Map<UUID, List<DeliveryFollowUpTask>> followUpsByOrderId = deliveryFollowUpTaskRepository
+                .findByTenantIdAndOrderIdInOrderByOrderIdAscCreatedAtAsc(tenantId, failedOrderIds)
+                .stream()
+                .collect(Collectors.groupingBy(DeliveryFollowUpTask::getOrderId));
+
+        return ResponseEntity.ok(requestedOrderIds.stream()
+                .filter(failedOrdersById::containsKey)
+                .map(orderId -> {
+                    List<DeliveryFailureRecovery> recoveries = recoveriesByOrderId.getOrDefault(orderId, List.of());
+                    List<DeliveryFollowUpTask> followUps = followUpsByOrderId.getOrDefault(orderId, List.of());
+                    return new FailedOrderRecoverySummary(
+                            orderId,
+                            latestRecovery(recoveries),
+                            openFollowUp(followUps),
+                            latestFollowUp(followUps)
+                    );
+                })
+                .toList());
     }
 
     @PostMapping("/orders/{orderId}/failure-recoveries")
@@ -509,6 +569,21 @@ public class CourierOperationsController {
         if (createdFrom != null && createdTo != null && !createdFrom.isBefore(createdTo)) {
             throw new IllegalArgumentException("createdFrom must be before createdTo");
         }
+    }
+
+    private DeliveryFailureRecovery latestRecovery(List<DeliveryFailureRecovery> recoveries) {
+        return recoveries.isEmpty() ? null : recoveries.get(recoveries.size() - 1);
+    }
+
+    private DeliveryFollowUpTask openFollowUp(List<DeliveryFollowUpTask> followUps) {
+        return followUps.stream()
+                .filter(followUp -> followUp.getStatus() == DeliveryFollowUpStatus.OPEN)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private DeliveryFollowUpTask latestFollowUp(List<DeliveryFollowUpTask> followUps) {
+        return followUps.isEmpty() ? null : followUps.get(followUps.size() - 1);
     }
 
     private UUID getCurrentTenantId() {

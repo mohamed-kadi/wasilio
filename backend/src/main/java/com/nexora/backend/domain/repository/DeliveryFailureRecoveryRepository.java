@@ -10,5 +10,10 @@ import java.util.UUID;
 public interface DeliveryFailureRecoveryRepository extends JpaRepository<DeliveryFailureRecovery, UUID> {
     List<DeliveryFailureRecovery> findByTenantIdAndOrderIdOrderByCreatedAtAsc(UUID tenantId, UUID orderId);
 
+    List<DeliveryFailureRecovery> findByTenantIdAndOrderIdInOrderByOrderIdAscCreatedAtAsc(
+            UUID tenantId,
+            List<UUID> orderIds
+    );
+
     Optional<DeliveryFailureRecovery> findFirstByTenantIdAndOrderIdOrderByCreatedAtDesc(UUID tenantId, UUID orderId);
 }

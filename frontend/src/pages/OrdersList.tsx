@@ -1,13 +1,12 @@
 import { useState } from 'react';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { AlertCircle, Bookmark, ChevronLeft, ChevronRight, PlusCircle, Save, Trash2, X } from 'lucide-react';
 import {
   createOrderSearchSavedView,
   deleteOrderSearchSavedView,
-  fetchDeliveryFollowUps,
   fetchCouriers,
-  fetchDeliveryFailureRecoveries,
+  fetchFailedOrderRecoverySummaries,
   fetchOrders,
   fetchOrderSearchSavedViews,
   getErrorMessage,
@@ -19,6 +18,7 @@ import type {
   DeliveryFailureRecovery,
   DeliveryFailureRecoveryDecision,
   DeliveryFollowUpTask,
+  FailedOrderRecoverySummary,
   Order,
   OrdersPageResponse,
   OrderSearchSavedView,
@@ -184,10 +184,6 @@ function formatFailureReason(reason?: string) {
     return undefined;
   }
   return failureReasonLabels[reason] ?? reason.replace(/_/g, ' ').toLowerCase();
-}
-
-function latestRecovery(recoveries: DeliveryFailureRecovery[]) {
-  return recoveries.length > 0 ? recoveries[recoveries.length - 1] : undefined;
 }
 
 function formatRecoveryDecision(decision: DeliveryFailureRecoveryDecision | string) {
@@ -372,35 +368,19 @@ export default function OrdersList() {
   const selectedSavedView = savedViews.find((view) => view.viewId === selectedSavedViewId);
   const visibleFailedOrders = orders.filter((order) => order.status === 'FAILED');
   const isFailureRecoveryView = recoveryFocus || filters.statuses.includes('FAILED');
-  const failureRecoveryQueries = useQueries({
-    queries: visibleFailedOrders.map((order) => ({
-      queryKey: ['delivery-failure-recoveries', order.id],
-      queryFn: () => fetchDeliveryFailureRecoveries(order.id),
-      enabled: order.status === 'FAILED',
-    })),
+  const failedOrderIds = visibleFailedOrders.map((order) => order.id);
+  const recoverySummariesQueryKey = ['failed-order-recovery-summaries', failedOrderIds] as const;
+  const {
+    data: recoverySummaries = [],
+    error: recoverySummariesError,
+    isFetching: isFetchingRecoverySummaries,
+  } = useQuery({
+    queryKey: recoverySummariesQueryKey,
+    queryFn: () => fetchFailedOrderRecoverySummaries(failedOrderIds),
+    enabled: failedOrderIds.length > 0,
   });
-  const recoveriesByOrderId = new Map<string, DeliveryFailureRecovery[]>(
-    visibleFailedOrders.map((order, index) => [order.id, failureRecoveryQueries[index]?.data ?? []]),
-  );
-  const recoveryQueryErrorsByOrderId = new Map<string, unknown>(
-    visibleFailedOrders
-      .map((order, index) => [order.id, failureRecoveryQueries[index]?.error] as const)
-      .filter(([, queryError]) => queryError),
-  );
-  const followUpQueries = useQueries({
-    queries: visibleFailedOrders.map((order) => ({
-      queryKey: ['delivery-follow-ups', order.id],
-      queryFn: () => fetchDeliveryFollowUps(order.id),
-      enabled: order.status === 'FAILED',
-    })),
-  });
-  const followUpsByOrderId = new Map<string, DeliveryFollowUpTask[]>(
-    visibleFailedOrders.map((order, index) => [order.id, followUpQueries[index]?.data ?? []]),
-  );
-  const followUpQueryErrorsByOrderId = new Map<string, unknown>(
-    visibleFailedOrders
-      .map((order, index) => [order.id, followUpQueries[index]?.error] as const)
-      .filter(([, queryError]) => queryError),
+  const recoverySummariesByOrderId = new Map<string, FailedOrderRecoverySummary>(
+    recoverySummaries.map((summary) => [summary.orderId, summary]),
   );
   const visibleJourneyCounts = {
     confirm: countByStatus(orders, 'CREATED') + countByStatus(orders, 'CONFIRMATION_REQUESTED'),
@@ -411,10 +391,9 @@ export default function OrdersList() {
   };
   const recoveryStateByOrderId = new Map<string, FailureRecoveryFilter>(
     visibleFailedOrders.map((order) => {
-      const recoveries = recoveriesByOrderId.get(order.id) ?? [];
-      const followUps = followUpsByOrderId.get(order.id) ?? [];
-      const latestFailureRecovery = latestRecovery(recoveries);
-      const openFollowUp = followUps.find((followUp) => followUp.status === 'OPEN');
+      const recoverySummary = recoverySummariesByOrderId.get(order.id);
+      const latestFailureRecovery = recoverySummary?.latestRecovery ?? undefined;
+      const openFollowUp = recoverySummary?.openFollowUp ?? undefined;
       return [order.id, failureRecoveryState(latestFailureRecovery, openFollowUp)];
     }),
   );
@@ -450,7 +429,20 @@ export default function OrdersList() {
         ['delivery-follow-ups', variables.orderId],
         (currentTasks) => currentTasks?.map((currentTask) => currentTask.taskId === task.taskId ? task : currentTask) ?? [task],
       );
+      queryClient.setQueriesData<FailedOrderRecoverySummary[] | undefined>(
+        { queryKey: ['failed-order-recovery-summaries'] },
+        (currentSummaries) => currentSummaries?.map((summary) => (
+          summary.orderId === variables.orderId
+            ? {
+                ...summary,
+                openFollowUp: summary.openFollowUp?.taskId === task.taskId ? null : summary.openFollowUp,
+                latestFollowUp: task,
+              }
+            : summary
+        )),
+      );
       await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', variables.orderId] });
+      await queryClient.invalidateQueries({ queryKey: ['failed-order-recovery-summaries'] });
       await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups-summary'] });
       await queryClient.invalidateQueries({ queryKey: ['order-timeline', variables.orderId] });
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -488,6 +480,7 @@ export default function OrdersList() {
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: ['order', orderId] }),
         queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', orderId] }),
+        queryClient.invalidateQueries({ queryKey: ['failed-order-recovery-summaries'] }),
         queryClient.invalidateQueries({ queryKey: ['orders'] }),
         queryClient.invalidateQueries({ queryKey: ['orders-summary'] }),
         queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] }),
@@ -856,13 +849,10 @@ export default function OrdersList() {
             <tbody className="divide-y divide-gray-100 text-sm">
               {displayedOrders.map((order) => {
                 const failureReason = formatFailureReason(order.failureReason);
-                const recoveries = recoveriesByOrderId.get(order.id) ?? [];
-                const latestFailureRecovery = latestRecovery(recoveries);
-                const followUps = followUpsByOrderId.get(order.id) ?? [];
-                const openFollowUp = followUps.find((followUp) => followUp.status === 'OPEN');
-                const latestFollowUp = followUps.length > 0 ? followUps[followUps.length - 1] : undefined;
-                const recoveryQueryError = recoveryQueryErrorsByOrderId.get(order.id);
-                const followUpQueryError = followUpQueryErrorsByOrderId.get(order.id);
+                const recoverySummary = recoverySummariesByOrderId.get(order.id);
+                const latestFailureRecovery = recoverySummary?.latestRecovery ?? undefined;
+                const openFollowUp = recoverySummary?.openFollowUp ?? undefined;
+                const latestFollowUp = recoverySummary?.latestFollowUp ?? undefined;
                 const canMoveToAssignment = latestFailureRecovery?.decision === 'RETRY_DELIVERY';
                 const failedAction = failedOrderNextAction(latestFailureRecovery, openFollowUp);
                 const isResolvingThisOrder = quickResolveFollowUpMutation.isPending
@@ -906,8 +896,10 @@ export default function OrdersList() {
                           </p>
                           <div className="rounded-md border border-red-100 bg-white p-3">
                             <p className="text-xs font-semibold uppercase text-gray-500">Latest recovery</p>
-                            {recoveryQueryError ? (
-                              <p className="mt-1 text-xs text-red-700">{getErrorMessage(recoveryQueryError)}</p>
+                            {recoverySummariesError ? (
+                              <p className="mt-1 text-xs text-red-700">{getErrorMessage(recoverySummariesError)}</p>
+                            ) : isFetchingRecoverySummaries && !recoverySummary ? (
+                              <p className="mt-1 text-sm font-semibold text-gray-500">Loading recovery state...</p>
                             ) : latestFailureRecovery ? (
                               <>
                                 <p className="mt-1 text-sm font-semibold text-gray-900">
@@ -915,9 +907,6 @@ export default function OrdersList() {
                                 </p>
                                 {latestFailureRecovery.note && (
                                   <p className="mt-1 text-xs text-gray-600">{latestFailureRecovery.note}</p>
-                                )}
-                                {followUpQueryError && (
-                                  <p className="mt-2 text-xs text-red-700">{getErrorMessage(followUpQueryError)}</p>
                                 )}
                                 {openFollowUp && (
                                   <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-xs text-amber-900">

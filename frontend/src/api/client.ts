@@ -179,6 +179,13 @@ export interface DeliveryFollowUpTask {
   resolutionNote?: string;
 }
 
+export interface FailedOrderRecoverySummary {
+  orderId: string;
+  latestRecovery?: DeliveryFailureRecovery | null;
+  openFollowUp?: DeliveryFollowUpTask | null;
+  latestFollowUp?: DeliveryFollowUpTask | null;
+}
+
 export interface DeliveryFollowUpOrderSummary {
   orderId: string;
   status: OrderStatus;
@@ -960,6 +967,12 @@ export async function fetchDeliveryFailureRecoveries(orderId: string): Promise<D
 
 export async function fetchDeliveryFollowUps(orderId: string): Promise<DeliveryFollowUpTask[]> {
   return apiRequest<DeliveryFollowUpTask[]>(`/courier-operations/orders/${orderId}/follow-ups`);
+}
+
+export async function fetchFailedOrderRecoverySummaries(orderIds: string[]): Promise<FailedOrderRecoverySummary[]> {
+  const params = new URLSearchParams();
+  orderIds.forEach((orderId) => params.append('orderId', orderId));
+  return apiRequest<FailedOrderRecoverySummary[]>(`/courier-operations/orders/recovery-summaries?${params.toString()}`);
 }
 
 export async function fetchDeliveryFollowUpTasks(

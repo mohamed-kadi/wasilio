@@ -16,6 +16,11 @@ import java.util.UUID;
 public interface DeliveryFollowUpTaskRepository extends JpaRepository<DeliveryFollowUpTask, UUID> {
     List<DeliveryFollowUpTask> findByTenantIdAndOrderIdOrderByCreatedAtAsc(UUID tenantId, UUID orderId);
 
+    List<DeliveryFollowUpTask> findByTenantIdAndOrderIdInOrderByOrderIdAscCreatedAtAsc(
+            UUID tenantId,
+            List<UUID> orderIds
+    );
+
     List<DeliveryFollowUpTask> findByTenantIdAndOrderIdAndStatusOrderByCreatedAtAsc(
             UUID tenantId,
             UUID orderId,

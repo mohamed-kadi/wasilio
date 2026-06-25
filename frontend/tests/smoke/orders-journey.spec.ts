@@ -240,6 +240,27 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
     });
   });
 
+  await page.route('**/api/courier-operations/orders/recovery-summaries?**', async (route) => {
+    const url = new URL(route.request().url());
+    const orderIds = url.searchParams.getAll('orderId');
+    const latestRecovery = recoveryRecords.length > 0 ? recoveryRecords[recoveryRecords.length - 1] : null;
+    const openFollowUp = followUpRecords.find((record) => record.status === 'OPEN') ?? null;
+    const latestFollowUp = followUpRecords.length > 0 ? followUpRecords[followUpRecords.length - 1] : null;
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(orderIds
+        .filter((orderId) => orderId === failedOrder.id)
+        .map((orderId) => ({
+          orderId,
+          latestRecovery,
+          openFollowUp,
+          latestFollowUp,
+        }))),
+    });
+  });
+
   await page.route('**/api/courier-operations/orders/11111111-1111-1111-1111-111111111111/failure-recoveries', async (route) => {
     if (route.request().method() === 'POST') {
       const body = route.request().postDataJSON() as Record<string, unknown>;

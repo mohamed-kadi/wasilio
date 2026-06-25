@@ -555,6 +555,24 @@ class CourierOperationsIntegrationTest {
 
         String taskId = objectMapper.readTree(followUpsResult.getResponse().getContentAsString()).get(0).get("taskId").asText();
 
+        mockMvc.perform(get("/api/courier-operations/orders/recovery-summaries")
+                .param("orderId", orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].orderId").value(orderId))
+                .andExpect(jsonPath("$[0].latestRecovery.orderId").value(orderId))
+                .andExpect(jsonPath("$[0].latestRecovery.decision").value("REFUND_OR_CUSTOMER_FOLLOW_UP"))
+                .andExpect(jsonPath("$[0].openFollowUp.taskId").value(taskId))
+                .andExpect(jsonPath("$[0].openFollowUp.status").value("OPEN"))
+                .andExpect(jsonPath("$[0].latestFollowUp.taskId").value(taskId));
+
+        mockMvc.perform(get("/api/courier-operations/orders/recovery-summaries")
+                .param("orderId", orderId)
+                .header("Authorization", bearer(otherTenantJwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
         mockMvc.perform(get("/api/courier-operations/follow-ups")
                 .param("status", "OPEN")
                 .param("page", "0")
@@ -579,6 +597,16 @@ class CourierOperationsIntegrationTest {
                 .andExpect(jsonPath("$.status").value("RESOLVED"))
                 .andExpect(jsonPath("$.resolvedBy").value("courier@example.com"))
                 .andExpect(jsonPath("$.resolutionNote").value("Refund request sent to merchant"));
+
+        mockMvc.perform(get("/api/courier-operations/orders/recovery-summaries")
+                .param("orderId", orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].latestRecovery.decision").value("REFUND_OR_CUSTOMER_FOLLOW_UP"))
+                .andExpect(jsonPath("$[0].openFollowUp").doesNotExist())
+                .andExpect(jsonPath("$[0].latestFollowUp.taskId").value(taskId))
+                .andExpect(jsonPath("$[0].latestFollowUp.status").value("RESOLVED"));
 
         mockMvc.perform(get("/api/courier-operations/follow-ups")
                 .param("status", "OPEN")
