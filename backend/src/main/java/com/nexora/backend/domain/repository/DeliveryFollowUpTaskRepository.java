@@ -5,6 +5,8 @@ import com.nexora.backend.domain.model.DeliveryFollowUpTask;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,9 +21,20 @@ public interface DeliveryFollowUpTaskRepository extends JpaRepository<DeliveryFo
             DeliveryFollowUpStatus status
     );
 
-    Page<DeliveryFollowUpTask> findByTenantIdAndStatusOrderByCreatedAtAscTaskIdAsc(
-            UUID tenantId,
-            DeliveryFollowUpStatus status,
+    @Query("""
+            select task
+            from DeliveryFollowUpTask task
+            where task.tenantId = :tenantId
+              and task.status = :status
+            order by
+              case when task.dueAt is null then 1 else 0 end,
+              task.dueAt asc,
+              task.createdAt asc,
+              task.taskId asc
+            """)
+    Page<DeliveryFollowUpTask> findQueueByTenantIdAndStatus(
+            @Param("tenantId") UUID tenantId,
+            @Param("status") DeliveryFollowUpStatus status,
             Pageable pageable
     );
 

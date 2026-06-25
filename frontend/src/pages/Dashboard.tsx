@@ -101,6 +101,11 @@ export default function Dashboard() {
     waitingPickup,
     awaitingAssignment,
   });
+  const recoveryTarget = openFollowUps > 0 ? '/app/delivery-follow-ups' : '/app/orders';
+  const recoveryState: NextAction['state'] | undefined = openFollowUps > 0
+    ? undefined
+    : { statuses: ['FAILED'], recoveryFocus: true };
+  const recoveryCta = openFollowUps > 0 ? 'Open follow-ups' : 'Review failures';
 
   return (
     <div className="space-y-6">
@@ -180,9 +185,9 @@ export default function Dashboard() {
           title="Failed recovery"
           value={failed}
           detail={openFollowUps > 0 ? `${openFollowUps} open customer follow-ups` : 'Failed orders ready for recovery review'}
-          to="/app/orders"
-          state={{ statuses: ['FAILED'], recoveryFocus: true }}
-          cta="Review failures"
+          to={recoveryTarget}
+          state={recoveryState}
+          cta={recoveryCta}
           tone="red"
           isLoading={isLoading}
           icon={<AlertCircle size={22} />}
@@ -206,8 +211,7 @@ export default function Dashboard() {
               label="Resolve customer follow-ups"
               value={openFollowUps}
               detail="Failed deliveries waiting for refund, replacement, or customer contact"
-              to="/app/orders"
-              state={{ statuses: ['FAILED'], recoveryFocus: true }}
+              to="/app/delivery-follow-ups"
             />
             <QueueStep
               label="Confirm customers"
@@ -257,8 +261,7 @@ export default function Dashboard() {
             </div>
           </dl>
           <Link
-            to="/app/orders"
-            state={{ statuses: ['FAILED'], recoveryFocus: true }}
+            to="/app/delivery-follow-ups"
             className="mt-4 flex items-center justify-between rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
           >
             <span className="inline-flex items-center gap-2">
@@ -304,8 +307,7 @@ function getNextAction({
     return {
       label: 'Resolve failed-delivery follow-ups',
       detail: `${openFollowUps} failed deliveries are waiting for refund, replacement, or customer contact decisions.`,
-      to: '/app/orders',
-      state: { statuses: ['FAILED'], recoveryFocus: true },
+      to: '/app/delivery-follow-ups',
       cta: 'Open recovery queue',
       tone: 'red',
     };

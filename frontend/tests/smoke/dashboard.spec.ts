@@ -101,9 +101,9 @@ test('merchant can see the operational dashboard and next queue to work', async 
   await expect(page.getByText('Confirmed orders without a courier')).toBeVisible();
   await expect(page.getByText('Picked up orders with couriers')).toBeVisible();
 
-  await page.getByRole('link', { name: 'Review failures' }).click();
-  await expect(page).toHaveURL(/\/app\/orders$/);
-  await expect(page.getByText('Failed delivery recovery')).toBeVisible();
+  await page.getByRole('link', { name: 'Open follow-ups', exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/delivery-follow-ups$/);
+  await expect(page.getByRole('heading', { name: 'Customer follow-ups' })).toBeVisible();
 });
 
 function pageResponse(totalElements: number) {

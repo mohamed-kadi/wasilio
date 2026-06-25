@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, BarChart3, CheckCircle2, CreditCard, LayoutDashboard, LogOut, PackageCheck, PhoneCall, PlusCircle, RefreshCw, ShoppingCart, Truck, Users } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCircle2, CreditCard, LayoutDashboard, LogOut, MessageSquare, PackageCheck, PhoneCall, PlusCircle, RefreshCw, ShoppingCart, Truck, Users } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import OrdersList from './pages/OrdersList';
 import CreateOrder from './pages/CreateOrder';
@@ -17,6 +17,7 @@ import CourierDetails from './pages/CourierDetails';
 import AssignmentQueue from './pages/AssignmentQueue';
 import PickupQueue from './pages/PickupQueue';
 import DeliveryQueue from './pages/DeliveryQueue';
+import DeliveryFollowUps from './pages/DeliveryFollowUps';
 import CourierPerformance from './pages/CourierPerformance';
 import AdminBilling from './pages/AdminBilling';
 import { useAuthStore } from './store/authStore';
@@ -63,6 +64,10 @@ function Sidebar() {
             <Link to="/app/couriers/delivery" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
               <CheckCircle2 size={20} />
               <span>Delivery Queue</span>
+            </Link>
+            <Link to="/app/delivery-follow-ups" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+              <MessageSquare size={20} />
+              <span>Follow-ups</span>
             </Link>
             <Link to="/app/couriers/performance" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
               <BarChart3 size={20} />
@@ -214,6 +219,7 @@ function ProtectedApp() {
             <Route path="couriers/assignment" element={<AssignmentQueue />} />
             <Route path="couriers/pickup" element={<PickupQueue />} />
             <Route path="couriers/delivery" element={<DeliveryQueue />} />
+            <Route path="delivery-follow-ups" element={<DeliveryFollowUps />} />
             <Route path="couriers/performance" element={<CourierPerformance />} />
             <Route path="billing" element={session.user.role === 'SUPER_ADMIN' ? <AdminBilling /> : <Navigate to="/app" replace />} />
             <Route path="couriers/:id" element={<CourierDetails />} />

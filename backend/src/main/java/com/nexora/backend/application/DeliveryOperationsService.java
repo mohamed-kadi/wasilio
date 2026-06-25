@@ -80,7 +80,7 @@ public class DeliveryOperationsService {
         if (status == null) {
             throw new IllegalArgumentException("status is required");
         }
-        return deliveryFollowUpTaskRepository.findByTenantIdAndStatusOrderByCreatedAtAscTaskIdAsc(
+        return deliveryFollowUpTaskRepository.findQueueByTenantIdAndStatus(
                 tenantId,
                 status,
                 pageable

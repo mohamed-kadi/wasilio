@@ -604,6 +604,37 @@ class CourierOperationsIntegrationTest {
     }
 
     @Test
+    void openFollowUpsAreListedByDueDate() throws Exception {
+        String courierId = createCourier(jwtToken, "Queue Follow Up Courier", "0619191919");
+        String laterOrderId = createPickedUpOrder(jwtToken, "LaterFollowUp", courierId);
+        String earlierOrderId = createPickedUpOrder(jwtToken, "EarlierFollowUp", courierId);
+        String noDateOrderId = createPickedUpOrder(jwtToken, "NoDateFollowUp", courierId);
+        String otherTenantCourierId = createCourier(otherTenantJwtToken, "Other Follow Up Courier", "0629292929");
+        String otherTenantOrderId = createPickedUpOrder(otherTenantJwtToken, "OtherTenantFollowUp", otherTenantCourierId);
+        Instant laterDueAt = Instant.now().plus(2, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS);
+        Instant earlierDueAt = Instant.now().plus(3, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS);
+
+        createFailedCustomerFollowUp(jwtToken, laterOrderId, laterDueAt, "Later customer follow-up");
+        createFailedCustomerFollowUp(jwtToken, earlierOrderId, earlierDueAt, "Earlier customer follow-up");
+        createFailedCustomerFollowUp(jwtToken, noDateOrderId, null, "No due date customer follow-up");
+        createFailedCustomerFollowUp(otherTenantJwtToken, otherTenantOrderId, earlierDueAt.minus(1, ChronoUnit.HOURS), "Other tenant follow-up");
+
+        mockMvc.perform(get("/api/courier-operations/follow-ups")
+                .param("status", "OPEN")
+                .param("page", "0")
+                .param("size", "10")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.content[0].orderId").value(earlierOrderId))
+                .andExpect(jsonPath("$.content[0].dueAt").value(earlierDueAt.toString()))
+                .andExpect(jsonPath("$.content[1].orderId").value(laterOrderId))
+                .andExpect(jsonPath("$.content[1].dueAt").value(laterDueAt.toString()))
+                .andExpect(jsonPath("$.content[2].orderId").value(noDateOrderId))
+                .andExpect(jsonPath("$.content[2].dueAt").doesNotExist());
+    }
+
+    @Test
     void courierPerformanceUsesHistoricalAttemptsAfterRetry() throws Exception {
         String firstCourierId = createCourier(jwtToken, "Metrics First", "0611111111");
         String secondCourierId = createCourier(jwtToken, "Metrics Second", "0622222222");
@@ -711,6 +742,32 @@ class CourierOperationsIntegrationTest {
                 .content(objectMapper.writeValueAsString(new OrderController.AssignCourierRequest(courierId))))
                 .andExpect(status().isOk());
         return orderId;
+    }
+
+    private void createFailedCustomerFollowUp(
+            String token,
+            String orderId,
+            Instant dueAt,
+            String note
+    ) throws Exception {
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/fail")
+                .header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRequest(
+                        DeliveryFailureReason.CUSTOMER_UNREACHABLE,
+                        note
+                ))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/failure-recoveries")
+                .header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
+                        DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP,
+                        note,
+                        dueAt
+                ))))
+                .andExpect(status().isOk());
     }
 
     private String createOrder(String token, String firstName) throws Exception {
