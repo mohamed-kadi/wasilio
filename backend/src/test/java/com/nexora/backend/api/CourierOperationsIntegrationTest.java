@@ -758,6 +758,104 @@ class CourierOperationsIntegrationTest {
     }
 
     @Test
+    void failedRecoveryQueuePaginatesFiltersAndCountsGlobally() throws Exception {
+        String courierId = createCourier(jwtToken, "Recovery Queue Courier", "0615151515");
+        String needsDecisionOrderId = createPickedUpOrder(jwtToken, "QueueNeeds", courierId);
+        String openFollowUpOrderId = createPickedUpOrder(jwtToken, "QueueOpen", courierId);
+        String retryReadyOrderId = createPickedUpOrder(jwtToken, "QueueRetry", courierId);
+        String refundReviewOrderId = createPickedUpOrder(jwtToken, "QueueRefund", courierId);
+        String closedOrderId = createPickedUpOrder(jwtToken, "QueueClosed", courierId);
+        String otherTenantCourierId = createCourier(otherTenantJwtToken, "Other Recovery Queue", "0625252525");
+        String otherTenantOrderId = createPickedUpOrder(otherTenantJwtToken, "OtherQueue", otherTenantCourierId);
+
+        markDeliveryFailed(jwtToken, needsDecisionOrderId, DeliveryFailureReason.CUSTOMER_REFUSED, "Needs merchant decision");
+        createFailedCustomerFollowUp(
+                jwtToken,
+                openFollowUpOrderId,
+                Instant.now().plus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS),
+                "Open customer follow-up"
+        );
+        markDeliveryFailed(jwtToken, retryReadyOrderId, DeliveryFailureReason.INVALID_ADDRESS, "Address was wrong");
+        recordRecovery(
+                jwtToken,
+                retryReadyOrderId,
+                DeliveryFailureRecoveryDecision.RETRY_DELIVERY,
+                "Customer confirmed corrected address",
+                null
+        );
+        createFailedCustomerFollowUp(
+                jwtToken,
+                refundReviewOrderId,
+                Instant.now().plus(2, ChronoUnit.DAYS).truncatedTo(ChronoUnit.SECONDS),
+                "Refund review follow-up"
+        );
+        String refundTaskId = objectMapper.readTree(mockMvc.perform(get("/api/courier-operations/orders/" + refundReviewOrderId + "/follow-ups")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString()).get(0).get("taskId").asText();
+        mockMvc.perform(post("/api/courier-operations/orders/" + refundReviewOrderId + "/follow-ups/" + refundTaskId + "/resolve")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFollowUpResolutionRequest(
+                        "Refund review completed"
+                ))))
+                .andExpect(status().isOk());
+        markDeliveryFailed(jwtToken, closedOrderId, DeliveryFailureReason.CUSTOMER_UNREACHABLE, "No answer");
+        recordRecovery(
+                jwtToken,
+                closedOrderId,
+                DeliveryFailureRecoveryDecision.CLOSE_UNRECOVERABLE,
+                "Customer unreachable after repeated attempts",
+                null
+        );
+        markDeliveryFailed(otherTenantJwtToken, otherTenantOrderId, DeliveryFailureReason.CUSTOMER_REFUSED, "Other tenant failure");
+
+        mockMvc.perform(get("/api/courier-operations/orders/recovery-queue")
+                .param("page", "0")
+                .param("size", "2")
+                .param("state", "ALL")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.counts.all").value(5))
+                .andExpect(jsonPath("$.counts.needsDecision").value(1))
+                .andExpect(jsonPath("$.counts.openFollowUp").value(1))
+                .andExpect(jsonPath("$.counts.retryReady").value(1))
+                .andExpect(jsonPath("$.counts.refundReview").value(1))
+                .andExpect(jsonPath("$.counts.closedUnrecoverable").value(1))
+                .andExpect(jsonPath("$.content[0].order.id").value(openFollowUpOrderId))
+                .andExpect(jsonPath("$.content[0].recovery.openFollowUp.status").value("OPEN"))
+                .andExpect(jsonPath("$.content[1].order.id").value(needsDecisionOrderId));
+
+        mockMvc.perform(get("/api/courier-operations/orders/recovery-queue")
+                .param("page", "0")
+                .param("size", "10")
+                .param("state", "RETRY_READY")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.counts.all").value(5))
+                .andExpect(jsonPath("$.content[0].order.id").value(retryReadyOrderId))
+                .andExpect(jsonPath("$.content[0].recovery.latestRecovery.decision").value("RETRY_DELIVERY"));
+
+        mockMvc.perform(get("/api/courier-operations/orders/recovery-queue")
+                .param("page", "0")
+                .param("size", "10")
+                .param("state", "ALL")
+                .param("customerName", "QueueRefund")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.counts.all").value(1))
+                .andExpect(jsonPath("$.counts.refundReview").value(1))
+                .andExpect(jsonPath("$.content[0].order.id").value(refundReviewOrderId))
+                .andExpect(jsonPath("$.content[0].recovery.latestFollowUp.status").value("RESOLVED"));
+    }
+
+    @Test
     void courierPerformanceUsesHistoricalAttemptsAfterRetry() throws Exception {
         String firstCourierId = createCourier(jwtToken, "Metrics First", "0611111111");
         String secondCourierId = createCourier(jwtToken, "Metrics Second", "0622222222");
@@ -919,6 +1017,40 @@ class CourierOperationsIntegrationTest {
                         DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP,
                         note,
                         dueAt
+                ))))
+                .andExpect(status().isOk());
+    }
+
+    private void markDeliveryFailed(
+            String token,
+            String orderId,
+            DeliveryFailureReason reason,
+            String note
+    ) throws Exception {
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/fail")
+                .header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRequest(
+                        reason,
+                        note
+                ))))
+                .andExpect(status().isOk());
+    }
+
+    private void recordRecovery(
+            String token,
+            String orderId,
+            DeliveryFailureRecoveryDecision decision,
+            String note,
+            Instant followUpDueAt
+    ) throws Exception {
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/failure-recoveries")
+                .header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
+                        decision,
+                        note,
+                        followUpDueAt
                 ))))
                 .andExpect(status().isOk());
     }

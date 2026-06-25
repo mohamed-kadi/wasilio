@@ -6,6 +6,7 @@ import com.nexora.backend.application.DeliveryOperationsService.DeliveryFailureR
 import com.nexora.backend.domain.model.DeliveryFailure;
 import com.nexora.backend.domain.model.DeliveryFailureRecovery;
 import com.nexora.backend.domain.model.DeliveryFailureRecoveryDecision;
+import com.nexora.backend.domain.model.DeliveryFailureRecoveryState;
 import com.nexora.backend.domain.model.DeliveryFailureReason;
 import com.nexora.backend.domain.model.DeliveryFollowUpDueFilter;
 import com.nexora.backend.domain.model.DeliveryFollowUpStatus;
@@ -16,6 +17,8 @@ import com.nexora.backend.domain.repository.DeliveryFailureRepository;
 import com.nexora.backend.domain.repository.DeliveryFailureRecoveryRepository;
 import com.nexora.backend.domain.repository.DeliveryFollowUpTaskRepository;
 import com.nexora.backend.domain.repository.OrderRepository;
+import com.nexora.backend.infrastructure.persistence.FailedOrderRecoveryQueueQueries;
+import com.nexora.backend.infrastructure.persistence.FailedOrderRecoveryQueueQueries.RecoveryQueueFilters;
 import com.nexora.backend.infrastructure.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
@@ -40,6 +43,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.UUID;
@@ -56,6 +60,7 @@ public class CourierOperationsController {
     private final DeliveryFollowUpTaskRepository deliveryFollowUpTaskRepository;
     private final DeliveryOperationsService deliveryOperationsService;
     private final CourierPerformanceService courierPerformanceService;
+    private final FailedOrderRecoveryQueueQueries failedOrderRecoveryQueueQueries;
 
     public record DeliveryFailureRequest(
             DeliveryFailureReason reason,
@@ -264,6 +269,40 @@ public class CourierOperationsController {
             DeliveryFollowUpTask latestFollowUp
     ) {}
 
+    public record FailedOrderRecoveryQueueItem(
+            Order order,
+            FailedOrderRecoverySummary recovery
+    ) {}
+
+    public record FailedOrderRecoveryCounts(
+            long all,
+            long needsDecision,
+            long openFollowUp,
+            long retryReady,
+            long refundReview,
+            long closedUnrecoverable
+    ) {
+        static FailedOrderRecoveryCounts from(Map<DeliveryFailureRecoveryState, Long> counts) {
+            return new FailedOrderRecoveryCounts(
+                    counts.getOrDefault(DeliveryFailureRecoveryState.ALL, 0L),
+                    counts.getOrDefault(DeliveryFailureRecoveryState.NEEDS_DECISION, 0L),
+                    counts.getOrDefault(DeliveryFailureRecoveryState.OPEN_FOLLOW_UP, 0L),
+                    counts.getOrDefault(DeliveryFailureRecoveryState.RETRY_READY, 0L),
+                    counts.getOrDefault(DeliveryFailureRecoveryState.REFUND_REVIEW, 0L),
+                    counts.getOrDefault(DeliveryFailureRecoveryState.CLOSED_UNRECOVERABLE, 0L)
+            );
+        }
+    }
+
+    public record FailedOrderRecoveryQueueResponse(
+            List<FailedOrderRecoveryQueueItem> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages,
+            FailedOrderRecoveryCounts counts
+    ) {}
+
     @GetMapping("/assignment-queue")
     public ResponseEntity<CourierOperationsQueueResponse> assignmentQueue(
             @RequestParam(defaultValue = "0") int page,
@@ -387,34 +426,64 @@ public class CourierOperationsController {
         List<UUID> failedOrderIds = failedOrders.stream()
                 .map(Order::getId)
                 .toList();
-        if (failedOrderIds.isEmpty()) {
-            return ResponseEntity.ok(List.of());
-        }
+        return ResponseEntity.ok(buildFailedOrderRecoverySummaries(tenantId, failedOrderIds));
+    }
 
-        Map<UUID, Order> failedOrdersById = failedOrders.stream()
-                .collect(Collectors.toMap(Order::getId, Function.identity()));
-        Map<UUID, List<DeliveryFailureRecovery>> recoveriesByOrderId = deliveryFailureRecoveryRepository
-                .findByTenantIdAndOrderIdInOrderByOrderIdAscCreatedAtAsc(tenantId, failedOrderIds)
-                .stream()
-                .collect(Collectors.groupingBy(DeliveryFailureRecovery::getOrderId));
-        Map<UUID, List<DeliveryFollowUpTask>> followUpsByOrderId = deliveryFollowUpTaskRepository
-                .findByTenantIdAndOrderIdInOrderByOrderIdAscCreatedAtAsc(tenantId, failedOrderIds)
-                .stream()
-                .collect(Collectors.groupingBy(DeliveryFollowUpTask::getOrderId));
+    @GetMapping("/orders/recovery-queue")
+    public ResponseEntity<FailedOrderRecoveryQueueResponse> failedOrderRecoveryQueue(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "ALL") DeliveryFailureRecoveryState state,
+            @RequestParam(required = false) @Size(max = 50) String phone,
+            @RequestParam(required = false) @Size(max = 200) String customerName,
+            @RequestParam(required = false) @Size(max = 36) String orderId,
+            @RequestParam(required = false) UUID courierId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo
+    ) {
+        validatePageParameters(page, size);
+        validateRange(createdFrom, createdTo);
 
-        return ResponseEntity.ok(requestedOrderIds.stream()
-                .filter(failedOrdersById::containsKey)
-                .map(orderId -> {
-                    List<DeliveryFailureRecovery> recoveries = recoveriesByOrderId.getOrDefault(orderId, List.of());
-                    List<DeliveryFollowUpTask> followUps = followUpsByOrderId.getOrDefault(orderId, List.of());
-                    return new FailedOrderRecoverySummary(
-                            orderId,
-                            latestRecovery(recoveries),
-                            openFollowUp(followUps),
-                            latestFollowUp(followUps)
-                    );
+        UUID tenantId = getCurrentTenantId();
+        var queueResult = failedOrderRecoveryQueueQueries.findQueue(
+                tenantId,
+                new RecoveryQueueFilters(
+                        normalizeSearch(phone),
+                        normalizeSearch(customerName),
+                        normalizeSearch(orderId),
+                        courierId == null ? null : courierId.toString(),
+                        createdFrom,
+                        createdTo
+                ),
+                state,
+                page,
+                size
+        );
+
+        List<UUID> orderIds = queueResult.orderIds();
+        Map<UUID, Order> ordersById = orderIds.isEmpty()
+                ? Map.of()
+                : orderRepository.findByTenantIdAndIdIn(tenantId, orderIds).stream()
+                        .collect(Collectors.toMap(Order::getId, Function.identity()));
+        Map<UUID, FailedOrderRecoverySummary> summariesByOrderId = buildFailedOrderRecoverySummaries(tenantId, orderIds).stream()
+                .collect(Collectors.toMap(FailedOrderRecoverySummary::orderId, Function.identity()));
+        List<FailedOrderRecoveryQueueItem> content = orderIds.stream()
+                .map(currentOrderId -> {
+                    Order order = ordersById.get(currentOrderId);
+                    FailedOrderRecoverySummary recovery = summariesByOrderId.get(currentOrderId);
+                    return order == null || recovery == null ? null : new FailedOrderRecoveryQueueItem(order, recovery);
                 })
-                .toList());
+                .filter(Objects::nonNull)
+                .toList();
+
+        return ResponseEntity.ok(new FailedOrderRecoveryQueueResponse(
+                content,
+                page,
+                size,
+                queueResult.totalElements(),
+                totalPages(queueResult.totalElements(), size),
+                FailedOrderRecoveryCounts.from(queueResult.counts())
+        ));
     }
 
     @PostMapping("/orders/{orderId}/failure-recoveries")
@@ -528,12 +597,7 @@ public class CourierOperationsController {
     }
 
     private PageRequest pageRequest(int page, int size) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page must be greater than or equal to 0");
-        }
-        if (size < 1 || size > 100) {
-            throw new IllegalArgumentException("size must be between 1 and 100");
-        }
+        validatePageParameters(page, size);
         return PageRequest.of(
                 page,
                 size,
@@ -542,12 +606,7 @@ public class CourierOperationsController {
     }
 
     private PageRequest followUpPageRequest(int page, int size) {
-        if (page < 0) {
-            throw new IllegalArgumentException("page must be greater than or equal to 0");
-        }
-        if (size < 1 || size > 100) {
-            throw new IllegalArgumentException("size must be between 1 and 100");
-        }
+        validatePageParameters(page, size);
         return PageRequest.of(
                 page,
                 size,
@@ -556,13 +615,17 @@ public class CourierOperationsController {
     }
 
     private PageRequest unsortedPageRequest(int page, int size) {
+        validatePageParameters(page, size);
+        return PageRequest.of(page, size);
+    }
+
+    private void validatePageParameters(int page, int size) {
         if (page < 0) {
             throw new IllegalArgumentException("page must be greater than or equal to 0");
         }
         if (size < 1 || size > 100) {
             throw new IllegalArgumentException("size must be between 1 and 100");
         }
-        return PageRequest.of(page, size);
     }
 
     private void validateRange(Instant createdFrom, Instant createdTo) {
@@ -584,6 +647,45 @@ public class CourierOperationsController {
 
     private DeliveryFollowUpTask latestFollowUp(List<DeliveryFollowUpTask> followUps) {
         return followUps.isEmpty() ? null : followUps.get(followUps.size() - 1);
+    }
+
+    private List<FailedOrderRecoverySummary> buildFailedOrderRecoverySummaries(UUID tenantId, List<UUID> orderIds) {
+        if (orderIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<UUID, List<DeliveryFailureRecovery>> recoveriesByOrderId = deliveryFailureRecoveryRepository
+                .findByTenantIdAndOrderIdInOrderByOrderIdAscCreatedAtAsc(tenantId, orderIds)
+                .stream()
+                .collect(Collectors.groupingBy(DeliveryFailureRecovery::getOrderId));
+        Map<UUID, List<DeliveryFollowUpTask>> followUpsByOrderId = deliveryFollowUpTaskRepository
+                .findByTenantIdAndOrderIdInOrderByOrderIdAscCreatedAtAsc(tenantId, orderIds)
+                .stream()
+                .collect(Collectors.groupingBy(DeliveryFollowUpTask::getOrderId));
+
+        return orderIds.stream()
+                .map(orderId -> {
+                    List<DeliveryFailureRecovery> recoveries = recoveriesByOrderId.getOrDefault(orderId, List.of());
+                    List<DeliveryFollowUpTask> followUps = followUpsByOrderId.getOrDefault(orderId, List.of());
+                    return new FailedOrderRecoverySummary(
+                            orderId,
+                            latestRecovery(recoveries),
+                            openFollowUp(followUps),
+                            latestFollowUp(followUps)
+                    );
+                })
+                .toList();
+    }
+
+    private String normalizeSearch(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private int totalPages(long totalElements, int size) {
+        return totalElements == 0 ? 0 : (int) Math.ceil((double) totalElements / size);
     }
 
     private UUID getCurrentTenantId() {

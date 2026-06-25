@@ -186,6 +186,49 @@ export interface FailedOrderRecoverySummary {
   latestFollowUp?: DeliveryFollowUpTask | null;
 }
 
+export type DeliveryFailureRecoveryState =
+  | 'ALL'
+  | 'NEEDS_DECISION'
+  | 'OPEN_FOLLOW_UP'
+  | 'RETRY_READY'
+  | 'REFUND_REVIEW'
+  | 'CLOSED_UNRECOVERABLE';
+
+export interface FailedOrderRecoveryQueueItem {
+  order: Order;
+  recovery: FailedOrderRecoverySummary;
+}
+
+export interface FailedOrderRecoveryCounts {
+  all: number;
+  needsDecision: number;
+  openFollowUp: number;
+  retryReady: number;
+  refundReview: number;
+  closedUnrecoverable: number;
+}
+
+export interface FailedOrderRecoveryQueueResponse {
+  content: FailedOrderRecoveryQueueItem[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  counts: FailedOrderRecoveryCounts;
+}
+
+export interface FailedOrderRecoveryQueueQuery {
+  page?: number;
+  size?: number;
+  state?: DeliveryFailureRecoveryState;
+  phone?: string;
+  customerName?: string;
+  orderId?: string;
+  courierId?: string;
+  createdFrom?: string;
+  createdTo?: string;
+}
+
 export interface DeliveryFollowUpOrderSummary {
   orderId: string;
   status: OrderStatus;
@@ -973,6 +1016,35 @@ export async function fetchFailedOrderRecoverySummaries(orderIds: string[]): Pro
   const params = new URLSearchParams();
   orderIds.forEach((orderId) => params.append('orderId', orderId));
   return apiRequest<FailedOrderRecoverySummary[]>(`/courier-operations/orders/recovery-summaries?${params.toString()}`);
+}
+
+export async function fetchFailedOrderRecoveryQueue(
+  query: FailedOrderRecoveryQueueQuery = {},
+): Promise<FailedOrderRecoveryQueueResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+  params.set('state', query.state ?? 'ALL');
+  if (query.phone) {
+    params.set('phone', query.phone);
+  }
+  if (query.customerName) {
+    params.set('customerName', query.customerName);
+  }
+  if (query.orderId) {
+    params.set('orderId', query.orderId);
+  }
+  if (query.courierId) {
+    params.set('courierId', query.courierId);
+  }
+  if (query.createdFrom) {
+    params.set('createdFrom', query.createdFrom);
+  }
+  if (query.createdTo) {
+    params.set('createdTo', query.createdTo);
+  }
+
+  return apiRequest<FailedOrderRecoveryQueueResponse>(`/courier-operations/orders/recovery-queue?${params.toString()}`);
 }
 
 export async function fetchDeliveryFollowUpTasks(

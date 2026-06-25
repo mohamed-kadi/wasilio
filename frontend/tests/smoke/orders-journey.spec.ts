@@ -240,6 +240,56 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
     });
   });
 
+  await page.route('**/api/courier-operations/orders/recovery-queue?**', async (route) => {
+    const url = new URL(route.request().url());
+    const state = url.searchParams.get('state') ?? 'ALL';
+    const latestRecovery = recoveryRecords.length > 0 ? recoveryRecords[recoveryRecords.length - 1] : null;
+    const openFollowUp = followUpRecords.find((record) => record.status === 'OPEN') ?? null;
+    const latestFollowUp = followUpRecords.length > 0 ? followUpRecords[followUpRecords.length - 1] : null;
+    const recoveryState = openFollowUp
+      ? 'OPEN_FOLLOW_UP'
+      : latestRecovery?.decision === 'RETRY_DELIVERY'
+        ? 'RETRY_READY'
+        : latestRecovery?.decision === 'CLOSE_UNRECOVERABLE'
+          ? 'CLOSED_UNRECOVERABLE'
+          : latestRecovery
+            ? 'REFUND_REVIEW'
+            : 'NEEDS_DECISION';
+    const counts = {
+      all: currentOrder.status === 'FAILED' ? 1 : 0,
+      needsDecision: currentOrder.status === 'FAILED' && recoveryState === 'NEEDS_DECISION' ? 1 : 0,
+      openFollowUp: currentOrder.status === 'FAILED' && recoveryState === 'OPEN_FOLLOW_UP' ? 1 : 0,
+      retryReady: currentOrder.status === 'FAILED' && recoveryState === 'RETRY_READY' ? 1 : 0,
+      refundReview: currentOrder.status === 'FAILED' && recoveryState === 'REFUND_REVIEW' ? 1 : 0,
+      closedUnrecoverable: currentOrder.status === 'FAILED' && recoveryState === 'CLOSED_UNRECOVERABLE' ? 1 : 0,
+    };
+    const included = currentOrder.status === 'FAILED' && (state === 'ALL' || state === recoveryState);
+    const content = included
+      ? [{
+          order: currentOrder,
+          recovery: {
+            orderId: currentOrder.id,
+            latestRecovery,
+            openFollowUp,
+            latestFollowUp,
+          },
+        }]
+      : [];
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content,
+        page: 0,
+        size: 20,
+        totalElements: content.length,
+        totalPages: content.length > 0 ? 1 : 0,
+        counts,
+      }),
+    });
+  });
+
   await page.route('**/api/courier-operations/orders/recovery-summaries?**', async (route) => {
     const url = new URL(route.request().url());
     const orderIds = url.searchParams.getAll('orderId');

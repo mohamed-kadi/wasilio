@@ -99,6 +99,17 @@ export async function installMockApi(page: Page) {
     });
   });
 
+  await page.route('**/api/courier-operations/orders/recovery-queue?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ...emptyPage(),
+        counts: emptyRecoveryCounts(),
+      }),
+    });
+  });
+
   await page.route('**/api/admin/tenants', async (route) => {
     await route.fulfill({
       status: 200,
@@ -165,5 +176,16 @@ function emptyPage() {
     size: 1,
     totalElements: 0,
     totalPages: 0,
+  };
+}
+
+function emptyRecoveryCounts() {
+  return {
+    all: 0,
+    needsDecision: 0,
+    openFollowUp: 0,
+    retryReady: 0,
+    refundReview: 0,
+    closedUnrecoverable: 0,
   };
 }

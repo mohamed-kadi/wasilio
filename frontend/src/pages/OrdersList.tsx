@@ -6,6 +6,7 @@ import {
   createOrderSearchSavedView,
   deleteOrderSearchSavedView,
   fetchCouriers,
+  fetchFailedOrderRecoveryQueue,
   fetchFailedOrderRecoverySummaries,
   fetchOrders,
   fetchOrderSearchSavedViews,
@@ -17,7 +18,9 @@ import {
 import type {
   DeliveryFailureRecovery,
   DeliveryFailureRecoveryDecision,
+  DeliveryFailureRecoveryState,
   DeliveryFollowUpTask,
+  FailedOrderRecoveryQueueResponse,
   FailedOrderRecoverySummary,
   Order,
   OrdersPageResponse,
@@ -110,13 +113,7 @@ interface OrdersLocationState {
   recoveryFocus?: boolean;
 }
 
-type FailureRecoveryFilter =
-  | 'ALL'
-  | 'NEEDS_DECISION'
-  | 'OPEN_FOLLOW_UP'
-  | 'RETRY_READY'
-  | 'REFUND_REVIEW'
-  | 'CLOSED_UNRECOVERABLE';
+type FailureRecoveryFilter = DeliveryFailureRecoveryState;
 
 const failureRecoveryFilters: Array<{ value: FailureRecoveryFilter; label: string; detail: string }> = [
   { value: 'ALL', label: 'All failures', detail: 'Visible failed orders' },
@@ -210,37 +207,6 @@ function failedOrderNextAction(latestRecovery?: DeliveryFailureRecovery, openFol
   return 'Review recovery';
 }
 
-function failureRecoveryState(
-  latestRecovery?: DeliveryFailureRecovery,
-  openFollowUp?: DeliveryFollowUpTask,
-): FailureRecoveryFilter {
-  if (openFollowUp) {
-    return 'OPEN_FOLLOW_UP';
-  }
-  if (!latestRecovery) {
-    return 'NEEDS_DECISION';
-  }
-  if (latestRecovery.decision === 'RETRY_DELIVERY') {
-    return 'RETRY_READY';
-  }
-  if (latestRecovery.decision === 'CLOSE_UNRECOVERABLE') {
-    return 'CLOSED_UNRECOVERABLE';
-  }
-  return 'REFUND_REVIEW';
-}
-
-function failureRecoveryRank(state: FailureRecoveryFilter) {
-  const ranks: Record<FailureRecoveryFilter, number> = {
-    OPEN_FOLLOW_UP: 0,
-    NEEDS_DECISION: 1,
-    RETRY_READY: 2,
-    REFUND_REVIEW: 3,
-    CLOSED_UNRECOVERABLE: 4,
-    ALL: 5,
-  };
-  return ranks[state];
-}
-
 function orderMovedToAssignment(order: Order): Order {
   return {
     ...order,
@@ -249,6 +215,25 @@ function orderMovedToAssignment(order: Order): Order {
     failureReason: undefined,
     updatedAt: new Date().toISOString(),
     version: order.version + 1,
+  };
+}
+
+function updateRecoveryQueueAfterRetry(pageData: FailedOrderRecoveryQueueResponse | undefined, orderId: string) {
+  if (!pageData || !pageData.content.some((item) => item.order.id === orderId)) {
+    return pageData;
+  }
+
+  const nextTotalElements = Math.max(0, pageData.totalElements - 1);
+  return {
+    ...pageData,
+    content: pageData.content.filter((item) => item.order.id !== orderId),
+    totalElements: nextTotalElements,
+    totalPages: pageData.size > 0 ? Math.ceil(nextTotalElements / pageData.size) : pageData.totalPages,
+    counts: {
+      ...pageData.counts,
+      all: Math.max(0, pageData.counts.all - 1),
+      retryReady: Math.max(0, pageData.counts.retryReady - 1),
+    },
   };
 }
 
@@ -293,13 +278,15 @@ export default function OrdersList() {
   const [failureRecoveryFilter, setFailureRecoveryFilter] = useState<FailureRecoveryFilter>('ALL');
   const [selectedSavedViewId, setSelectedSavedViewId] = useState('');
   const [savedViewName, setSavedViewName] = useState('');
+  const isFailureRecoveryView = recoveryFocus || filters.statuses.includes('FAILED');
   const ordersQueryKey = ['orders', { page, size, filters }] as const;
+  const failedRecoveryQueueQueryKey = ['failed-order-recovery-queue', { page, size, filters, state: failureRecoveryFilter }] as const;
 
   const {
     data: ordersPage,
-    error,
-    isLoading,
-    isFetching,
+    error: ordersError,
+    isLoading: isLoadingOrders,
+    isFetching: isFetchingOrders,
   } = useQuery({
     queryKey: ordersQueryKey,
     queryFn: () =>
@@ -314,6 +301,29 @@ export default function OrdersList() {
         createdFrom: toInstantFromDate(filters.createdFrom),
         createdTo: toInstantFromDate(filters.createdTo, true),
       }),
+    enabled: !isFailureRecoveryView,
+  });
+
+  const {
+    data: failedRecoveryQueuePage,
+    error: failedRecoveryQueueError,
+    isLoading: isLoadingFailedRecoveryQueue,
+    isFetching: isFetchingFailedRecoveryQueue,
+  } = useQuery({
+    queryKey: failedRecoveryQueueQueryKey,
+    queryFn: () =>
+      fetchFailedOrderRecoveryQueue({
+        page,
+        size,
+        state: failureRecoveryFilter,
+        phone: filters.phone,
+        customerName: filters.customerName,
+        orderId: filters.orderId,
+        courierId: filters.courierId,
+        createdFrom: toInstantFromDate(filters.createdFrom),
+        createdTo: toInstantFromDate(filters.createdTo, true),
+      }),
+    enabled: isFailureRecoveryView,
   });
 
   const { data: couriersPage } = useQuery({
@@ -359,16 +369,20 @@ export default function OrdersList() {
     },
   });
 
-  const orders = ordersPage?.content ?? [];
+  const standardOrders = ordersPage?.content ?? [];
+  const failedRecoveryItems = failedRecoveryQueuePage?.content ?? [];
+  const orders = isFailureRecoveryView ? failedRecoveryItems.map((item) => item.order) : standardOrders;
   const couriers = couriersPage?.content ?? [];
-  const totalPages = ordersPage?.totalPages ?? 0;
-  const totalElements = ordersPage?.totalElements ?? 0;
+  const totalPages = isFailureRecoveryView ? failedRecoveryQueuePage?.totalPages ?? 0 : ordersPage?.totalPages ?? 0;
+  const totalElements = isFailureRecoveryView ? failedRecoveryQueuePage?.totalElements ?? 0 : ordersPage?.totalElements ?? 0;
+  const error = isFailureRecoveryView ? failedRecoveryQueueError : ordersError;
+  const isLoading = isFailureRecoveryView ? isLoadingFailedRecoveryQueue : isLoadingOrders;
+  const isFetching = isFailureRecoveryView ? isFetchingFailedRecoveryQueue : isFetchingOrders;
   const canGoBack = page > 0;
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
   const selectedSavedView = savedViews.find((view) => view.viewId === selectedSavedViewId);
   const visibleFailedOrders = orders.filter((order) => order.status === 'FAILED');
-  const isFailureRecoveryView = recoveryFocus || filters.statuses.includes('FAILED');
-  const failedOrderIds = visibleFailedOrders.map((order) => order.id);
+  const failedOrderIds = isFailureRecoveryView ? [] : visibleFailedOrders.map((order) => order.id);
   const recoverySummariesQueryKey = ['failed-order-recovery-summaries', failedOrderIds] as const;
   const {
     data: recoverySummaries = [],
@@ -377,50 +391,38 @@ export default function OrdersList() {
   } = useQuery({
     queryKey: recoverySummariesQueryKey,
     queryFn: () => fetchFailedOrderRecoverySummaries(failedOrderIds),
-    enabled: failedOrderIds.length > 0,
+    enabled: !isFailureRecoveryView && failedOrderIds.length > 0,
   });
-  const recoverySummariesByOrderId = new Map<string, FailedOrderRecoverySummary>(
-    recoverySummaries.map((summary) => [summary.orderId, summary]),
+  const failedRecoveryQueueSummariesByOrderId = new Map<string, FailedOrderRecoverySummary>(
+    failedRecoveryItems.map((item) => [item.recovery.orderId, item.recovery]),
   );
+  const recoverySummariesByOrderId = new Map<string, FailedOrderRecoverySummary>(
+    isFailureRecoveryView
+      ? failedRecoveryQueueSummariesByOrderId
+      : recoverySummaries.map((summary) => [summary.orderId, summary]),
+  );
+  const recoveryCounts = failedRecoveryQueuePage?.counts;
   const visibleJourneyCounts = {
     confirm: countByStatus(orders, 'CREATED') + countByStatus(orders, 'CONFIRMATION_REQUESTED'),
     courier:
       countByStatus(orders, 'CONFIRMED') + countByStatus(orders, 'ASSIGNED_TO_COURIER') + countByStatus(orders, 'PICKED_UP'),
     closed: countByStatus(orders, 'DELIVERED') + countByStatus(orders, 'FAILED') + countByStatus(orders, 'REJECTED'),
-    failed: visibleFailedOrders.length,
+    failed: isFailureRecoveryView ? recoveryCounts?.all ?? 0 : visibleFailedOrders.length,
   };
-  const recoveryStateByOrderId = new Map<string, FailureRecoveryFilter>(
-    visibleFailedOrders.map((order) => {
-      const recoverySummary = recoverySummariesByOrderId.get(order.id);
-      const latestFailureRecovery = recoverySummary?.latestRecovery ?? undefined;
-      const openFollowUp = recoverySummary?.openFollowUp ?? undefined;
-      return [order.id, failureRecoveryState(latestFailureRecovery, openFollowUp)];
-    }),
-  );
   const recoveryFilterCounts = new Map<FailureRecoveryFilter, number>(
     failureRecoveryFilters.map((filterOption) => [
       filterOption.value,
-      filterOption.value === 'ALL'
-        ? visibleFailedOrders.length
-        : visibleFailedOrders.filter((order) => recoveryStateByOrderId.get(order.id) === filterOption.value).length,
+      {
+        ALL: recoveryCounts?.all ?? visibleFailedOrders.length,
+        NEEDS_DECISION: recoveryCounts?.needsDecision ?? 0,
+        OPEN_FOLLOW_UP: recoveryCounts?.openFollowUp ?? 0,
+        RETRY_READY: recoveryCounts?.retryReady ?? 0,
+        REFUND_REVIEW: recoveryCounts?.refundReview ?? 0,
+        CLOSED_UNRECOVERABLE: recoveryCounts?.closedUnrecoverable ?? 0,
+      }[filterOption.value],
     ]),
   );
-  const displayedOrders = isFailureRecoveryView
-    ? visibleFailedOrders
-        .filter((order) => (
-          failureRecoveryFilter === 'ALL'
-            ? true
-            : recoveryStateByOrderId.get(order.id) === failureRecoveryFilter
-        ))
-        .sort((left, right) => {
-          const leftRank = failureRecoveryRank(recoveryStateByOrderId.get(left.id) ?? 'NEEDS_DECISION');
-          const rightRank = failureRecoveryRank(recoveryStateByOrderId.get(right.id) ?? 'NEEDS_DECISION');
-          if (leftRank !== rightRank) {
-            return leftRank - rightRank;
-          }
-          return new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
-        })
-    : orders;
+  const displayedOrders = orders;
 
   const quickResolveFollowUpMutation = useMutation({
     mutationFn: ({ orderId, taskId }: { orderId: string; taskId: string }) => resolveDeliveryFollowUp(orderId, taskId),
@@ -443,6 +445,7 @@ export default function OrdersList() {
       );
       await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', variables.orderId] });
       await queryClient.invalidateQueries({ queryKey: ['failed-order-recovery-summaries'] });
+      await queryClient.invalidateQueries({ queryKey: ['failed-order-recovery-queue'] });
       await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups-summary'] });
       await queryClient.invalidateQueries({ queryKey: ['order-timeline', variables.orderId] });
       await queryClient.invalidateQueries({ queryKey: ['orders'] });
@@ -454,23 +457,32 @@ export default function OrdersList() {
     mutationFn: (orderId: string) => retryFailedDelivery(orderId),
     onMutate: async (orderId) => {
       await queryClient.cancelQueries({ queryKey: ordersQueryKey });
+      await queryClient.cancelQueries({ queryKey: failedRecoveryQueueQueryKey });
       const previousOrdersPage = queryClient.getQueryData<OrdersPageResponse>(ordersQueryKey);
+      const previousFailedRecoveryQueue = queryClient.getQueryData<FailedOrderRecoveryQueueResponse>(failedRecoveryQueueQueryKey);
       const previousOrder = queryClient.getQueryData<Order>(['order', orderId]);
 
       queryClient.setQueryData<OrdersPageResponse | undefined>(
         ordersQueryKey,
         (currentPage) => updateOrdersPageAfterRetry(currentPage, orderId, filters.statuses),
       );
+      queryClient.setQueryData<FailedOrderRecoveryQueueResponse | undefined>(
+        failedRecoveryQueueQueryKey,
+        (currentPage) => updateRecoveryQueueAfterRetry(currentPage, orderId),
+      );
       queryClient.setQueryData<Order | undefined>(
         ['order', orderId],
         (currentOrder) => (currentOrder ? orderMovedToAssignment(currentOrder) : currentOrder),
       );
 
-      return { previousOrder, previousOrdersPage };
+      return { previousFailedRecoveryQueue, previousOrder, previousOrdersPage };
     },
     onError: (_error, orderId, context) => {
       if (context?.previousOrdersPage) {
         queryClient.setQueryData(ordersQueryKey, context.previousOrdersPage);
+      }
+      if (context?.previousFailedRecoveryQueue) {
+        queryClient.setQueryData(failedRecoveryQueueQueryKey, context.previousFailedRecoveryQueue);
       }
       if (context?.previousOrder) {
         queryClient.setQueryData(['order', orderId], context.previousOrder);
@@ -481,6 +493,7 @@ export default function OrdersList() {
         queryClient.invalidateQueries({ queryKey: ['order', orderId] }),
         queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', orderId] }),
         queryClient.invalidateQueries({ queryKey: ['failed-order-recovery-summaries'] }),
+        queryClient.invalidateQueries({ queryKey: ['failed-order-recovery-queue'] }),
         queryClient.invalidateQueries({ queryKey: ['orders'] }),
         queryClient.invalidateQueries({ queryKey: ['orders-summary'] }),
         queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] }),
@@ -513,7 +526,12 @@ export default function OrdersList() {
       setSavedViewName('');
       return;
     }
-    setFilters(savedPayloadToFilters(savedView.filters));
+    const nextFilters = savedPayloadToFilters(savedView.filters);
+    setFilters(nextFilters);
+    setRecoveryFocus(nextFilters.statuses.includes('FAILED'));
+    if (!nextFilters.statuses.includes('FAILED')) {
+      setFailureRecoveryFilter('ALL');
+    }
     setSavedViewName(savedView.name);
     setPage(0);
   }
