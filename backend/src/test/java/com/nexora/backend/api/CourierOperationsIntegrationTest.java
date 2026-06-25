@@ -555,6 +555,16 @@ class CourierOperationsIntegrationTest {
 
         String taskId = objectMapper.readTree(followUpsResult.getResponse().getContentAsString()).get(0).get("taskId").asText();
 
+        mockMvc.perform(get("/api/courier-operations/follow-ups")
+                .param("status", "OPEN")
+                .param("page", "0")
+                .param("size", "1")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].taskId").value(taskId))
+                .andExpect(jsonPath("$.content[0].status").value("OPEN"));
+
         mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/follow-ups/" + taskId + "/resolve")
                 .header("Authorization", bearer(jwtToken))
                 .contentType(MediaType.APPLICATION_JSON)
@@ -565,6 +575,14 @@ class CourierOperationsIntegrationTest {
                 .andExpect(jsonPath("$.status").value("RESOLVED"))
                 .andExpect(jsonPath("$.resolvedBy").value("courier@example.com"))
                 .andExpect(jsonPath("$.resolutionNote").value("Refund request sent to merchant"));
+
+        mockMvc.perform(get("/api/courier-operations/follow-ups")
+                .param("status", "OPEN")
+                .param("page", "0")
+                .param("size", "1")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0));
 
         mockMvc.perform(get("/api/orders/" + orderId + "/timeline")
                 .header("Authorization", bearer(jwtToken)))

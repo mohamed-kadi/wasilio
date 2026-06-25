@@ -91,6 +91,14 @@ export async function installMockApi(page: Page) {
     });
   });
 
+  await page.route('**/api/courier-operations/follow-ups?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyPage()),
+    });
+  });
+
   await page.route('**/api/admin/tenants', async (route) => {
     await route.fulfill({
       status: 200,

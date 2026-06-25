@@ -13,6 +13,8 @@ import com.nexora.backend.domain.repository.DeliveryFailureRecoveryRepository;
 import com.nexora.backend.domain.repository.DeliveryFollowUpTaskRepository;
 import com.nexora.backend.domain.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -71,6 +73,18 @@ public class DeliveryOperationsService {
     public List<DeliveryFollowUpTask> listFollowUpTasks(UUID tenantId, UUID orderId) {
         requireOrder(tenantId, orderId);
         return deliveryFollowUpTaskRepository.findByTenantIdAndOrderIdOrderByCreatedAtAsc(tenantId, orderId);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<DeliveryFollowUpTask> listFollowUpTasks(UUID tenantId, DeliveryFollowUpStatus status, Pageable pageable) {
+        if (status == null) {
+            throw new IllegalArgumentException("status is required");
+        }
+        return deliveryFollowUpTaskRepository.findByTenantIdAndStatusOrderByCreatedAtAscTaskIdAsc(
+                tenantId,
+                status,
+                pageable
+        );
     }
 
     @Transactional

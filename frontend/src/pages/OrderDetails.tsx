@@ -302,20 +302,33 @@ export default function OrderDetails() {
       }
       return retryFailedDelivery(id);
     },
+    onMutate: async () => {
+      if (!id) {
+        return {};
+      }
+      await queryClient.cancelQueries({ queryKey: ['order', id] });
+      const previousOrder = queryClient.getQueryData<Order>(['order', id]);
+
+      queryClient.setQueryData<Order | undefined>(
+        ['order', id],
+        (currentOrder) => (currentOrder ? orderMovedToAssignment(currentOrder) : currentOrder),
+      );
+
+      return { previousOrder };
+    },
+    onError: (_error, _variables, context) => {
+      if (id && context?.previousOrder) {
+        queryClient.setQueryData(['order', id], context.previousOrder);
+      }
+    },
     onSuccess: () => {
-      queryClient.setQueryData<Order | undefined>(['order', id], (currentOrder) => currentOrder
-        ? {
-            ...currentOrder,
-            status: 'CONFIRMED',
-            courierId: undefined,
-            failureReason: undefined,
-          }
-        : currentOrder);
-      queryClient.invalidateQueries({ queryKey: ['order', id] });
-      queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
-      queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] });
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['order', id] }),
+        queryClient.invalidateQueries({ queryKey: ['order-timeline', id] }),
+        queryClient.invalidateQueries({ queryKey: ['orders'] }),
+        queryClient.invalidateQueries({ queryKey: ['orders-summary'] }),
+        queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] }),
+      ]);
     },
   });
 
@@ -974,4 +987,15 @@ function RecoveryMetric({
       <p className="mt-1 text-xs text-gray-600">{detail}</p>
     </div>
   );
+}
+
+function orderMovedToAssignment(order: Order): Order {
+  return {
+    ...order,
+    status: 'CONFIRMED',
+    courierId: undefined,
+    failureReason: undefined,
+    updatedAt: new Date().toISOString(),
+    version: order.version + 1,
+  };
 }

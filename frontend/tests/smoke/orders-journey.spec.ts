@@ -370,7 +370,7 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
 
   await expect(page.getByRole('heading', { name: 'Confirmed' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Assign Courier' })).toBeVisible();
-  expect(retryRequests).toBe(1);
+  await expect.poll(() => retryRequests).toBe(1);
   expect(recoveryRequests).toEqual([
     {
       decision: 'REFUND_OR_CUSTOMER_FOLLOW_UP',

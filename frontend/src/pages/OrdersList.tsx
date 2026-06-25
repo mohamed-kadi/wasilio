@@ -20,6 +20,7 @@ import type {
   DeliveryFailureRecoveryDecision,
   DeliveryFollowUpTask,
   Order,
+  OrdersPageResponse,
   OrderSearchSavedView,
   OrderStatus,
 } from '../api/client';
@@ -196,6 +197,43 @@ function failedOrderNextAction(latestRecovery?: DeliveryFailureRecovery, openFol
   return 'Review recovery';
 }
 
+function orderMovedToAssignment(order: Order): Order {
+  return {
+    ...order,
+    status: 'CONFIRMED',
+    courierId: undefined,
+    failureReason: undefined,
+    updatedAt: new Date().toISOString(),
+    version: order.version + 1,
+  };
+}
+
+function updateOrdersPageAfterRetry(
+  pageData: OrdersPageResponse | undefined,
+  orderId: string,
+  activeStatuses: OrderStatus[],
+) {
+  if (!pageData || !pageData.content.some((order) => order.id === orderId)) {
+    return pageData;
+  }
+
+  const shouldRemoveFromCurrentPage = activeStatuses.length > 0 && !activeStatuses.includes('CONFIRMED');
+  if (shouldRemoveFromCurrentPage) {
+    const nextTotalElements = Math.max(0, pageData.totalElements - 1);
+    return {
+      ...pageData,
+      content: pageData.content.filter((order) => order.id !== orderId),
+      totalElements: nextTotalElements,
+      totalPages: pageData.size > 0 ? Math.ceil(nextTotalElements / pageData.size) : pageData.totalPages,
+    };
+  }
+
+  return {
+    ...pageData,
+    content: pageData.content.map((order) => (order.id === orderId ? orderMovedToAssignment(order) : order)),
+  };
+}
+
 export default function OrdersList() {
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -210,6 +248,7 @@ export default function OrdersList() {
   const [recoveryFocus, setRecoveryFocus] = useState(Boolean(locationState?.recoveryFocus));
   const [selectedSavedViewId, setSelectedSavedViewId] = useState('');
   const [savedViewName, setSavedViewName] = useState('');
+  const ordersQueryKey = ['orders', { page, size, filters }] as const;
 
   const {
     data: ordersPage,
@@ -217,7 +256,7 @@ export default function OrdersList() {
     isLoading,
     isFetching,
   } = useQuery({
-    queryKey: ['orders', { page, size, filters }],
+    queryKey: ordersQueryKey,
     queryFn: () =>
       fetchOrders({
         page,
@@ -338,12 +377,38 @@ export default function OrdersList() {
 
   const quickRetryMutation = useMutation({
     mutationFn: (orderId: string) => retryFailedDelivery(orderId),
-    onSuccess: async (_result, orderId) => {
-      await queryClient.invalidateQueries({ queryKey: ['order', orderId] });
-      await queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', orderId] });
-      await queryClient.invalidateQueries({ queryKey: ['orders'] });
-      await queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
-      await queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] });
+    onMutate: async (orderId) => {
+      await queryClient.cancelQueries({ queryKey: ordersQueryKey });
+      const previousOrdersPage = queryClient.getQueryData<OrdersPageResponse>(ordersQueryKey);
+      const previousOrder = queryClient.getQueryData<Order>(['order', orderId]);
+
+      queryClient.setQueryData<OrdersPageResponse | undefined>(
+        ordersQueryKey,
+        (currentPage) => updateOrdersPageAfterRetry(currentPage, orderId, filters.statuses),
+      );
+      queryClient.setQueryData<Order | undefined>(
+        ['order', orderId],
+        (currentOrder) => (currentOrder ? orderMovedToAssignment(currentOrder) : currentOrder),
+      );
+
+      return { previousOrder, previousOrdersPage };
+    },
+    onError: (_error, orderId, context) => {
+      if (context?.previousOrdersPage) {
+        queryClient.setQueryData(ordersQueryKey, context.previousOrdersPage);
+      }
+      if (context?.previousOrder) {
+        queryClient.setQueryData(['order', orderId], context.previousOrder);
+      }
+    },
+    onSuccess: (_result, orderId) => {
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['order', orderId] }),
+        queryClient.invalidateQueries({ queryKey: ['delivery-failure-recoveries', orderId] }),
+        queryClient.invalidateQueries({ queryKey: ['orders'] }),
+        queryClient.invalidateQueries({ queryKey: ['orders-summary'] }),
+        queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] }),
+      ]);
     },
   });
 

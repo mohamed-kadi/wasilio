@@ -1,12 +1,13 @@
 import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { AlertCircle, ArrowRight, CheckCircle2, ClipboardList, PackageCheck, PhoneCall, Truck } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, ClipboardList, MessageSquare, PackageCheck, PhoneCall, Truck } from 'lucide-react';
 import {
   type OrderStatus,
   fetchAssignmentQueue,
   fetchConfirmationCallbacks,
   fetchConfirmationQueue,
+  fetchDeliveryFollowUpTasks,
   fetchDeliveryQueue,
   fetchOrders,
   fetchPickupQueue,
@@ -61,6 +62,11 @@ export default function Dashboard() {
     queryFn: () => fetchOrders({ page: 0, size: 1, status: 'FAILED' }),
   });
 
+  const openFollowUpsQuery = useQuery({
+    queryKey: ['delivery-follow-ups', { page: 0, size: 1, status: 'OPEN' }],
+    queryFn: () => fetchDeliveryFollowUpTasks({ page: 0, size: 1, status: 'OPEN' }),
+  });
+
   const queries = [
     confirmationQueueQuery,
     dueCallbacksQuery,
@@ -69,6 +75,7 @@ export default function Dashboard() {
     deliveryQueueQuery,
     deliveredQuery,
     failedQuery,
+    openFollowUpsQuery,
   ];
   const isLoading = queries.some((query) => query.isLoading);
   const isFetching = queries.some((query) => query.isFetching);
@@ -81,6 +88,7 @@ export default function Dashboard() {
   const outForDelivery = deliveryQueueQuery.data?.totalElements ?? 0;
   const delivered = deliveredQuery.data?.totalElements ?? 0;
   const failed = failedQuery.data?.totalElements ?? 0;
+  const openFollowUps = openFollowUpsQuery.data?.totalElements ?? 0;
   const withCouriers = waitingPickup + outForDelivery;
   const courierWorkflow = awaitingAssignment + withCouriers;
   const activeWork = needsConfirmation + courierWorkflow + failed;
@@ -88,6 +96,7 @@ export default function Dashboard() {
     dueCallbacks,
     failed,
     needsConfirmation,
+    openFollowUps,
     outForDelivery,
     waitingPickup,
     awaitingAssignment,
@@ -99,7 +108,7 @@ export default function Dashboard() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Operations dashboard</h2>
           <p className="mt-1 text-sm text-gray-500">
-            {activeWork} active work items across confirmation, courier flow, and delivery exceptions
+            {activeWork} active orders across confirmation, courier flow, and delivery exceptions
             {isFetching && !isLoading ? ' - Refreshing' : ''}
           </p>
         </div>
@@ -136,7 +145,7 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Operational overview">
         <DashboardMetric
           title="Needs confirmation"
           value={needsConfirmation}
@@ -148,7 +157,7 @@ export default function Dashboard() {
           icon={<PhoneCall size={22} />}
         />
         <DashboardMetric
-          title="Awaiting courier"
+          title="Needs courier"
           value={awaitingAssignment}
           detail="Confirmed orders need courier assignment"
           to="/app/couriers/assignment"
@@ -168,9 +177,9 @@ export default function Dashboard() {
           icon={<PackageCheck size={22} />}
         />
         <DashboardMetric
-          title="Failed deliveries"
+          title="Failed recovery"
           value={failed}
-          detail="Closed as failed and ready for recovery review"
+          detail={openFollowUps > 0 ? `${openFollowUps} open customer follow-ups` : 'Failed orders ready for recovery review'}
           to="/app/orders"
           state={{ statuses: ['FAILED'], recoveryFocus: true }}
           cta="Review failures"
@@ -193,6 +202,13 @@ export default function Dashboard() {
           </div>
 
           <div className="mt-4 divide-y divide-gray-100">
+            <QueueStep
+              label="Resolve customer follow-ups"
+              value={openFollowUps}
+              detail="Failed deliveries waiting for refund, replacement, or customer contact"
+              to="/app/orders"
+              state={{ statuses: ['FAILED'], recoveryFocus: true }}
+            />
             <QueueStep
               label="Confirm customers"
               value={needsConfirmation}
@@ -240,6 +256,17 @@ export default function Dashboard() {
               <dd className="mt-2 text-2xl font-bold text-gray-900">{isLoading ? '...' : failed}</dd>
             </div>
           </dl>
+          <Link
+            to="/app/orders"
+            state={{ statuses: ['FAILED'], recoveryFocus: true }}
+            className="mt-4 flex items-center justify-between rounded-md border border-red-100 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
+          >
+            <span className="inline-flex items-center gap-2">
+              <MessageSquare size={16} />
+              {openFollowUps} open follow-ups
+            </span>
+            <ArrowRight size={16} />
+          </Link>
         </div>
       </section>
     </div>
@@ -250,6 +277,7 @@ function getNextAction({
   dueCallbacks,
   failed,
   needsConfirmation,
+  openFollowUps,
   outForDelivery,
   waitingPickup,
   awaitingAssignment,
@@ -257,6 +285,7 @@ function getNextAction({
   dueCallbacks: number;
   failed: number;
   needsConfirmation: number;
+  openFollowUps: number;
   outForDelivery: number;
   waitingPickup: number;
   awaitingAssignment: number;
@@ -268,6 +297,17 @@ function getNextAction({
       to: '/app/confirmations',
       cta: 'Open confirmations',
       tone: 'blue',
+    };
+  }
+
+  if (openFollowUps > 0) {
+    return {
+      label: 'Resolve failed-delivery follow-ups',
+      detail: `${openFollowUps} failed deliveries are waiting for refund, replacement, or customer contact decisions.`,
+      to: '/app/orders',
+      state: { statuses: ['FAILED'], recoveryFocus: true },
+      cta: 'Open recovery queue',
+      tone: 'red',
     };
   }
 
@@ -377,9 +417,24 @@ function DashboardMetric({
   );
 }
 
-function QueueStep({ label, value, detail, to }: { label: string; value: number; detail: string; to: string }) {
+function QueueStep({
+  label,
+  value,
+  detail,
+  to,
+  state,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  to: string;
+  state?: {
+    statuses?: OrderStatus[];
+    recoveryFocus?: boolean;
+  };
+}) {
   return (
-    <Link to={to} className="flex items-center justify-between gap-4 py-3 hover:bg-gray-50">
+    <Link to={to} state={state} className="flex items-center justify-between gap-4 py-3 hover:bg-gray-50">
       <div>
         <p className="font-medium text-gray-900">{label}</p>
         <p className="text-sm text-gray-500">{detail}</p>

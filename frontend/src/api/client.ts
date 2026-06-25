@@ -178,6 +178,20 @@ export interface DeliveryFollowUpTask {
   resolutionNote?: string;
 }
 
+export interface DeliveryFollowUpTasksPageResponse {
+  content: DeliveryFollowUpTask[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface DeliveryFollowUpsQuery {
+  page?: number;
+  size?: number;
+  status?: DeliveryFollowUpStatus;
+}
+
 export interface DeliveryFollowUpResolutionPayload {
   note?: string;
 }
@@ -866,6 +880,17 @@ export async function fetchDeliveryFailureRecoveries(orderId: string): Promise<D
 
 export async function fetchDeliveryFollowUps(orderId: string): Promise<DeliveryFollowUpTask[]> {
   return apiRequest<DeliveryFollowUpTask[]>(`/courier-operations/orders/${orderId}/follow-ups`);
+}
+
+export async function fetchDeliveryFollowUpTasks(
+  query: DeliveryFollowUpsQuery = {},
+): Promise<DeliveryFollowUpTasksPageResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+  params.set('status', query.status ?? 'OPEN');
+
+  return apiRequest<DeliveryFollowUpTasksPageResponse>(`/courier-operations/follow-ups?${params.toString()}`);
 }
 
 export async function recordDeliveryFailureRecovery(

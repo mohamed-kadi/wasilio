@@ -44,6 +44,14 @@ test('merchant can see the operational dashboard and next queue to work', async 
     });
   });
 
+  await page.route('**/api/courier-operations/follow-ups?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(pageResponse(2)),
+    });
+  });
+
   await page.route('**/api/orders?**', async (route) => {
     const url = new URL(route.request().url());
     const statuses = url.searchParams.getAll('status');
@@ -75,18 +83,20 @@ test('merchant can see the operational dashboard and next queue to work', async 
   await loginAs(page, 'admin@example.com');
 
   await expect(page.getByRole('heading', { name: 'Operations dashboard' })).toBeVisible();
-  await expect(page.getByText('20 active work items across confirmation, courier flow, and delivery exceptions')).toBeVisible();
+  await expect(page.getByText('20 active orders across confirmation, courier flow, and delivery exceptions')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Call due callbacks' })).toBeVisible();
   await expect(page.getByText('2 customer callbacks are due now')).toBeVisible();
 
   await expect(page.getByText('Needs confirmation', { exact: true })).toBeVisible();
   await expect(page.getByText('2 due callbacks need attention')).toBeVisible();
-  await expect(page.getByText('Awaiting courier', { exact: true })).toBeVisible();
+  await expect(page.getByText('Needs courier', { exact: true })).toBeVisible();
   await expect(page.getByText('With couriers', { exact: true })).toBeVisible();
   await expect(page.getByText('4 waiting pickup, 5 out for delivery')).toBeVisible();
-  await expect(page.getByText('Failed deliveries')).toBeVisible();
+  await expect(page.getByText('Failed recovery')).toBeVisible();
+  await expect(page.getByText('2 open customer follow-ups')).toBeVisible();
   await expect(page.getByText('Closed outcomes')).toBeVisible();
 
+  await expect(page.getByText('Resolve customer follow-ups')).toBeVisible();
   await expect(page.getByText('Confirm customers')).toBeVisible();
   await expect(page.getByText('Confirmed orders without a courier')).toBeVisible();
   await expect(page.getByText('Picked up orders with couriers')).toBeVisible();

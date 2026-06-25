@@ -7,6 +7,7 @@ import com.nexora.backend.domain.model.DeliveryFailure;
 import com.nexora.backend.domain.model.DeliveryFailureRecovery;
 import com.nexora.backend.domain.model.DeliveryFailureRecoveryDecision;
 import com.nexora.backend.domain.model.DeliveryFailureReason;
+import com.nexora.backend.domain.model.DeliveryFollowUpStatus;
 import com.nexora.backend.domain.model.DeliveryFollowUpTask;
 import com.nexora.backend.domain.model.Order;
 import com.nexora.backend.domain.model.OrderStatus;
@@ -127,6 +128,24 @@ public class CourierOperationsController {
                     orders.getSize(),
                     orders.getTotalElements(),
                     orders.getTotalPages()
+            );
+        }
+    }
+
+    public record DeliveryFollowUpTasksPageResponse(
+            List<DeliveryFollowUpTask> content,
+            int page,
+            int size,
+            long totalElements,
+            int totalPages
+    ) {
+        static DeliveryFollowUpTasksPageResponse from(Page<DeliveryFollowUpTask> tasks) {
+            return new DeliveryFollowUpTasksPageResponse(
+                    tasks.getContent(),
+                    tasks.getNumber(),
+                    tasks.getSize(),
+                    tasks.getTotalElements(),
+                    tasks.getTotalPages()
             );
         }
     }
@@ -258,6 +277,19 @@ public class CourierOperationsController {
         return ResponseEntity.ok(deliveryOperationsService.listFollowUpTasks(getCurrentTenantId(), orderId));
     }
 
+    @GetMapping("/follow-ups")
+    public ResponseEntity<DeliveryFollowUpTasksPageResponse> listFollowUpTasks(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "OPEN") DeliveryFollowUpStatus status
+    ) {
+        return ResponseEntity.ok(DeliveryFollowUpTasksPageResponse.from(deliveryOperationsService.listFollowUpTasks(
+                getCurrentTenantId(),
+                status,
+                followUpPageRequest(page, size)
+        )));
+    }
+
     @PostMapping("/orders/{orderId}/follow-ups/{taskId}/resolve")
     public ResponseEntity<DeliveryFollowUpTask> resolveFollowUpTask(
             @PathVariable UUID orderId,
@@ -297,6 +329,20 @@ public class CourierOperationsController {
                 page,
                 size,
                 Sort.by(Sort.Direction.ASC, "createdAt").and(Sort.by(Sort.Direction.ASC, "id"))
+        );
+    }
+
+    private PageRequest followUpPageRequest(int page, int size) {
+        if (page < 0) {
+            throw new IllegalArgumentException("page must be greater than or equal to 0");
+        }
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException("size must be between 1 and 100");
+        }
+        return PageRequest.of(
+                page,
+                size,
+                Sort.by(Sort.Direction.ASC, "createdAt").and(Sort.by(Sort.Direction.ASC, "taskId"))
         );
     }
 
