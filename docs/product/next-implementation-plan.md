@@ -27,7 +27,7 @@ Do not treat the online frontend as a complete production SaaS until the backend
 
 ## Architecture Direction Note
 
-Operational UX polish can continue inside Wasilio Core. Any work that captures orders from public storefronts, CSV, ecommerce platforms, WhatsApp, marketplace sources, or campaign flows should first add the Order Ingestion/source metadata boundary described in `docs/architecture/ddd-boundaries.md` and `docs/decisions/ADR-011-order-ingestion-and-normalization-boundary.md`.
+Operational UX polish can continue inside Wasilio Core. Order creation now has a minimal Order Ingestion/source metadata foundation. Any work that captures orders from public storefronts, CSV, ecommerce platforms, WhatsApp, marketplace sources, or campaign flows should extend that boundary instead of calling order lifecycle directly.
 
 Do not build a Wasilio storefront as a standalone business-rule layer. Storefront should read Catalog data and submit order intent only.
 
@@ -126,7 +126,7 @@ When ready, the backend deployment path is:
 
 Start with **Landing And Acquisition UX** when working on the public site because it is already public and does not require backend hosting.
 
-When working inside the app, keep prioritizing core workflow polish and smoke coverage. If the next app feature touches order capture or source tracking, start with the minimal Order Ingestion/source metadata foundation before storefront, integrations, or campaign analytics.
+When working inside the app, keep prioritizing core workflow polish and smoke coverage. If the next app feature touches external order capture or source tracking, extend Order Ingestion before storefront, integrations, or campaign analytics.
 
 Suggested first tasks:
 

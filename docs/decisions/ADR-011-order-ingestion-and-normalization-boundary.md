@@ -21,6 +21,12 @@ Order Lifecycle remains the authority for final state transitions after ingestio
 - Operators can trace where an order came from and troubleshoot source payload issues.
 - Ingestion requires idempotency rules for webhooks, imports, and retrying clients.
 
+## Implementation Note
+
+The foundation is implemented with `inbound_orders`, `OrderIngestionService`, `OrderSource`, `InboundOrderStatus`, and lightweight `OrderSourceMetadata` on `OrderCreated` events and the `orders` projection. Manual order creation flows through this boundary with `MANUAL` as the default source.
+
+Storefront capture, CSV import, platform adapters, marketing attribution, and customer intelligence remain future work.
+
 ## Alternatives Considered
 
 - Let each integration call lifecycle APIs directly: rejected because it spreads source-specific logic across controllers and services.

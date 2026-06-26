@@ -29,8 +29,19 @@ public class OrderLifecycleService {
 
     @Transactional
     public UUID createOrder(UUID tenantId, Customer customer, Address address, BigDecimal amount) {
+        return createOrder(tenantId, customer, address, amount, null);
+    }
+
+    @Transactional
+    public UUID createOrder(
+            UUID tenantId,
+            Customer customer,
+            Address address,
+            BigDecimal amount,
+            OrderSourceMetadata sourceMetadata
+    ) {
         UUID orderId = UUID.randomUUID();
-        OrderCreatedEvent payload = new OrderCreatedEvent(customer, address, amount);
+        OrderCreatedEvent payload = new OrderCreatedEvent(customer, address, amount, sourceMetadata);
         appendEvent(tenantId, orderId, "OrderCreated", payload, 0);
         return orderId;
     }

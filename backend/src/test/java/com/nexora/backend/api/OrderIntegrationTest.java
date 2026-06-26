@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
+import com.nexora.backend.domain.model.OrderSource;
 import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -95,6 +96,7 @@ class OrderIntegrationTest {
         entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM inbound_orders").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM couriers").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM users").executeUpdate();
@@ -137,6 +139,46 @@ class OrderIntegrationTest {
                 .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].correlationId").value(correlationId.toString()));
+    }
+
+    @Test
+    void createOrder_usesIngestionSourceMetadataAndIdempotency() throws Exception {
+        OrderController.CreateOrderRequest request = new OrderController.CreateOrderRequest(
+                new OrderController.CustomerRequest("Ingested", "User", "ingested@example.com", "0612345678"),
+                new OrderController.AddressRequest("1 Main St", "Casablanca", "Casablanca-Settat", "20000", "Morocco"),
+                new BigDecimal("100.00"),
+                OrderSource.WHATSAPP,
+                "whatsapp-1001",
+                "whatsapp-idem-1001"
+        );
+
+        MvcResult first = mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+        MvcResult duplicate = mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String orderId = extractCreatedOrderId(first);
+        assertEquals(orderId, extractCreatedOrderId(duplicate));
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.source").value("WHATSAPP"))
+                .andExpect(jsonPath("$.externalOrderId").value("whatsapp-1001"))
+                .andExpect(jsonPath("$.inboundOrderId").isNotEmpty());
+
+        mockMvc.perform(get("/api/orders")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     @Test

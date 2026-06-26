@@ -244,7 +244,7 @@ If the immediate goal is to publish, pilot, or sell Wasilio, temporarily follow 
 
 Current tactical recommendation:
 
-Continue local core-workflow polish and focused smoke coverage while backend hosting remains deferred. If the next implementation touches order capture, storefront, external sources, campaign reporting, or customer intelligence, implement the minimal Order Ingestion/source metadata foundation first, then Catalog, then Storefront.
+Continue local core-workflow polish and focused smoke coverage while backend hosting remains deferred. The minimal Order Ingestion/source metadata foundation is implemented. If the next implementation touches storefront, external sources, campaign reporting, or customer intelligence, extend Order Ingestion through source-specific adapters, then add Catalog, then Storefront.
 
 Exports remain useful for operations, but they should not be allowed to blur the new ingestion, attribution, and customer boundaries.
 

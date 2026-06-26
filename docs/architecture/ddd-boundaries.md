@@ -42,6 +42,26 @@ Primary code:
 - `application/projection/ProjectionProcessedEvent.java`
 - `domain/repository/OrderRepository.java`
 
+### Order Ingestion
+
+Owns the minimum inbound order foundation for all order sources before a Wasilio lifecycle order is created. It records tenant-scoped inbound payload snapshots, source, external order ID, idempotency key, received status, rejection reason, and the normalized Wasilio order ID.
+
+Implemented scope:
+
+- Manual order creation now flows through ingestion with `OrderSource.MANUAL` by default.
+- Future sources can reuse the same service contract without calling `OrderLifecycleService` directly.
+- Duplicate submissions by `(tenantId, source, idempotencyKey)` or source external order ID return the existing normalized order instead of creating duplicates.
+- `OrderCreated` events and the `orders` projection preserve lightweight source metadata: source, inbound order ID, and external order ID.
+
+Primary code:
+
+- `application/OrderIngestionService.java`
+- `domain/model/InboundOrder.java`
+- `domain/model/InboundOrderStatus.java`
+- `domain/model/OrderSource.java`
+- `domain/repository/InboundOrderRepository.java`
+- `domain/event/payload/OrderSourceMetadata.java`
+
 ### Confirmation Operations
 
 Owns operational records for COD confirmation attempts and callback scheduling. It may trigger order lifecycle events for final confirmation/rejection outcomes.
@@ -136,7 +156,7 @@ Forbidden responsibilities:
 
 ### Order Ingestion
 
-Owns order intake from all sources before an order becomes a Wasilio lifecycle order.
+Owns order intake from all sources before an order becomes a Wasilio lifecycle order. The foundation exists; source-specific adapters remain future work.
 
 Sources include Wasilio storefronts, manual entry, CSV import, YouCan, Shopify, WooCommerce, WhatsApp, Facebook leads, and future platform adapters.
 
@@ -208,7 +228,7 @@ Billing can restrict product access at the application boundary, but it does not
 
 When adding the next product surface, prefer this sequence:
 
-1. Add the missing Order Ingestion/source metadata foundation.
+1. Extend the Order Ingestion/source metadata foundation for each new source.
 2. Add Catalog as a reusable merchant-owned product context.
 3. Add Storefront as a thin presentation layer over Catalog and Order Ingestion.
 4. Add Marketing Attribution as its own context before campaign analytics.

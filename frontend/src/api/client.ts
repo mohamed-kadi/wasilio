@@ -63,6 +63,17 @@ export type OrderStatus =
   | 'DELIVERED'
   | 'FAILED';
 
+export type OrderSource =
+  | 'MANUAL'
+  | 'WASILIO_STOREFRONT'
+  | 'CUSTOM_API'
+  | 'CSV_IMPORT'
+  | 'YOUCAN'
+  | 'SHOPIFY'
+  | 'WOOCOMMERCE'
+  | 'WHATSAPP'
+  | 'FACEBOOK_LEAD_FORM';
+
 export interface Order {
   id: string;
   tenantId: string;
@@ -72,6 +83,9 @@ export interface Order {
   amount: number;
   courierId?: string;
   failureReason?: string;
+  source?: OrderSource;
+  inboundOrderId?: string;
+  externalOrderId?: string;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -426,6 +440,9 @@ export interface CreateOrderPayload {
   customer: Customer;
   address: Address;
   amount: number;
+  source?: OrderSource;
+  externalOrderId?: string;
+  idempotencyKey?: string;
 }
 
 export interface LoginResponse {

@@ -125,11 +125,13 @@ Critical workflows should receive browser-level E2E coverage before relying on t
 Storefronts and external platforms produce order intent; Wasilio Core owns order operations.
 
 - A Wasilio storefront may present Catalog data and submit order intent, but it must not mutate lifecycle state directly.
-- Public order capture should call an Order Ingestion boundary, not `OrderLifecycleService` directly from a storefront-specific controller.
+- Public order capture should call `OrderIngestionService`, not `OrderLifecycleService` directly from a storefront-specific controller.
 - Manual entry, CSV import, YouCan, Shopify, WooCommerce, WhatsApp, Facebook leads, and future sources should normalize through the same ingestion contract.
 - Ingestion should preserve source metadata: source type, source platform, external order ID, campaign hints, referrer, captured timestamp, and raw payload reference where useful.
 - Platform-specific fields should live in ingestion/integration/attribution records, not in lifecycle events unless they are durable lifecycle facts.
 - The normalized command passed into order lifecycle should be stable and Wasilio-owned.
+- Orders should keep only lightweight source metadata: source, inbound order ID, and external order ID.
+- Raw external payloads must stay on inbound/integration records, not on the order projection or lifecycle aggregate.
 - Source adapters must be tenant scoped and idempotent where external retries or duplicate webhooks are possible.
 
 ## Catalog Rules
@@ -192,7 +194,7 @@ Do not add a new boundary just to avoid touching an existing service. If the fea
 Before larger intelligence, storefront, integration, or SaaS work:
 
 1. Keep the architecture checkpoint and ADRs current when boundaries change.
-2. Add the Order Ingestion/source metadata foundation before storefront or external platform intake.
+2. Extend Order Ingestion only through source-specific adapters when storefront or external platform intake begins.
 3. Add Catalog before building a Wasilio storefront.
 4. Customer/order notes.
 5. Exports.

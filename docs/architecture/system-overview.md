@@ -62,6 +62,7 @@ The production overlay, `docker-compose.prod.yml`, requires explicit database cr
 - Tenant onboarding with first ADMIN user when explicitly enabled.
 - JWT login and tenant-scoped authenticated requests.
 - Order lifecycle commands backed by domain events.
+- Order Ingestion foundation with inbound records, idempotency keys, source metadata, and rejection tracking.
 - Orders projection with idempotent processed-event tracking.
 - Manual projection rebuild flag for maintenance recovery.
 - COD confirmation queue, attempts, and callback scheduling.
@@ -85,7 +86,8 @@ The production overlay, `docker-compose.prod.yml`, requires explicit database cr
 ## Current Limits
 
 - Public frontend is live, but online app/API workflows are not production-complete until a hosted backend and production database connection are deployed.
-- Catalog, Wasilio Storefront, Order Ingestion, integration adapters, Marketing Attribution, Customer Profile, and Customer Intelligence are architecture targets, not implemented runtime contexts yet.
+- Catalog, Wasilio Storefront, source-specific integration adapters, Marketing Attribution, Customer Profile, and Customer Intelligence are architecture targets, not implemented runtime contexts yet.
+- Order Ingestion exists as a foundation, but it does not yet implement storefront capture, CSV imports, external ecommerce adapters, WhatsApp intake, or lead-form intake.
 - No distributed outbox or retry worker for projection/event dispatch failures.
 - No refresh-token model or token revocation store.
 - Abuse throttling is process-local and must be replaced or backed by Redis before multi-node deployment.

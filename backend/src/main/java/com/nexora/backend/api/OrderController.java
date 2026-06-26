@@ -3,15 +3,18 @@ package com.nexora.backend.api;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nexora.backend.application.OrderLifecycleService;
 import com.nexora.backend.application.CourierService;
+import com.nexora.backend.application.OrderIngestionService;
+import com.nexora.backend.application.OrderLifecycleService;
 import com.nexora.backend.application.OrderTimelineService;
 import com.nexora.backend.domain.event.DomainEvent;
 import com.nexora.backend.domain.event.EventStore;
 import com.nexora.backend.domain.model.Address;
 import com.nexora.backend.domain.model.Customer;
+import com.nexora.backend.domain.model.InboundOrderStatus;
 import com.nexora.backend.domain.model.Order;
 import com.nexora.backend.domain.model.OrderSearchSavedView;
+import com.nexora.backend.domain.model.OrderSource;
 import com.nexora.backend.domain.model.OrderStatus;
 import com.nexora.backend.domain.repository.OrderRepository;
 import com.nexora.backend.domain.repository.OrderSearchSavedViewRepository;
@@ -45,6 +48,7 @@ import java.util.UUID;
 public class OrderController {
 
     private final OrderLifecycleService orderLifecycleService;
+    private final OrderIngestionService orderIngestionService;
     private final CourierService courierService;
     private final OrderRepository orderRepository;
     private final OrderSearchSavedViewRepository savedViewRepository;
@@ -63,8 +67,15 @@ public class OrderController {
     public record CreateOrderRequest(
             @Valid @NotNull CustomerRequest customer,
             @Valid @NotNull AddressRequest address,
-            @NotNull @Positive BigDecimal amount
+            @NotNull @Positive BigDecimal amount,
+            OrderSource source,
+            @Size(max = 255) String externalOrderId,
+            @Size(max = 255) String idempotencyKey
     ) {
+        public CreateOrderRequest(CustomerRequest customer, AddressRequest address, BigDecimal amount) {
+            this(customer, address, amount, null, null, null);
+        }
+
         Customer toCustomer() {
             return new Customer(customer.firstName(), customer.lastName(), customer.email(), customer.phone());
         }
@@ -143,13 +154,25 @@ public class OrderController {
 
     @PostMapping
     public ResponseEntity<UUID> createOrder(@Valid @RequestBody CreateOrderRequest request) {
-        UUID orderId = orderLifecycleService.createOrder(
-                getCurrentTenantId(),
-                request.toCustomer(),
-                request.toAddress(),
-                request.amount()
+        OrderIngestionService.IngestedOrderResult result = orderIngestionService.ingestAndNormalize(
+                new OrderIngestionService.IngestOrderCommand(
+                        getCurrentTenantId(),
+                        request.source(),
+                        request.externalOrderId(),
+                        request.idempotencyKey(),
+                        toRawPayload(request),
+                        request.toCustomer(),
+                        request.toAddress(),
+                        request.amount()
+                )
         );
-        return ResponseEntity.ok(orderId);
+        if (result.status() == InboundOrderStatus.REJECTED) {
+            throw new IllegalArgumentException("Inbound order rejected: " + result.rejectionReason());
+        }
+        if (result.orderId() == null) {
+            throw new IllegalStateException("Inbound order has not been normalized yet");
+        }
+        return ResponseEntity.ok(result.orderId());
     }
 
     @PostMapping("/{orderId}/request-confirmation")
@@ -334,6 +357,14 @@ public class OrderController {
             return objectMapper.writeValueAsString(filters);
         } catch (JsonProcessingException ex) {
             throw new IllegalArgumentException("Saved view filters are invalid");
+        }
+    }
+
+    private String toRawPayload(CreateOrderRequest request) {
+        try {
+            return objectMapper.writeValueAsString(request);
+        } catch (JsonProcessingException ex) {
+            throw new IllegalArgumentException("Order payload could not be serialized");
         }
     }
 }

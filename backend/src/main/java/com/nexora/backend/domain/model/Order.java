@@ -41,6 +41,13 @@ public class Order {
     private String courierId;
     private String failureReason;
 
+    @Enumerated(EnumType.STRING)
+    @Column(length = 50)
+    private OrderSource source;
+
+    private UUID inboundOrderId;
+    private String externalOrderId;
+
     @Column(nullable = false)
     private Instant createdAt;
     
