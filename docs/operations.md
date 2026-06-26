@@ -183,6 +183,20 @@ Recording `CONFIRMED` or `REJECTED` resolves all pending callbacks for the order
 
 Confirmation attempts are operational records in `confirmation_attempts`. They are not the source of truth for final order state; final order state still comes from `domain_events` and the `orders` projection. The attempts table has a tenant/order/attempt-number uniqueness constraint. It intentionally does not foreign-key to the `orders` projection, so projection rebuilds can clear and rebuild `orders` without deleting historical attempt records.
 
+## Inbound Order Review
+
+The ingestion review layer is exposed through:
+
+- `GET /api/inbound-orders`
+- `GET /api/inbound-orders/{inboundOrderId}`
+- Merchant UI: `/app/inbound-orders`
+
+All inbound order endpoints require an authenticated `ADMIN` or `MERCHANT` user and scope data to the tenant in the JWT. The list endpoint supports `source`, `status`, `search`, `page`, and `size`. `search` matches `externalOrderId` and `idempotencyKey`.
+
+List responses include source, external order ID, idempotency key, status, received timestamp, normalized order ID, and rejection reason when available. They intentionally do not include the raw payload.
+
+Detail responses include the raw payload for same-tenant operational debugging. Treat this as sensitive merchant/customer data: use it for troubleshooting ingestion, normalization, rejection, and idempotency issues, not for general reporting.
+
 ## Database Backup And Restore
 
 PostgreSQL is the production source of truth for tenants, users, orders, and domain events. Backups must include the whole database, not only the `orders` projection, because `domain_events` is the authoritative event log.

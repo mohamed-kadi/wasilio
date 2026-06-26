@@ -74,6 +74,8 @@ export type OrderSource =
   | 'WHATSAPP'
   | 'FACEBOOK_LEAD_FORM';
 
+export type InboundOrderStatus = 'RECEIVED' | 'NORMALIZED' | 'REJECTED';
+
 export interface Order {
   id: string;
   tenantId: string;
@@ -97,6 +99,38 @@ export interface OrdersPageResponse {
   size: number;
   totalElements: number;
   totalPages: number;
+}
+
+export interface InboundOrderSummary {
+  inboundOrderId: string;
+  source: OrderSource;
+  externalOrderId?: string;
+  idempotencyKey: string;
+  status: InboundOrderStatus;
+  receivedAt: string;
+  normalizedOrderId?: string;
+  rejectionReason?: string;
+}
+
+export interface InboundOrderDetail extends InboundOrderSummary {
+  normalizedAt?: string;
+  rawPayload: string;
+}
+
+export interface InboundOrdersPageResponse {
+  content: InboundOrderSummary[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface InboundOrdersQuery {
+  page?: number;
+  size?: number;
+  source?: OrderSource | '';
+  status?: InboundOrderStatus | '';
+  search?: string;
 }
 
 export interface Courier {
@@ -757,6 +791,27 @@ export async function fetchOrders(query: OrdersQuery = {}): Promise<OrdersPageRe
   }
 
   return apiRequest<OrdersPageResponse>(`/orders?${params.toString()}`);
+}
+
+export async function fetchInboundOrders(query: InboundOrdersQuery = {}): Promise<InboundOrdersPageResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+  if (query.source) {
+    params.set('source', query.source);
+  }
+  if (query.status) {
+    params.set('status', query.status);
+  }
+  if (query.search?.trim()) {
+    params.set('search', query.search.trim());
+  }
+
+  return apiRequest<InboundOrdersPageResponse>(`/inbound-orders?${params.toString()}`);
+}
+
+export async function fetchInboundOrder(inboundOrderId: string): Promise<InboundOrderDetail> {
+  return apiRequest<InboundOrderDetail>(`/inbound-orders/${inboundOrderId}`);
 }
 
 export async function fetchOrderSearchSavedViews(): Promise<OrderSearchSavedView[]> {
