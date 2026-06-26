@@ -58,15 +58,15 @@ public class FailedOrderRecoveryQueueQueries {
              and latest_recovery.order_id = orders_projection.id
             where orders_projection.tenant_id = :tenantId
               and orders_projection.status = 'FAILED'
-              and (:phone is null or lower(orders_projection.phone) like lower(concat('%', :phone, '%')))
+              and (:phoneEnabled = false or lower(orders_projection.phone) like lower(concat('%', :phone, '%')))
               and (
-                    :customerName is null
+                    :customerNameEnabled = false
                     or lower(orders_projection.first_name) like lower(concat('%', :customerName, '%'))
                     or lower(orders_projection.last_name) like lower(concat('%', :customerName, '%'))
                     or lower(concat(coalesce(orders_projection.first_name, ''), ' ', coalesce(orders_projection.last_name, ''))) like lower(concat('%', :customerName, '%'))
               )
-              and (:orderIdSearch is null or lower(cast(orders_projection.id as varchar)) like lower(concat('%', :orderIdSearch, '%')))
-              and (:courierId is null or orders_projection.courier_id = :courierId)
+              and (:orderIdSearchEnabled = false or lower(cast(orders_projection.id as varchar)) like lower(concat('%', :orderIdSearch, '%')))
+              and (:courierIdEnabled = false or orders_projection.courier_id = :courierId)
               and (:createdFromEnabled = false or orders_projection.created_at >= :createdFrom)
               and (:createdToExclusiveEnabled = false or orders_projection.created_at < :createdToExclusive)
             """;
@@ -182,10 +182,14 @@ public class FailedOrderRecoveryQueueQueries {
 
     private void bindFilters(Query query, UUID tenantId, RecoveryQueueFilters filters) {
         query.setParameter("tenantId", tenantId);
-        query.setParameter("phone", filters.phone());
-        query.setParameter("customerName", filters.customerName());
-        query.setParameter("orderIdSearch", filters.orderIdSearch());
-        query.setParameter("courierId", filters.courierId());
+        query.setParameter("phoneEnabled", filters.phone() != null);
+        query.setParameter("phone", filters.phone() == null ? "" : filters.phone());
+        query.setParameter("customerNameEnabled", filters.customerName() != null);
+        query.setParameter("customerName", filters.customerName() == null ? "" : filters.customerName());
+        query.setParameter("orderIdSearchEnabled", filters.orderIdSearch() != null);
+        query.setParameter("orderIdSearch", filters.orderIdSearch() == null ? "" : filters.orderIdSearch());
+        query.setParameter("courierIdEnabled", filters.courierId() != null);
+        query.setParameter("courierId", filters.courierId() == null ? "" : filters.courierId());
         query.setParameter("createdFromEnabled", filters.createdFrom() != null);
         query.setParameter("createdFrom", filters.createdFrom() == null ? Instant.EPOCH : filters.createdFrom());
         query.setParameter("createdToExclusiveEnabled", filters.createdToExclusive() != null);
