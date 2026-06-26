@@ -111,6 +111,7 @@ interface OrderFilters {
 interface OrdersLocationState {
   statuses?: OrderStatus[];
   recoveryFocus?: boolean;
+  failureRecoveryFilter?: FailureRecoveryFilter;
 }
 
 type FailureRecoveryFilter = DeliveryFailureRecoveryState;
@@ -268,14 +269,22 @@ export default function OrdersList() {
   const location = useLocation();
   const locationState = location.state as OrdersLocationState | null;
   const locationStatuses = getLocationStatuses(locationState);
+  const initialStatuses: OrderStatus[] = locationState?.failureRecoveryFilter && !locationStatuses.includes('FAILED')
+    ? ['FAILED']
+    : locationStatuses;
+  const initialFailureRecoveryFilter = failureRecoveryFilters.some((filterOption) => (
+    filterOption.value === locationState?.failureRecoveryFilter
+  ))
+    ? locationState?.failureRecoveryFilter ?? 'ALL'
+    : 'ALL';
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(20);
   const [filters, setFilters] = useState<OrderFilters>(() => ({
     ...emptyFilters,
-    statuses: locationStatuses,
+    statuses: initialStatuses,
   }));
-  const [recoveryFocus, setRecoveryFocus] = useState(Boolean(locationState?.recoveryFocus));
-  const [failureRecoveryFilter, setFailureRecoveryFilter] = useState<FailureRecoveryFilter>('ALL');
+  const [recoveryFocus, setRecoveryFocus] = useState(Boolean(locationState?.recoveryFocus || locationState?.failureRecoveryFilter));
+  const [failureRecoveryFilter, setFailureRecoveryFilter] = useState<FailureRecoveryFilter>(initialFailureRecoveryFilter);
   const [selectedSavedViewId, setSelectedSavedViewId] = useState('');
   const [savedViewName, setSavedViewName] = useState('');
   const isFailureRecoveryView = recoveryFocus || filters.statuses.includes('FAILED');

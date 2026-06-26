@@ -3,16 +3,23 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AlertCircle, ArrowRight, CheckCircle2, Clock, ClipboardList, MessageSquare, PackageCheck, PhoneCall, Truck } from 'lucide-react';
 import {
+  type DeliveryFailureRecoveryState,
   type OrderStatus,
   fetchAssignmentQueue,
   fetchConfirmationCallbacks,
   fetchConfirmationQueue,
-  fetchDeliveryFollowUpTasks,
   fetchDeliveryQueue,
+  fetchFailedOrderRecoveryQueue,
   fetchOrders,
   fetchPickupQueue,
   getErrorMessage,
 } from '../api/client';
+
+type OrdersNavigationState = {
+  statuses?: OrderStatus[];
+  recoveryFocus?: boolean;
+  failureRecoveryFilter?: DeliveryFailureRecoveryState;
+};
 
 interface NextAction {
   label: string;
@@ -21,10 +28,7 @@ interface NextAction {
   cta: string;
   tone: 'red' | 'blue' | 'green' | 'amber';
   icon: ReactNode;
-  state?: {
-    statuses?: OrderStatus[];
-    recoveryFocus?: boolean;
-  };
+  state?: OrdersNavigationState;
 }
 
 export default function Dashboard() {
@@ -58,14 +62,9 @@ export default function Dashboard() {
     queryFn: () => fetchOrders({ page: 0, size: 1, status: 'DELIVERED' }),
   });
 
-  const failedQuery = useQuery({
-    queryKey: ['orders-summary', 'failed'],
-    queryFn: () => fetchOrders({ page: 0, size: 1, status: 'FAILED' }),
-  });
-
-  const openFollowUpsQuery = useQuery({
-    queryKey: ['delivery-follow-ups', { page: 0, size: 1, status: 'OPEN' }],
-    queryFn: () => fetchDeliveryFollowUpTasks({ page: 0, size: 1, status: 'OPEN' }),
+  const failedRecoveryQueueQuery = useQuery({
+    queryKey: ['failed-order-recovery-queue', { page: 0, size: 1, state: 'ALL' }],
+    queryFn: () => fetchFailedOrderRecoveryQueue({ page: 0, size: 1, state: 'ALL' }),
   });
 
   const queries = [
@@ -75,8 +74,7 @@ export default function Dashboard() {
     pickupQueueQuery,
     deliveryQueueQuery,
     deliveredQuery,
-    failedQuery,
-    openFollowUpsQuery,
+    failedRecoveryQueueQuery,
   ];
   const isLoading = queries.some((query) => query.isLoading);
   const isFetching = queries.some((query) => query.isFetching);
@@ -88,25 +86,37 @@ export default function Dashboard() {
   const waitingPickup = pickupQueueQuery.data?.totalElements ?? 0;
   const outForDelivery = deliveryQueueQuery.data?.totalElements ?? 0;
   const delivered = deliveredQuery.data?.totalElements ?? 0;
-  const failed = failedQuery.data?.totalElements ?? 0;
-  const openFollowUps = openFollowUpsQuery.data?.totalElements ?? 0;
+  const recoveryCounts = failedRecoveryQueueQuery.data?.counts;
+  const failed = recoveryCounts?.all ?? 0;
+  const needsRecoveryDecision = recoveryCounts?.needsDecision ?? 0;
+  const openFollowUps = recoveryCounts?.openFollowUp ?? 0;
+  const retryReady = recoveryCounts?.retryReady ?? 0;
+  const refundReview = recoveryCounts?.refundReview ?? 0;
+  const closedUnrecoverable = recoveryCounts?.closedUnrecoverable ?? 0;
   const withCouriers = waitingPickup + outForDelivery;
   const courierWorkflow = awaitingAssignment + withCouriers;
-  const failedWithoutFollowUp = Math.max(0, failed - openFollowUps);
-  const activeWork = needsConfirmation + courierWorkflow + failed;
+  const activeFailedRecovery = Math.max(0, failed - closedUnrecoverable);
+  const activeWork = needsConfirmation + courierWorkflow + activeFailedRecovery;
   const nextAction = getNextAction({
     dueCallbacks,
-    failed,
     needsConfirmation,
+    needsRecoveryDecision,
     openFollowUps,
+    refundReview,
+    retryReady,
     outForDelivery,
     waitingPickup,
     awaitingAssignment,
   });
+  const nextRecoveryFilter = needsRecoveryDecision > 0
+    ? 'NEEDS_DECISION'
+    : retryReady > 0
+      ? 'RETRY_READY'
+      : refundReview > 0
+        ? 'REFUND_REVIEW'
+        : 'ALL';
   const recoveryTarget = openFollowUps > 0 ? '/app/delivery-follow-ups' : '/app/orders';
-  const recoveryState: NextAction['state'] | undefined = openFollowUps > 0
-    ? undefined
-    : { statuses: ['FAILED'], recoveryFocus: true };
+  const recoveryState: NextAction['state'] | undefined = openFollowUps > 0 ? undefined : recoveryOrdersState(nextRecoveryFilter);
   const recoveryCta = openFollowUps > 0 ? 'Open follow-ups' : 'Review failed orders';
   const closedOutcomes = delivered + failed;
   const deliverySuccessRate = closedOutcomes > 0 ? Math.round((delivered / closedOutcomes) * 100) : 0;
@@ -151,7 +161,7 @@ export default function Dashboard() {
               <div className="mt-4 flex flex-wrap gap-2">
                 <PriorityPill label="Confirmation" value={needsConfirmation} isLoading={isLoading} />
                 <PriorityPill label="With couriers" value={withCouriers} isLoading={isLoading} />
-                <PriorityPill label="Open follow-ups" value={openFollowUps} isLoading={isLoading} />
+                <PriorityPill label="Failed recovery" value={activeFailedRecovery} isLoading={isLoading} />
               </div>
             </div>
           </div>
@@ -183,8 +193,8 @@ export default function Dashboard() {
           isLoading={isLoading}
           icon={<PhoneCall size={22} />}
         >
-          <LaneItem label="Due callbacks" value={dueCallbacks} isLoading={isLoading} highlight={dueCallbacks > 0} />
-          <LaneItem label="Confirmation queue" value={needsConfirmation} isLoading={isLoading} />
+          <LaneItem label="Due callbacks" value={dueCallbacks} isLoading={isLoading} highlight={dueCallbacks > 0} to="/app/confirmations" />
+          <LaneItem label="Confirmation queue" value={needsConfirmation} isLoading={isLoading} to="/app/confirmations" />
         </WorkloadLane>
 
         <WorkloadLane
@@ -197,15 +207,19 @@ export default function Dashboard() {
           isLoading={isLoading}
           icon={<Truck size={22} />}
         >
-          <LaneItem label="Needs courier" value={awaitingAssignment} isLoading={isLoading} />
-          <LaneItem label="Waiting pickup" value={waitingPickup} isLoading={isLoading} />
-          <LaneItem label="Out for delivery" value={outForDelivery} isLoading={isLoading} highlight={outForDelivery > 0} />
+          <LaneItem label="Needs courier" value={awaitingAssignment} isLoading={isLoading} to="/app/couriers/assignment" />
+          <LaneItem label="Waiting pickup" value={waitingPickup} isLoading={isLoading} to="/app/couriers/pickup" />
+          <LaneItem label="Out for delivery" value={outForDelivery} isLoading={isLoading} highlight={outForDelivery > 0} to="/app/couriers/delivery" />
         </WorkloadLane>
 
         <WorkloadLane
           title="Failed recovery"
-          value={failed}
-          detail={openFollowUps > 0 ? `${openFollowUps} failures have active customer follow-up tasks.` : 'Failed orders need a retry, customer decision, or closure.'}
+          value={activeFailedRecovery}
+          detail={activeFailedRecovery > 0
+            ? `${activeFailedRecovery} failed deliveries need a decision, follow-up, retry, or refund review.`
+            : failed > 0
+              ? `${closedUnrecoverable} failed deliveries are closed as unrecoverable.`
+              : 'No failed deliveries need recovery right now.'}
           to={recoveryTarget}
           state={recoveryState}
           cta={recoveryCta}
@@ -213,8 +227,10 @@ export default function Dashboard() {
           isLoading={isLoading}
           icon={<AlertCircle size={22} />}
         >
-          <LaneItem label="Open follow-ups" value={openFollowUps} isLoading={isLoading} highlight={openFollowUps > 0} />
-          <LaneItem label="Failed orders to review" value={failedWithoutFollowUp} isLoading={isLoading} />
+          <LaneItem label="Needs decision" value={needsRecoveryDecision} isLoading={isLoading} highlight={needsRecoveryDecision > 0} to="/app/orders" state={recoveryOrdersState('NEEDS_DECISION')} />
+          <LaneItem label="Open follow-ups" value={openFollowUps} isLoading={isLoading} highlight={openFollowUps > 0} to="/app/delivery-follow-ups" />
+          <LaneItem label="Retry ready" value={retryReady} isLoading={isLoading} highlight={retryReady > 0} to="/app/orders" state={recoveryOrdersState('RETRY_READY')} />
+          <LaneItem label="Refund review" value={refundReview} isLoading={isLoading} to="/app/orders" state={recoveryOrdersState('REFUND_REVIEW')} />
         </WorkloadLane>
       </section>
 
@@ -235,7 +251,7 @@ export default function Dashboard() {
             <FlowStep label="Assign" value={awaitingAssignment} to="/app/couriers/assignment" isLoading={isLoading} />
             <FlowStep label="Pickup" value={waitingPickup} to="/app/couriers/pickup" isLoading={isLoading} />
             <FlowStep label="Deliver" value={outForDelivery} to="/app/couriers/delivery" isLoading={isLoading} />
-            <FlowStep label="Recover" value={openFollowUps || failed} to={recoveryTarget} state={recoveryState} isLoading={isLoading} />
+            <FlowStep label="Recover" value={activeFailedRecovery} to={recoveryTarget} state={recoveryState} isLoading={isLoading} />
           </div>
         </div>
 
@@ -269,17 +285,21 @@ export default function Dashboard() {
 
 function getNextAction({
   dueCallbacks,
-  failed,
   needsConfirmation,
+  needsRecoveryDecision,
   openFollowUps,
+  refundReview,
+  retryReady,
   outForDelivery,
   waitingPickup,
   awaitingAssignment,
 }: {
   dueCallbacks: number;
-  failed: number;
   needsConfirmation: number;
+  needsRecoveryDecision: number;
   openFollowUps: number;
+  refundReview: number;
+  retryReady: number;
   outForDelivery: number;
   waitingPickup: number;
   awaitingAssignment: number;
@@ -306,15 +326,39 @@ function getNextAction({
     };
   }
 
-  if (failed > 0) {
+  if (needsRecoveryDecision > 0) {
     return {
-      label: 'Review failed deliveries',
-      detail: `${failed} delivery failures need follow-up, customer recovery, or courier performance review.`,
+      label: 'Record failed-delivery decisions',
+      detail: `${needsRecoveryDecision} failed deliveries do not have a recovery path yet. Choose retry, follow-up, or close as unrecoverable.`,
       to: '/app/orders',
-      state: { statuses: ['FAILED'], recoveryFocus: true },
-      cta: 'Open failed orders',
+      state: recoveryOrdersState('NEEDS_DECISION'),
+      cta: 'Open decisions',
       tone: 'red',
       icon: <AlertCircle size={24} />,
+    };
+  }
+
+  if (retryReady > 0) {
+    return {
+      label: 'Move retry-ready orders',
+      detail: `${retryReady} failed deliveries are ready to return to courier assignment.`,
+      to: '/app/orders',
+      state: recoveryOrdersState('RETRY_READY'),
+      cta: 'Open retry-ready',
+      tone: 'red',
+      icon: <AlertCircle size={24} />,
+    };
+  }
+
+  if (refundReview > 0) {
+    return {
+      label: 'Review refund follow-ups',
+      detail: `${refundReview} failed deliveries have a refund or customer follow-up decision recorded.`,
+      to: '/app/orders',
+      state: recoveryOrdersState('REFUND_REVIEW'),
+      cta: 'Open refund review',
+      tone: 'red',
+      icon: <MessageSquare size={24} />,
     };
   }
 
@@ -391,6 +435,7 @@ function WorkloadLane({
   state?: {
     statuses?: OrderStatus[];
     recoveryFocus?: boolean;
+    failureRecoveryFilter?: DeliveryFailureRecoveryState;
   };
   cta: string;
   tone: 'blue' | 'amber' | 'green' | 'red';
@@ -426,17 +471,32 @@ function LaneItem({
   value,
   isLoading,
   highlight = false,
+  to,
+  state,
 }: {
   label: string;
   value: number;
   isLoading: boolean;
   highlight?: boolean;
+  to?: string;
+  state?: OrdersNavigationState;
 }) {
-  return (
-    <div className={`flex items-center justify-between rounded-md px-3 py-2 text-sm ${highlight ? 'bg-red-50 text-red-800' : 'bg-gray-50 text-gray-700'}`}>
+  const className = `flex items-center justify-between rounded-md px-3 py-2 text-sm ${
+    highlight ? 'bg-red-50 text-red-800' : 'bg-gray-50 text-gray-700'
+  } ${to ? 'hover:bg-white hover:ring-1 hover:ring-blue-100' : ''}`;
+  const content = (
+    <>
       <span>{label}</span>
       <span className="font-semibold text-gray-900">{isLoading ? '...' : value}</span>
-    </div>
+    </>
+  );
+
+  return to ? (
+    <Link to={to} state={state} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <div className={className}>{content}</div>
   );
 }
 
@@ -470,6 +530,7 @@ function FlowStep({
   state?: {
     statuses?: OrderStatus[];
     recoveryFocus?: boolean;
+    failureRecoveryFilter?: DeliveryFailureRecoveryState;
   };
   isLoading: boolean;
 }) {
@@ -514,4 +575,12 @@ function nextActionTone(tone: NextAction['tone']) {
     red: 'border-red-200 bg-red-50 text-red-900',
   };
   return tones[tone];
+}
+
+function recoveryOrdersState(failureRecoveryFilter: DeliveryFailureRecoveryState = 'ALL'): OrdersNavigationState {
+  return {
+    statuses: ['FAILED'],
+    recoveryFocus: true,
+    failureRecoveryFilter,
+  };
 }
