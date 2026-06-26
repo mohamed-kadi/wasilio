@@ -120,6 +120,37 @@ Critical workflows should receive browser-level E2E coverage before relying on t
 - Pickup and delivery outcomes.
 - Search/filter/saved views.
 
+## Storefront And Ingestion Rules
+
+Storefronts and external platforms produce order intent; Wasilio Core owns order operations.
+
+- A Wasilio storefront may present Catalog data and submit order intent, but it must not mutate lifecycle state directly.
+- Public order capture should call an Order Ingestion boundary, not `OrderLifecycleService` directly from a storefront-specific controller.
+- Manual entry, CSV import, YouCan, Shopify, WooCommerce, WhatsApp, Facebook leads, and future sources should normalize through the same ingestion contract.
+- Ingestion should preserve source metadata: source type, source platform, external order ID, campaign hints, referrer, captured timestamp, and raw payload reference where useful.
+- Platform-specific fields should live in ingestion/integration/attribution records, not in lifecycle events unless they are durable lifecycle facts.
+- The normalized command passed into order lifecycle should be stable and Wasilio-owned.
+- Source adapters must be tenant scoped and idempotent where external retries or duplicate webhooks are possible.
+
+## Catalog Rules
+
+Catalog is the reusable merchant-owned product context for storefronts and future integrations.
+
+- Catalog may own products, variants, prices, product media, FAQs, testimonials, and availability/display metadata.
+- Catalog should not own confirmation, assignment, delivery, COD collection, recovery, or lifecycle state.
+- Order creation should snapshot the product details needed for operations so later catalog edits do not rewrite historical orders.
+- Storefront presentation should read Catalog through an API contract instead of duplicating product data in frontend-only files.
+
+## Attribution And Customer Data Rules
+
+Marketing Attribution, Customer Profile, and Customer Intelligence are separate ownership boundaries.
+
+- Do not keep adding marketing fields directly to `Order` just because they are needed for campaign reporting.
+- Attribution should own campaign, channel, UTM, click, referrer, lead source, and conversion linkage records.
+- Customer Profile should own reusable customer identity facts across orders, such as phone, name, address history, and consent.
+- Customer Intelligence should store derived snapshots with reason codes, algorithm versions, and calculated timestamps.
+- Intelligence can recommend, rank, or flag operational work; it must not silently confirm, reject, assign, deliver, fail, or close orders.
+
 ## Future Scoring And Intelligence Rules
 
 Risk scoring should be added as a read-side/business-intelligence capability first, not as a replacement for lifecycle state.
@@ -141,6 +172,12 @@ Add a new package/service boundary when the feature owns its own language, data,
 
 Good future candidates:
 
+- Order Ingestion and source adapters.
+- Catalog.
+- Storefront.
+- Marketing Attribution.
+- Customer Profile.
+- Customer Intelligence.
 - Customer/order notes.
 - Exports.
 - Risk scoring and analytics.
@@ -152,13 +189,15 @@ Do not add a new boundary just to avoid touching an existing service. If the fea
 
 ## Current Hardening Priorities
 
-Before larger intelligence or SaaS work:
+Before larger intelligence, storefront, integration, or SaaS work:
 
-1. Customer/order notes.
-2. Exports.
-3. Frontend E2E tests.
-4. User management.
-5. Architecture audit gate.
-6. Deterministic risk scoring v1.
+1. Keep the architecture checkpoint and ADRs current when boundaries change.
+2. Add the Order Ingestion/source metadata foundation before storefront or external platform intake.
+3. Add Catalog before building a Wasilio storefront.
+4. Customer/order notes.
+5. Exports.
+6. Frontend E2E tests.
+7. User management.
+8. Deterministic risk scoring v1.
 
 This order keeps the operational system stable before adding decision automation.

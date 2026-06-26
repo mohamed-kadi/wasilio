@@ -36,6 +36,11 @@ This index is the starting point for future engineers and AI agents.
 - `docs/decisions/ADR-006-local-vs-production-compose.md`
 - `docs/decisions/ADR-007-confirmation-attempts-operational-records.md`
 - `docs/decisions/ADR-008-callback-scheduling-operational-records.md`
+- `docs/decisions/ADR-009-storefront-as-presentation-client.md`
+- `docs/decisions/ADR-010-catalog-as-reusable-product-context.md`
+- `docs/decisions/ADR-011-order-ingestion-and-normalization-boundary.md`
+- `docs/decisions/ADR-012-marketing-attribution-context.md`
+- `docs/decisions/ADR-013-customer-profile-and-intelligence-contexts.md`
 
 ## Phase History
 

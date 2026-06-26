@@ -1,8 +1,10 @@
 # DDD Boundaries
 
-Wasilio currently uses a modular monolith rather than separate deployable services. Bounded contexts are expressed through packages, services, repositories, and database ownership rules.
+Wasilio uses a modular monolith rather than separate deployable services. Bounded contexts are expressed through packages, services, repositories, and database ownership rules.
 
-## Current Contexts
+This document separates what exists today from the target context map. The target map matters because Wasilio is the operating system for Moroccan COD ecommerce, not a storefront competitor. Storefronts, external ecommerce platforms, WhatsApp leads, CSV uploads, and manual entry should all feed Wasilio Core through stable ingestion boundaries.
+
+## Implemented Contexts
 
 ### Identity And Tenant Access
 
@@ -98,6 +100,96 @@ Primary code:
 - `domain/repository/TenantSubscriptionRepository.java`
 - `domain/repository/TenantPaymentRepository.java`
 
+## Target Context Map
+
+These contexts define the product architecture direction. Some are implemented, some are partial, and some are future modules. They should still guide schema, API, and UI decisions now.
+
+### Wasilio Core
+
+Owns the operational platform: identity, order lifecycle, confirmation, courier operations, COD delivery outcomes, operational read models, timeline, and internal workflows.
+
+Wasilio Core is the source of truth for order status. Storefronts and external platforms are sources of order intent, not lifecycle authorities.
+
+### Catalog
+
+Owns merchant products, variants, pricing display data, images, videos, FAQs, testimonials, and product availability metadata needed to present offers.
+
+Catalog should be reusable by Wasilio-generated storefronts and future external sales surfaces. It should not own order lifecycle, confirmation, delivery, or COD collection decisions.
+
+### Storefront
+
+Owns customer-facing presentation and order-intent capture only.
+
+Allowed responsibilities:
+
+- Show products, images, videos, pricing, FAQs, testimonials, and merchant trust content.
+- Capture customer contact details, delivery address, selected products, quantities, notes, and consent where needed.
+- Capture source, campaign, and attribution hints.
+- Submit an order-intent payload to Wasilio ingestion.
+
+Forbidden responsibilities:
+
+- Directly mutate order lifecycle state.
+- Decide confirmation, assignment, delivery, failure, COD, or recovery outcomes.
+- Hold independent business rules that disagree with Wasilio Core.
+- Become the source of customer intelligence or marketing attribution truth.
+
+### Order Ingestion
+
+Owns order intake from all sources before an order becomes a Wasilio lifecycle order.
+
+Sources include Wasilio storefronts, manual entry, CSV import, YouCan, Shopify, WooCommerce, WhatsApp, Facebook leads, and future platform adapters.
+
+Responsibilities:
+
+- Preserve source metadata.
+- Preserve raw inbound payloads where integration troubleshooting requires it.
+- Normalize source-specific payloads into a stable internal create-order command.
+- Validate source-level completeness before calling Wasilio Core.
+- Keep platform-specific fields out of order lifecycle events unless they are durable lifecycle facts.
+
+### Integrations
+
+Owns adapters for external commerce, courier, notification, payment, and acquisition systems.
+
+Adapters translate external APIs and webhook shapes into Wasilio-owned commands or operational records. They do not bypass tenant isolation or call repositories directly to mutate core state.
+
+### Customer Profile
+
+Owns stable customer identity and reusable customer facts across orders, such as phone, name, address history, preferred city/area, and consent state.
+
+Customer Profile should emerge as a separate context instead of overloading `orders` with customer intelligence fields.
+
+### Marketing Attribution
+
+Owns campaign, channel, UTM, click, referrer, lead source, and conversion linkage data.
+
+Attribution should be linked to orders and customers, but it is not part of order lifecycle truth. Order lifecycle events should reference source metadata only when needed for traceability, not absorb every marketing field.
+
+### Customer Intelligence
+
+Owns derived insights about customers and orders: repeat behavior, confirmation reliability, delivery reliability, risk signals, segmentation, and future AI recommendations.
+
+Customer Intelligence should be read-side first. It must not silently mutate order lifecycle state. Any intelligence-driven workflow action must be explicit, auditable, and overrideable.
+
+### Analytics And Reporting
+
+Owns operational dashboards, exports, cohort reporting, courier performance analysis, COD reconciliation reports, and future BI feeds.
+
+Analytics may read from lifecycle events, projections, operational records, attribution records, and customer intelligence snapshots, but it should not become the write-side owner of those facts.
+
+### Notifications
+
+Owns internal reminders and external communication orchestration for future SMS, WhatsApp, email, and push flows.
+
+Notifications may be triggered by lifecycle events or operational schedules, but final workflow decisions remain in the owning contexts.
+
+### Billing And Subscription
+
+Owns tenant plans, payments, receipts, usage limits, subscription status, and commercial access rules.
+
+Billing can restrict product access at the application boundary, but it does not own order lifecycle or operational data.
+
 ## Boundary Rules
 
 - Application services coordinate workflows; domain decisions should not be hidden in controllers.
@@ -105,11 +197,22 @@ Primary code:
 - Query screens read projections and operational records, not reconstructed aggregates.
 - Tenant context must be passed into every repository query that can expose tenant-owned data.
 - Operational records may support workflow, but they must not become the source of final order lifecycle truth.
+- Storefronts are presentation clients. They submit order intent; they do not run COD operations.
+- External platform adapters must flow through Order Ingestion before creating lifecycle orders.
+- Source and attribution metadata should be preserved without making the order lifecycle model platform-specific.
+- Marketing Attribution, Customer Profile, and Customer Intelligence are linked to orders, but they are separate ownership boundaries.
+- Intelligence can recommend or flag; it cannot silently confirm, reject, assign, deliver, fail, or close an order.
 - New workflow hardening should follow `docs/architecture/implementation-guardrails.md`.
 
-## Future Context Candidates
+## Implementation Sequence Guidance
 
-- Risk scoring and delivery intelligence.
-- Courier dispatch integrations and courier webhooks.
-- Merchant analytics and reporting.
-- Integration ingestion for stores, marketplaces, and shipping partners.
+When adding the next product surface, prefer this sequence:
+
+1. Add the missing Order Ingestion/source metadata foundation.
+2. Add Catalog as a reusable merchant-owned product context.
+3. Add Storefront as a thin presentation layer over Catalog and Order Ingestion.
+4. Add Marketing Attribution as its own context before campaign analytics.
+5. Add Customer Profile before broad Customer Intelligence.
+6. Add Customer Intelligence as explainable read-side snapshots before automation.
+
+This order keeps Wasilio Core stable while allowing storefronts and external integrations to grow without contaminating lifecycle rules.

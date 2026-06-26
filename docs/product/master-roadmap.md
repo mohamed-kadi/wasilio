@@ -17,10 +17,16 @@ Primary supporting documents:
 - `docs/phases/documentation-index.md`
 - `docs/architecture/system-overview.md`
 - `docs/architecture/event-sourcing.md`
+- `docs/architecture/ddd-boundaries.md`
 - `docs/product/order-lifecycle.md`
 - `docs/product/courier-workflow.md`
 - `docs/product/launch-readiness-pivot.md`
 - `docs/product/next-implementation-plan.md`
+- `docs/decisions/ADR-009-storefront-as-presentation-client.md`
+- `docs/decisions/ADR-010-catalog-as-reusable-product-context.md`
+- `docs/decisions/ADR-011-order-ingestion-and-normalization-boundary.md`
+- `docs/decisions/ADR-012-marketing-attribution-context.md`
+- `docs/decisions/ADR-013-customer-profile-and-intelligence-contexts.md`
 - `docs/technical-debt.md`
 
 ## Project History
@@ -206,6 +212,19 @@ Approximate maturity:
 - Later SaaS commercialization and enterprise hardening: about 5% of product surface, but meaningful architecture effort.
 - Current public deployment maturity: frontend-only public presence; hosted backend is intentionally deferred until pilot demand or a card-verified hosting account is acceptable.
 
+## Architecture Checkpoint
+
+The current operational OMS foundation is strong enough to continue polishing dashboard, recovery, exports, and operational usability. Before adding storefronts, external sales channels, marketing analytics, or AI features, the architecture now treats these as explicit bounded contexts:
+
+- Storefront is a presentation client, not an ecommerce platform replacement.
+- Catalog owns reusable merchant product and offer data.
+- Order Ingestion owns source capture, raw payload traceability, normalization, and idempotency before lifecycle order creation.
+- Marketing Attribution owns campaign/channel/conversion linkage outside order lifecycle truth.
+- Customer Profile owns reusable customer facts.
+- Customer Intelligence owns explainable derived insights and recommendations without silently mutating lifecycle state.
+
+This keeps Wasilio positioned as the operating system for Moroccan COD ecommerce while allowing merchants to keep using YouCan, Shopify, WooCommerce, WhatsApp, CSV, manual entry, and future sources.
+
 ## Execution Recommendation
 
 Original operations-completion recommendation:
@@ -225,7 +244,9 @@ If the immediate goal is to publish, pilot, or sell Wasilio, temporarily follow 
 
 Current tactical recommendation:
 
-Follow `docs/product/next-implementation-plan.md` first. The immediate sequence is landing/acquisition UX, local core-workflow polish, campaign readiness, and focused smoke coverage while backend hosting remains deferred.
+Continue local core-workflow polish and focused smoke coverage while backend hosting remains deferred. If the next implementation touches order capture, storefront, external sources, campaign reporting, or customer intelligence, implement the minimal Order Ingestion/source metadata foundation first, then Catalog, then Storefront.
+
+Exports remain useful for operations, but they should not be allowed to blur the new ingestion, attribution, and customer boundaries.
 
 ## Phase 2: Operations Completion
 
@@ -523,6 +544,9 @@ Do not start these until the operations completion path and architecture audit a
 - Route optimization.
 - Customer notification channels.
 - Marketplace integrations.
+- Wasilio storefront generation beyond a thin prototype.
+- Marketing attribution automation.
+- Customer intelligence automation.
 
 ## Architecture Audit Gate
 
