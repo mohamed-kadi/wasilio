@@ -84,6 +84,9 @@ export default function CourierPerformance() {
             Assignment attempts, delivery outcomes, and failed-delivery drilldowns
             {isFetching && !isLoading ? ' - Refreshing' : ''}
           </p>
+          <p className="mt-2 text-xs font-medium text-gray-500">
+            Showing {rangeLabel(datePreset).toLowerCase()}: {formatDateTime(range.createdFrom)} to {formatDateTime(range.createdTo)}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {datePresets.map((preset) => {
@@ -92,6 +95,7 @@ export default function CourierPerformance() {
               <button
                 key={preset.value}
                 type="button"
+                aria-pressed={isActive}
                 onClick={() => choosePreset(preset.value)}
                 className={`rounded-md border px-3 py-2 text-left text-sm ${
                   isActive
@@ -107,10 +111,11 @@ export default function CourierPerformance() {
         </div>
       </div>
 
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
         <PerformanceMetric title="Active couriers" value={activeCouriers} detail="Can receive work" tone="blue" />
         <PerformanceMetric title="Assignment attempts" value={assignmentAttempts} detail={rangeLabel(datePreset)} tone="amber" />
         <PerformanceMetric title="Delivered" value={deliveredOrders} detail="Successful outcomes" tone="green" />
+        <PerformanceMetric title="Failed deliveries" value={failedOrders} detail="Click a courier failed count to inspect" tone={failedOrders > 0 ? 'red' : 'green'} />
         <PerformanceMetric title="Success rate" value={`${overallSuccessRate}%`} detail={`${failedOrders} failed deliveries`} tone={overallSuccessRate >= 80 ? 'green' : 'red'} />
       </section>
 
@@ -196,7 +201,7 @@ export default function CourierPerformance() {
                 <h3 className="font-semibold text-gray-900">Failed delivery records</h3>
               </div>
               <p className="mt-1 text-sm text-gray-500">
-                {selectedMetric.courierName} - {rangeLabel(datePreset)}
+                {selectedMetric.courierName} - {rangeLabel(datePreset)} - {failuresPage?.totalElements ?? selectedMetric.failedOrdersCount} records
                 {fetchingFailures && !loadingFailures ? ' - Refreshing' : ''}
               </p>
             </div>
@@ -331,6 +336,15 @@ function formatMoney(value: number) {
     style: 'currency',
     currency: 'MAD',
   }).format(value);
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function PerformanceMetric({

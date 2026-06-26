@@ -57,6 +57,9 @@ test('merchant can manage courier availability and performance visibility', asyn
   });
 
   await page.route(/\/api\/courier-operations\/courier-performance(\?.*)?$/, async (route) => {
+    const url = new URL(route.request().url());
+    expect(url.searchParams.get('createdFrom')).toBeTruthy();
+    expect(url.searchParams.get('createdTo')).toBeTruthy();
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -78,6 +81,9 @@ test('merchant can manage courier availability and performance visibility', asyn
   await page.route(/\/api\/courier-operations\/delivery-failures\?.*$/, async (route) => {
     const url = new URL(route.request().url());
     expect(url.searchParams.get('courierId')).toBe(courier.courierId);
+    expect(url.searchParams.get('createdFrom')).toBeTruthy();
+    expect(url.searchParams.get('createdTo')).toBeTruthy();
+    expect(url.searchParams.get('size')).toBe('10');
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -129,10 +135,13 @@ test('merchant can manage courier availability and performance visibility', asyn
   await expect(page.getByRole('button', { name: 'Today Since local midnight' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Last 7 days Rolling 7-day window' })).toBeVisible();
   await expect(page.getByText('Assignment attempts', { exact: true })).toBeVisible();
+  await expect(page.getByText('Failed deliveries', { exact: true })).toBeVisible();
+  await expect(page.getByText('Click a courier failed count to inspect')).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Success rate' })).toBeVisible();
   await expect(page.getByText('Active - can receive assignments')).toBeVisible();
   await page.getByRole('button', { name: /1 View failures/ }).click();
   await expect(page.getByText('Failed delivery records')).toBeVisible();
+  await expect(page.getByText('Amine Courier - Last 7 days - 1 records')).toBeVisible();
   await expect(page.getByText('Failed Customer')).toBeVisible();
   await expect(page.getByText('Customer did not answer at delivery')).toBeVisible();
 });
