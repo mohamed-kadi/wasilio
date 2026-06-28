@@ -431,6 +431,7 @@ class ConfirmationWorkflowIntegrationTest {
         entityManager.createNativeQuery("DELETE FROM inbound_orders").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM couriers").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM products").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM users").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM tenants").executeUpdate();
     }

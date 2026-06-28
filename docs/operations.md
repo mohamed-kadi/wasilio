@@ -200,6 +200,15 @@ Detail responses include the raw payload for same-tenant operational debugging. 
 
 The dashboard summary endpoint returns only operational counters and latest rejected metadata. It does not expose raw payloads.
 
+## Catalog Operations
+
+Authenticated merchant/admin users can manage the minimal tenant-scoped product catalog from `/app/products`.
+
+- Products support create, list, detail, update, and archive operations through `/api/products`.
+- Product status is operational: `DRAFT` for incomplete records, `ACTIVE` for products ready for future order/storefront use, and `ARCHIVED` for retained records not intended for new use.
+- Product media is currently a single optional `imageUrl`; full galleries and storefront publishing are intentionally not implemented yet.
+- Existing order creation is unchanged. The next Catalog/Core connection should add product references to manual order creation with a stable order-line snapshot.
+
 ## Database Backup And Restore
 
 PostgreSQL is the production source of truth for tenants, users, orders, and domain events. Backups must include the whole database, not only the `orders` projection, because `domain_events` is the authoritative event log.

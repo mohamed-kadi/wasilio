@@ -76,6 +76,8 @@ export type OrderSource =
 
 export type InboundOrderStatus = 'RECEIVED' | 'NORMALIZED' | 'REJECTED';
 
+export type ProductStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+
 export interface Order {
   id: string;
   tenantId: string;
@@ -139,6 +141,45 @@ export interface InboundOrdersQuery {
   source?: OrderSource | '';
   status?: InboundOrderStatus | '';
   search?: string;
+}
+
+export interface Product {
+  id: string;
+  tenantId: string;
+  name: string;
+  slug: string;
+  description?: string;
+  priceAmount: number;
+  currency: string;
+  sku?: string;
+  imageUrl?: string;
+  status: ProductStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductsPageResponse {
+  content: Product[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+}
+
+export interface ProductsQuery {
+  page?: number;
+  size?: number;
+}
+
+export interface ProductPayload {
+  name: string;
+  slug?: string;
+  description?: string;
+  priceAmount: number;
+  currency?: string;
+  sku?: string;
+  imageUrl?: string;
+  status?: ProductStatus;
 }
 
 export interface Courier {
@@ -824,6 +865,38 @@ export async function fetchInboundOrder(inboundOrderId: string): Promise<Inbound
 
 export async function fetchInboundOrderSummary(): Promise<InboundOrderSummaryStats> {
   return apiRequest<InboundOrderSummaryStats>('/inbound-orders/summary');
+}
+
+export async function fetchProducts(query: ProductsQuery = {}): Promise<ProductsPageResponse> {
+  const params = new URLSearchParams();
+  params.set('page', String(query.page ?? 0));
+  params.set('size', String(query.size ?? 20));
+
+  return apiRequest<ProductsPageResponse>(`/products?${params.toString()}`);
+}
+
+export async function fetchProduct(productId: string): Promise<Product> {
+  return apiRequest<Product>(`/products/${productId}`);
+}
+
+export async function createProduct(payload: ProductPayload): Promise<Product> {
+  return apiRequest<Product>('/products', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateProduct(productId: string, payload: ProductPayload): Promise<Product> {
+  return apiRequest<Product>(`/products/${productId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function archiveProduct(productId: string): Promise<Product> {
+  return apiRequest<Product>(`/products/${productId}/archive`, {
+    method: 'PATCH',
+  });
 }
 
 export async function fetchOrderSearchSavedViews(): Promise<OrderSearchSavedView[]> {

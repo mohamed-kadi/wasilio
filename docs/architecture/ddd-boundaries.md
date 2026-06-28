@@ -62,6 +62,31 @@ Primary code:
 - `domain/repository/InboundOrderRepository.java`
 - `domain/event/payload/OrderSourceMetadata.java`
 
+### Catalog
+
+Owns the minimum tenant-scoped merchant product model needed before storefronts, imports, external adapters, and richer manual order creation.
+
+Implemented scope:
+
+- Product create, list, detail, update, and archive endpoints.
+- Tenant-scoped product slug uniqueness.
+- Product statuses: `DRAFT`, `ACTIVE`, and `ARCHIVED`.
+- A single nullable `imageUrl` placeholder instead of full media galleries.
+- No storefront publishing, SEO, checkout, adapters, attribution, or customer intelligence.
+
+Order connection:
+
+- Existing order behavior is unchanged.
+- Product references from order creation should be added as the next small step, together with an order-line snapshot so historical orders remain stable after catalog edits.
+
+Primary code:
+
+- `api/ProductController.java`
+- `application/ProductService.java`
+- `domain/model/Product.java`
+- `domain/model/ProductStatus.java`
+- `domain/repository/ProductRepository.java`
+
 ### Confirmation Operations
 
 Owns operational records for COD confirmation attempts and callback scheduling. It may trigger order lifecycle events for final confirmation/rejection outcomes.
@@ -229,7 +254,7 @@ Billing can restrict product access at the application boundary, but it does not
 When adding the next product surface, prefer this sequence:
 
 1. Extend the Order Ingestion/source metadata foundation for each new source.
-2. Add Catalog as a reusable merchant-owned product context.
+2. Extend the implemented Catalog foundation into manual order product references with stable order-line snapshots.
 3. Add Storefront as a thin presentation layer over Catalog and Order Ingestion.
 4. Add Marketing Attribution as its own context before campaign analytics.
 5. Add Customer Profile before broad Customer Intelligence.
