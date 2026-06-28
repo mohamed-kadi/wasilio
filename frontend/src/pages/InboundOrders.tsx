@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, Inbox, Search, X } from 'lucide-react';
 import {
   fetchInboundOrder,
@@ -29,12 +29,13 @@ const STATUS_OPTIONS: Array<{ value: InboundOrderStatus; label: string }> = [
 ];
 
 export default function InboundOrders() {
+  const [searchParams] = useSearchParams();
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(20);
-  const [source, setSource] = useState<OrderSource | ''>('');
-  const [status, setStatus] = useState<InboundOrderStatus | ''>('');
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
+  const [source, setSource] = useState<OrderSource | ''>(() => parseSource(searchParams.get('source')));
+  const [status, setStatus] = useState<InboundOrderStatus | ''>(() => parseStatus(searchParams.get('status')));
+  const [searchInput, setSearchInput] = useState(() => searchParams.get('search')?.trim() ?? '');
+  const [search, setSearch] = useState(() => searchParams.get('search')?.trim() ?? '');
   const [selectedInboundOrderId, setSelectedInboundOrderId] = useState<string | null>(null);
 
   const {
@@ -417,6 +418,14 @@ function sourceLabel(source: OrderSource) {
 
 function statusLabel(status: InboundOrderStatus) {
   return STATUS_OPTIONS.find((option) => option.value === status)?.label ?? status;
+}
+
+function parseSource(value: string | null): OrderSource | '' {
+  return SOURCE_OPTIONS.some((option) => option.value === value) ? value as OrderSource : '';
+}
+
+function parseStatus(value: string | null): InboundOrderStatus | '' {
+  return STATUS_OPTIONS.some((option) => option.value === value) ? value as InboundOrderStatus : '';
 }
 
 function shortId(id: string) {

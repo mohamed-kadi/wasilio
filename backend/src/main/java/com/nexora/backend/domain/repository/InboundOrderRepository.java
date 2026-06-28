@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -26,6 +27,23 @@ public interface InboundOrderRepository extends JpaRepository<InboundOrder, UUID
     );
 
     Optional<InboundOrder> findByInboundOrderIdAndTenantId(UUID inboundOrderId, UUID tenantId);
+
+    long countByTenantIdAndStatusAndReceivedAtGreaterThanEqual(
+            UUID tenantId,
+            InboundOrderStatus status,
+            Instant receivedAt
+    );
+
+    long countByTenantIdAndStatusAndNormalizedAtGreaterThanEqual(
+            UUID tenantId,
+            InboundOrderStatus status,
+            Instant normalizedAt
+    );
+
+    Optional<InboundOrder> findFirstByTenantIdAndStatusOrderByReceivedAtDescInboundOrderIdAsc(
+            UUID tenantId,
+            InboundOrderStatus status
+    );
 
     @Query("""
             select inboundOrder

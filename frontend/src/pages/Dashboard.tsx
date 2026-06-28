@@ -1,15 +1,17 @@
 import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { AlertCircle, ArrowRight, CheckCircle2, Clock, ClipboardList, MessageSquare, PackageCheck, PhoneCall, Truck } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, Clock, ClipboardList, Inbox, MessageSquare, PackageCheck, PhoneCall, Truck } from 'lucide-react';
 import {
   type DeliveryFailureRecoveryState,
+  type OrderSource,
   type OrderStatus,
   fetchAssignmentQueue,
   fetchConfirmationCallbacks,
   fetchConfirmationQueue,
   fetchDeliveryQueue,
   fetchFailedOrderRecoveryQueue,
+  fetchInboundOrderSummary,
   fetchOrders,
   fetchPickupQueue,
   getErrorMessage,
@@ -30,6 +32,18 @@ interface NextAction {
   icon: ReactNode;
   state?: OrdersNavigationState;
 }
+
+const ORDER_SOURCE_LABELS: Record<OrderSource, string> = {
+  MANUAL: 'Manual',
+  WASILIO_STOREFRONT: 'Wasilio storefront',
+  CUSTOM_API: 'Custom API',
+  CSV_IMPORT: 'CSV import',
+  YOUCAN: 'YouCan',
+  SHOPIFY: 'Shopify',
+  WOOCOMMERCE: 'WooCommerce',
+  WHATSAPP: 'WhatsApp',
+  FACEBOOK_LEAD_FORM: 'Facebook lead form',
+};
 
 export default function Dashboard() {
   const confirmationQueueQuery = useQuery({
@@ -67,6 +81,11 @@ export default function Dashboard() {
     queryFn: () => fetchFailedOrderRecoveryQueue({ page: 0, size: 1, state: 'ALL' }),
   });
 
+  const inboundSummaryQuery = useQuery({
+    queryKey: ['inbound-orders-summary'],
+    queryFn: fetchInboundOrderSummary,
+  });
+
   const queries = [
     confirmationQueueQuery,
     dueCallbacksQuery,
@@ -75,6 +94,7 @@ export default function Dashboard() {
     deliveryQueueQuery,
     deliveredQuery,
     failedRecoveryQueueQuery,
+    inboundSummaryQuery,
   ];
   const isLoading = queries.some((query) => query.isLoading);
   const isFetching = queries.some((query) => query.isFetching);
@@ -121,6 +141,9 @@ export default function Dashboard() {
   const closedOutcomes = delivered + failed;
   const deliverySuccessRate = closedOutcomes > 0 ? Math.round((delivered / closedOutcomes) * 100) : 0;
   const priorityTone: NextAction['tone'] = isLoading ? 'blue' : nextAction.tone;
+  const inboundSummary = inboundSummaryQuery.data;
+  const rejectedInboundCount = inboundSummary?.rejectedCount ?? 0;
+  const normalizedTodayCount = inboundSummary?.normalizedTodayCount ?? 0;
 
   return (
     <div className="space-y-6">
@@ -179,6 +202,66 @@ export default function Dashboard() {
               <ArrowRight size={16} />
             </Link>
           )}
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-gray-200 bg-white p-5" aria-label="Ingestion health">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-blue-50 text-blue-700">
+              <Inbox size={20} />
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase text-blue-700">Ingestion health</p>
+              <h3 className="mt-1 text-lg font-semibold text-gray-900">Inbound order intake</h3>
+              <p className="mt-1 text-sm text-gray-500">Watch rejected source payloads before they disappear from daily operations.</p>
+            </div>
+          </div>
+          <Link
+            to="/app/inbound-orders?status=REJECTED"
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-100"
+          >
+            View rejected inbound orders
+            <ArrowRight size={16} />
+          </Link>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-3">
+          <IngestionMetric
+            title="Rejected inbound"
+            value={rejectedInboundCount}
+            detail="Last 24 hours"
+            tone={rejectedInboundCount > 0 ? 'red' : 'gray'}
+            isLoading={inboundSummaryQuery.isLoading}
+          />
+          <IngestionMetric
+            title="Normalized today"
+            value={normalizedTodayCount}
+            detail="Created Wasilio orders today"
+            tone="green"
+            isLoading={inboundSummaryQuery.isLoading}
+          />
+          <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
+            <p className="text-xs font-semibold uppercase text-gray-500">Latest rejected source</p>
+            {inboundSummaryQuery.isLoading ? (
+              <p className="mt-2 text-2xl font-bold text-gray-900">...</p>
+            ) : inboundSummary?.latestRejectedSource ? (
+              <>
+                <p className="mt-2 text-xl font-bold text-gray-900">{sourceLabel(inboundSummary.latestRejectedSource)}</p>
+                <p className="mt-1 text-sm text-gray-500">
+                  {inboundSummary.latestRejectedAt ? formatDateTime(inboundSummary.latestRejectedAt) : 'No timestamp recorded'}
+                </p>
+                {inboundSummary.latestRejectedReason && (
+                  <p className="mt-2 line-clamp-2 text-sm text-red-700">{inboundSummary.latestRejectedReason}</p>
+                )}
+              </>
+            ) : (
+              <>
+                <p className="mt-2 text-xl font-bold text-gray-900">None</p>
+                <p className="mt-1 text-sm text-gray-500">No rejected inbound orders recorded.</p>
+              </>
+            )}
+          </div>
         </div>
       </section>
 
@@ -567,6 +650,34 @@ function OutcomeStat({
   );
 }
 
+function IngestionMetric({
+  title,
+  value,
+  detail,
+  tone,
+  isLoading,
+}: {
+  title: string;
+  value: number;
+  detail: string;
+  tone: 'red' | 'green' | 'gray';
+  isLoading: boolean;
+}) {
+  const tones = {
+    red: 'border-red-200 bg-red-50 text-red-700',
+    green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    gray: 'border-gray-200 bg-gray-50 text-gray-600',
+  };
+
+  return (
+    <div className={`rounded-md border p-4 ${tones[tone]}`}>
+      <p className="text-xs font-semibold uppercase">{title}</p>
+      <p className="mt-2 text-2xl font-bold text-gray-900">{isLoading ? '...' : value}</p>
+      <p className="mt-1 text-sm">{detail}</p>
+    </div>
+  );
+}
+
 function nextActionTone(tone: NextAction['tone']) {
   const tones = {
     blue: 'border-blue-200 bg-blue-50 text-blue-900',
@@ -583,4 +694,12 @@ function recoveryOrdersState(failureRecoveryFilter: DeliveryFailureRecoveryState
     recoveryFocus: true,
     failureRecoveryFilter,
   };
+}
+
+function sourceLabel(source: OrderSource) {
+  return ORDER_SOURCE_LABELS[source] ?? source;
+}
+
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString();
 }

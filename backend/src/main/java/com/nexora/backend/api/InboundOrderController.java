@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -103,6 +105,28 @@ public class InboundOrderController {
         }
     }
 
+    public record InboundOrderSummaryStatsResponse(
+            long rejectedCount,
+            long normalizedTodayCount,
+            OrderSource latestRejectedSource,
+            Instant latestRejectedAt,
+            String latestRejectedReason
+    ) {
+        static InboundOrderSummaryStatsResponse from(
+                long rejectedCount,
+                long normalizedTodayCount,
+                InboundOrder latestRejected
+        ) {
+            return new InboundOrderSummaryStatsResponse(
+                    rejectedCount,
+                    normalizedTodayCount,
+                    latestRejected == null ? null : latestRejected.getSource(),
+                    latestRejected == null ? null : latestRejected.getReceivedAt(),
+                    latestRejected == null ? null : latestRejected.getRejectionReason()
+            );
+        }
+    }
+
     @GetMapping
     public ResponseEntity<InboundOrdersPageResponse> listInboundOrders(
             @RequestParam(defaultValue = "0") int page,
@@ -131,6 +155,34 @@ public class InboundOrderController {
                 pageRequest
         );
         return ResponseEntity.ok(InboundOrdersPageResponse.from(inboundOrders));
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<InboundOrderSummaryStatsResponse> summary() {
+        UUID tenantId = getCurrentTenantId();
+        Instant now = Instant.now();
+        Instant rejectedSince = now.minusSeconds(24 * 60 * 60);
+        Instant todayStart = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        long rejectedCount = inboundOrderRepository.countByTenantIdAndStatusAndReceivedAtGreaterThanEqual(
+                tenantId,
+                InboundOrderStatus.REJECTED,
+                rejectedSince
+        );
+        long normalizedTodayCount = inboundOrderRepository.countByTenantIdAndStatusAndNormalizedAtGreaterThanEqual(
+                tenantId,
+                InboundOrderStatus.NORMALIZED,
+                todayStart
+        );
+        InboundOrder latestRejected = inboundOrderRepository
+                .findFirstByTenantIdAndStatusOrderByReceivedAtDescInboundOrderIdAsc(tenantId, InboundOrderStatus.REJECTED)
+                .orElse(null);
+
+        return ResponseEntity.ok(InboundOrderSummaryStatsResponse.from(
+                rejectedCount,
+                normalizedTodayCount,
+                latestRejected
+        ));
     }
 
     @GetMapping("/{inboundOrderId}")

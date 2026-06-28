@@ -188,6 +188,7 @@ Confirmation attempts are operational records in `confirmation_attempts`. They a
 The ingestion review layer is exposed through:
 
 - `GET /api/inbound-orders`
+- `GET /api/inbound-orders/summary`
 - `GET /api/inbound-orders/{inboundOrderId}`
 - Merchant UI: `/app/inbound-orders`
 
@@ -196,6 +197,8 @@ All inbound order endpoints require an authenticated `ADMIN` or `MERCHANT` user 
 List responses include source, external order ID, idempotency key, status, received timestamp, normalized order ID, and rejection reason when available. They intentionally do not include the raw payload.
 
 Detail responses include the raw payload for same-tenant operational debugging. Treat this as sensitive merchant/customer data: use it for troubleshooting ingestion, normalization, rejection, and idempotency issues, not for general reporting.
+
+The dashboard summary endpoint returns only operational counters and latest rejected metadata. It does not expose raw payloads.
 
 ## Database Backup And Restore
 

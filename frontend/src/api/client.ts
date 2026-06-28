@@ -125,6 +125,14 @@ export interface InboundOrdersPageResponse {
   totalPages: number;
 }
 
+export interface InboundOrderSummaryStats {
+  rejectedCount: number;
+  normalizedTodayCount: number;
+  latestRejectedSource?: OrderSource;
+  latestRejectedAt?: string;
+  latestRejectedReason?: string;
+}
+
 export interface InboundOrdersQuery {
   page?: number;
   size?: number;
@@ -812,6 +820,10 @@ export async function fetchInboundOrders(query: InboundOrdersQuery = {}): Promis
 
 export async function fetchInboundOrder(inboundOrderId: string): Promise<InboundOrderDetail> {
   return apiRequest<InboundOrderDetail>(`/inbound-orders/${inboundOrderId}`);
+}
+
+export async function fetchInboundOrderSummary(): Promise<InboundOrderSummaryStats> {
+  return apiRequest<InboundOrderSummaryStats>('/inbound-orders/summary');
 }
 
 export async function fetchOrderSearchSavedViews(): Promise<OrderSearchSavedView[]> {

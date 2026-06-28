@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.application.OrderIngestionService;
 import com.nexora.backend.domain.model.Address;
 import com.nexora.backend.domain.model.Customer;
+import com.nexora.backend.domain.model.InboundOrder;
 import com.nexora.backend.domain.model.OrderSource;
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
@@ -22,6 +23,9 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -223,6 +227,104 @@ class InboundOrderControllerIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    void summary_isTenantScopedAndReportsIngestionHealth() throws Exception {
+        Instant now = Instant.now();
+        Instant todayStart = LocalDate.now(ZoneOffset.UTC).atStartOfDay().toInstant(ZoneOffset.UTC);
+
+        OrderIngestionService.IngestedOrderResult oldRejected = ingestRejected(
+                tenantId,
+                OrderSource.CUSTOM_API,
+                "api-old-rejected",
+                "idem-api-old-rejected"
+        );
+        updateInboundOrder(
+                oldRejected.inboundOrderId(),
+                now.minusSeconds(26 * 60 * 60),
+                null,
+                "Old rejection outside the dashboard window"
+        );
+
+        OrderIngestionService.IngestedOrderResult countedRejected = ingestRejected(
+                tenantId,
+                OrderSource.SHOPIFY,
+                "shop-counted-rejected",
+                "idem-shop-counted-rejected"
+        );
+        updateInboundOrder(
+                countedRejected.inboundOrderId(),
+                now.minusSeconds(2 * 60 * 60),
+                null,
+                "Missing address line"
+        );
+
+        OrderIngestionService.IngestedOrderResult latestRejected = ingestRejected(
+                tenantId,
+                OrderSource.WHATSAPP,
+                "wa-latest-rejected",
+                "idem-wa-latest-rejected"
+        );
+        updateInboundOrder(
+                latestRejected.inboundOrderId(),
+                now.minusSeconds(60 * 60),
+                null,
+                "Customer phone number is missing"
+        );
+
+        OrderIngestionService.IngestedOrderResult normalizedToday = ingestNormalized(
+                tenantId,
+                OrderSource.YOUCAN,
+                "youcan-normalized-today",
+                "idem-youcan-normalized-today",
+                "Today"
+        );
+        updateInboundOrder(normalizedToday.inboundOrderId(), now.minusSeconds(30), now.minusSeconds(30), null);
+
+        OrderIngestionService.IngestedOrderResult normalizedBeforeToday = ingestNormalized(
+                tenantId,
+                OrderSource.WOOCOMMERCE,
+                "woo-normalized-old",
+                "idem-woo-normalized-old",
+                "Old"
+        );
+        updateInboundOrder(
+                normalizedBeforeToday.inboundOrderId(),
+                todayStart.minusSeconds(120),
+                todayStart.minusSeconds(60),
+                null
+        );
+
+        OrderIngestionService.IngestedOrderResult otherTenantRejected = ingestRejected(
+                otherTenantId,
+                OrderSource.FACEBOOK_LEAD_FORM,
+                "fb-other-rejected",
+                "idem-fb-other-rejected"
+        );
+        updateInboundOrder(
+                otherTenantRejected.inboundOrderId(),
+                now.minusSeconds(10),
+                null,
+                "Other tenant rejection"
+        );
+        ingestNormalized(
+                otherTenantId,
+                OrderSource.SHOPIFY,
+                "shop-other-normalized",
+                "idem-shop-other-normalized",
+                "OtherToday"
+        );
+
+        mockMvc.perform(get("/api/inbound-orders/summary")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rejectedCount").value(2))
+                .andExpect(jsonPath("$.normalizedTodayCount").value(1))
+                .andExpect(jsonPath("$.latestRejectedSource").value("WHATSAPP"))
+                .andExpect(jsonPath("$.latestRejectedAt").isNotEmpty())
+                .andExpect(jsonPath("$.latestRejectedReason").value("Customer phone number is missing"))
+                .andExpect(jsonPath("$.rawPayload").doesNotExist());
+    }
+
     private OrderIngestionService.IngestedOrderResult ingestNormalized(
             UUID tenantId,
             OrderSource source,
@@ -258,6 +360,23 @@ class InboundOrderControllerIntegrationTest {
                 new Address("1 Main St", "Casablanca", "Casablanca-Settat", "20000", "Morocco"),
                 BigDecimal.ZERO
         ));
+    }
+
+    private void updateInboundOrder(
+            UUID inboundOrderId,
+            Instant receivedAt,
+            Instant normalizedAt,
+            String rejectionReason
+    ) {
+        transactionTemplate.executeWithoutResult(status -> {
+            InboundOrder inboundOrder = entityManager.find(InboundOrder.class, inboundOrderId);
+            inboundOrder.setReceivedAt(receivedAt);
+            inboundOrder.setNormalizedAt(normalizedAt);
+            if (rejectionReason != null) {
+                inboundOrder.setRejectionReason(rejectionReason);
+            }
+            entityManager.flush();
+        });
     }
 
     private String login(String email, String password) throws Exception {
