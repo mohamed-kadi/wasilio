@@ -136,6 +136,7 @@ test('merchant can use the confirmation next-action panel', async ({ page }) => 
   await expect(page.getByRole('link', { name: 'Call customer' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'WhatsApp' })).toBeVisible();
   await expect(page.getByText('Current decision')).toBeVisible();
+  await expect(page.getByText('Product snapshot')).toHaveCount(0);
 
   await page.getByLabel('Outcome').selectOption('CONFIRMED');
   await expect(page.getByText('Customer accepted the order')).toBeVisible();

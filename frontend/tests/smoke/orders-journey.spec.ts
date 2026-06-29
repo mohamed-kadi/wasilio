@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { fakeJwt, installMockApi } from './helpers';
+import { fakeJwt, installMockApi, loginAs } from './helpers';
 
 const order = {
   id: '11111111-1111-1111-1111-111111111111',
@@ -39,6 +39,23 @@ const failedOrder = {
   courierId: courier.courierId,
   failureReason: 'CUSTOMER_REFUSED',
   updatedAt: '2026-06-21T12:00:00Z',
+};
+
+const productLineOrder = {
+  ...order,
+  id: '33333333-3333-3333-3333-333333333333',
+  status: 'CREATED',
+  amount: 240,
+  orderLines: [
+    {
+      productName: 'Original Product',
+      sku: 'OLD-SKU',
+      unitPrice: 120,
+      quantity: 2,
+      lineTotal: 240,
+      currency: 'MAD',
+    },
+  ],
 };
 
 test('merchant can understand order journey stage and next action', async ({ page }) => {
@@ -144,6 +161,111 @@ test('merchant can understand order journey stage and next action', async ({ pag
   await expect(page.getByText('The customer accepted the order')).toBeVisible();
   await expect(page.getByText('Available actions')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Assign Courier' })).toBeDisabled();
+  await expect(page.getByText('Total Amount')).toBeVisible();
+  await expect(page.getByText('Product snapshot')).toHaveCount(0);
+});
+
+test('merchant sees captured product snapshots in order list and detail', async ({ page }) => {
+  await installMockApi(page);
+
+  await page.route('**/api/orders?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content: [productLineOrder],
+        page: 0,
+        size: 20,
+        totalElements: 1,
+        totalPages: 1,
+      }),
+    });
+  });
+
+  await page.route('**/api/couriers?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content: [],
+        page: 0,
+        size: 100,
+        totalElements: 0,
+        totalPages: 0,
+      }),
+    });
+  });
+
+  await page.route('**/api/orders/search-views', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+
+  await page.route('**/api/orders/33333333-3333-3333-3333-333333333333', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(productLineOrder),
+    });
+  });
+
+  await page.route('**/api/orders/33333333-3333-3333-3333-333333333333/timeline', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+
+  await page.route('**/api/products?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content: [
+          {
+            id: '55555555-5555-5555-5555-555555555555',
+            tenantId: '00000000-0000-0000-0000-000000000001',
+            name: 'Edited Product',
+            slug: 'edited-product',
+            description: null,
+            priceAmount: 300,
+            currency: 'MAD',
+            sku: 'NEW-SKU',
+            imageUrl: null,
+            status: 'ACTIVE',
+            createdAt: '2026-06-20T10:00:00Z',
+            updatedAt: '2026-06-22T10:00:00Z',
+          },
+        ],
+        page: 0,
+        size: 100,
+        totalElements: 1,
+        totalPages: 1,
+      }),
+    });
+  });
+
+  await loginAs(page, 'admin@example.com');
+  await page.goto('/app/orders');
+
+  await expect(page.getByText('Original Product (2 items)')).toBeVisible();
+  await expect(page.getByText('Edited Product')).toHaveCount(0);
+
+  await page.goto('/app/orders/33333333-3333-3333-3333-333333333333');
+
+  await expect(page.getByText('Product snapshot')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Original Product')).toBeVisible();
+  await expect(page.getByRole('table').getByText('OLD-SKU')).toBeVisible();
+  await expect(page.getByRole('cell', { name: '120.00' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: '2', exact: true })).toBeVisible();
+  await expect(page.getByRole('cell', { name: '240.00' })).toBeVisible();
+  await expect(page.getByRole('cell', { name: 'MAD' })).toBeVisible();
+  await expect(page.getByText('Edited Product')).toHaveCount(0);
+  await expect(page.getByText('NEW-SKU')).toHaveCount(0);
 });
 
 test('merchant can review failed delivery recovery details', async ({ page }) => {

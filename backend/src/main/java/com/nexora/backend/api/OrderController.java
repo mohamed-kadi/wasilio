@@ -174,7 +174,7 @@ public class OrderController {
     }
 
     public record OrdersPageResponse(
-            List<Order> content,
+            List<OrderResponse> content,
             int page,
             int size,
             long totalElements,
@@ -182,7 +182,9 @@ public class OrderController {
     ) {
         static OrdersPageResponse from(Page<Order> orders) {
             return new OrdersPageResponse(
-                    orders.getContent(),
+                    orders.getContent().stream()
+                            .map(OrderResponse::from)
+                            .toList(),
                     orders.getNumber(),
                     orders.getSize(),
                     orders.getTotalElements(),
@@ -365,10 +367,10 @@ public class OrderController {
     }
 
     @GetMapping("/{orderId}")
-    public ResponseEntity<Order> getOrder(@PathVariable UUID orderId) {
+    public ResponseEntity<OrderResponse> getOrder(@PathVariable UUID orderId) {
         Order order = orderRepository.findByIdAndTenantId(orderId, getCurrentTenantId())
                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
-        return ResponseEntity.ok(order);
+        return ResponseEntity.ok(OrderResponse.from(order));
     }
 
     @GetMapping("/{orderId}/events")

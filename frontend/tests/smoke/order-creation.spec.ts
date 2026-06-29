@@ -21,7 +21,6 @@ const createdOrder = {
   amount: 349,
   orderLines: [
     {
-      productId: '55555555-5555-5555-5555-555555555555',
       productName: 'Argan Oil',
       sku: 'ARG-001',
       unitPrice: 174.5,
@@ -129,7 +128,16 @@ test('merchant creates a COD order and continues to confirmation', async ({ page
   await expect(page.getByRole('table').getByText('Sara Customer')).toBeVisible();
   await expect(page.getByText('Start here')).toBeVisible();
   await expect(page.getByText('Start confirmation call')).toBeVisible();
+  await expect(page.getByText('Argan Oil (2 items)')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Next confirmation action' })).toBeVisible();
+  await expect(page.getByText('Product snapshot')).toBeVisible();
+  await expect(page.getByText('SKU: ARG-001')).toBeVisible();
+  await expect(page.getByText('Unit price')).toBeVisible();
+  await expect(page.getByText('Quantity')).toBeVisible();
+  await expect(page.getByText('Line total')).toBeVisible();
+  await expect(page.getByText('174.50', { exact: true })).toBeVisible();
+  await expect(page.getByText('349.00', { exact: true })).toBeVisible();
+  await expect(page.getByText('MAD', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'Call customer' })).toBeVisible();
 
   expect(createRequests).toHaveLength(1);

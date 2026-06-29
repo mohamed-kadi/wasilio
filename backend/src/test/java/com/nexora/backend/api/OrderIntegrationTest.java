@@ -217,15 +217,31 @@ class OrderIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.amount").value(348.50))
                 .andExpect(jsonPath("$.orderLines.length()").value(2))
-                .andExpect(jsonPath("$.orderLines[0].productId").value(oilProductId))
+                .andExpect(jsonPath("$.orderLines[0].productId").doesNotExist())
                 .andExpect(jsonPath("$.orderLines[0].productName").value("Argan Oil"))
                 .andExpect(jsonPath("$.orderLines[0].sku").value("ARG-001"))
                 .andExpect(jsonPath("$.orderLines[0].unitPrice").value(149.00))
                 .andExpect(jsonPath("$.orderLines[0].currency").value("MAD"))
                 .andExpect(jsonPath("$.orderLines[0].quantity").value(2))
                 .andExpect(jsonPath("$.orderLines[0].lineTotal").value(298.00))
-                .andExpect(jsonPath("$.orderLines[1].productId").value(soapProductId))
+                .andExpect(jsonPath("$.orderLines[1].productId").doesNotExist())
+                .andExpect(jsonPath("$.orderLines[1].productName").value("Black Soap"))
                 .andExpect(jsonPath("$.orderLines[1].lineTotal").value(50.50));
+
+        mockMvc.perform(get("/api/orders")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(orderId))
+                .andExpect(jsonPath("$.content[0].amount").value(348.50))
+                .andExpect(jsonPath("$.content[0].orderLines.length()").value(2))
+                .andExpect(jsonPath("$.content[0].orderLines[0].productId").doesNotExist())
+                .andExpect(jsonPath("$.content[0].orderLines[0].productName").value("Argan Oil"))
+                .andExpect(jsonPath("$.content[0].orderLines[0].sku").value("ARG-001"))
+                .andExpect(jsonPath("$.content[0].orderLines[0].unitPrice").value(149.00))
+                .andExpect(jsonPath("$.content[0].orderLines[0].quantity").value(2))
+                .andExpect(jsonPath("$.content[0].orderLines[0].lineTotal").value(298.00))
+                .andExpect(jsonPath("$.content[0].orderLines[0].currency").value("MAD"));
     }
 
     @Test
@@ -260,7 +276,7 @@ class OrderIntegrationTest {
                 .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.amount").value(240.00))
-                .andExpect(jsonPath("$.orderLines[0].productId").value(productId))
+                .andExpect(jsonPath("$.orderLines[0].productId").doesNotExist())
                 .andExpect(jsonPath("$.orderLines[0].productName").value("Original Product"))
                 .andExpect(jsonPath("$.orderLines[0].sku").value("OLD-SKU"))
                 .andExpect(jsonPath("$.orderLines[0].unitPrice").value(120.00))

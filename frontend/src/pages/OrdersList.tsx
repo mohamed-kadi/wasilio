@@ -15,6 +15,7 @@ import {
   retryFailedDelivery,
   updateOrderSearchSavedView,
 } from '../api/client';
+import { orderLineSummary } from '../components/OrderLineSnapshots';
 import type {
   DeliveryFailureRecovery,
   DeliveryFailureRecoveryDecision,
@@ -860,11 +861,12 @@ export default function OrdersList() {
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left border-collapse">
+          <table className="w-full min-w-[1080px] text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 text-sm text-gray-500 uppercase tracking-wider">
                 <th className="p-4 font-medium">ID</th>
                 <th className="p-4 font-medium">Customer</th>
+                <th className="p-4 font-medium">Products</th>
                 <th className="p-4 font-medium">Amount</th>
                 <th className="p-4 font-medium">Courier</th>
                 <th className="p-4 font-medium">Status</th>
@@ -882,6 +884,7 @@ export default function OrdersList() {
                 const latestFollowUp = recoverySummary?.latestFollowUp ?? undefined;
                 const canMoveToAssignment = latestFailureRecovery?.decision === 'RETRY_DELIVERY';
                 const failedAction = failedOrderNextAction(latestFailureRecovery, openFollowUp);
+                const productSummary = orderLineSummary(order.orderLines);
                 const isResolvingThisOrder = quickResolveFollowUpMutation.isPending
                   && quickResolveFollowUpMutation.variables?.orderId === order.id;
                 const isRetryingThisOrder = quickRetryMutation.isPending
@@ -899,6 +902,13 @@ export default function OrdersList() {
                         {order.customer.firstName} {order.customer.lastName}
                       </p>
                       <p className="text-gray-500">{order.customer.phone}</p>
+                    </td>
+                    <td className="p-4">
+                      {productSummary ? (
+                        <span className="text-sm font-medium text-gray-800">{productSummary}</span>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
                     <td className="p-4 text-gray-500">
@@ -1012,14 +1022,14 @@ export default function OrdersList() {
               })}
               {!isLoading && displayedOrders.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                  <td colSpan={9} className="p-8 text-center text-gray-500">
                     {isFailureRecoveryView ? 'No failed orders match this recovery filter.' : 'No orders found.'}
                   </td>
                 </tr>
               )}
               {isLoading && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                  <td colSpan={9} className="p-8 text-center text-gray-500">
                     Loading orders...
                   </td>
                 </tr>

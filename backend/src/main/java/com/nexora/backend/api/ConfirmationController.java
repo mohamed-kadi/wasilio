@@ -46,7 +46,7 @@ public class ConfirmationController {
     private final ConfirmationWorkflowService confirmationWorkflowService;
 
     public record ConfirmationQueueResponse(
-            List<Order> content,
+            List<OrderResponse> content,
             int page,
             int size,
             long totalElements,
@@ -54,7 +54,9 @@ public class ConfirmationController {
     ) {
         static ConfirmationQueueResponse from(Page<Order> orders) {
             return new ConfirmationQueueResponse(
-                    orders.getContent(),
+                    orders.getContent().stream()
+                            .map(OrderResponse::from)
+                            .toList(),
                     orders.getNumber(),
                     orders.getSize(),
                     orders.getTotalElements(),
@@ -132,7 +134,7 @@ public class ConfirmationController {
             String note,
             String createdBy,
             Instant createdAt,
-            Order order
+            OrderResponse order
     ) {
         static ConfirmationCallbackResponse from(
                 ConfirmationWorkflowService.ConfirmationCallbackItem item,
@@ -149,7 +151,7 @@ public class ConfirmationController {
                     callback.getNote(),
                     callback.getCreatedBy(),
                     callback.getCreatedAt(),
-                    item.order()
+                    OrderResponse.from(item.order())
             );
         }
     }

@@ -85,7 +85,7 @@ export interface Order {
   customer: Customer;
   address: Address;
   amount: number;
-  orderLines: OrderLineSnapshot[];
+  orderLines?: OrderLineSnapshot[];
   courierId?: string;
   failureReason?: string;
   source?: OrderSource;
@@ -97,13 +97,12 @@ export interface Order {
 }
 
 export interface OrderLineSnapshot {
-  productId: string;
   productName: string;
   sku?: string;
   unitPrice: number;
-  currency: string;
   quantity: number;
   lineTotal: number;
+  currency: string;
 }
 
 export interface OrdersPageResponse {

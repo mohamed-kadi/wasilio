@@ -24,6 +24,7 @@ import {
   retryFailedDelivery,
 } from '../api/client';
 import type { DeliveryFailureRecovery, Order, OrderStatus } from '../api/client';
+import { hasOrderLines, OrderLineSnapshots } from '../components/OrderLineSnapshots';
 
 type LifecycleCommand =
   | { action: 'request-confirmation' }
@@ -952,6 +953,17 @@ export default function OrderDetails() {
               <span className="text-gray-600">Next action</span>
               <span className="text-right font-medium">{nextActions[order.status]}</span>
             </div>
+            {hasOrderLines(order.orderLines) && (
+              <div className="border-t border-gray-100 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-sm font-semibold text-gray-900">Product snapshot</h4>
+                  <span className="text-xs font-medium text-gray-500">
+                    {order.orderLines?.length} {order.orderLines?.length === 1 ? 'line' : 'lines'}
+                  </span>
+                </div>
+                <OrderLineSnapshots orderLines={order.orderLines} className="mt-3" />
+              </div>
+            )}
             <div className="flex justify-between items-center py-2">
               <span className="text-gray-600">Total Amount</span>
               <span className="font-bold text-lg">{order.amount.toFixed(2)} MAD</span>

@@ -2,6 +2,7 @@ package com.nexora.backend.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.domain.model.ConfirmationOutcome;
+import com.nexora.backend.domain.model.ProductStatus;
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
@@ -23,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
@@ -121,6 +123,32 @@ class ConfirmationWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.content[0].customer.firstName").value("Mallory"));
 
         assertNotEquals(createdOrderId, requestedOrderId);
+    }
+
+    @Test
+    void queueListing_includesSafeOrderLineSnapshotsForProductOrders() throws Exception {
+        String productId = createProduct(
+                jwtToken,
+                productRequest("Argan Oil", "argan-oil", "174.50", "MAD", "ARG-001", ProductStatus.ACTIVE)
+        );
+        String orderId = createProductLineOrder(jwtToken, List.of(
+                new OrderController.ProductLineRequest(UUID.fromString(productId), 2)
+        ));
+
+        mockMvc.perform(get("/api/confirmations/queue")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(orderId))
+                .andExpect(jsonPath("$.content[0].amount").value(349.00))
+                .andExpect(jsonPath("$.content[0].orderLines.length()").value(1))
+                .andExpect(jsonPath("$.content[0].orderLines[0].productId").doesNotExist())
+                .andExpect(jsonPath("$.content[0].orderLines[0].productName").value("Argan Oil"))
+                .andExpect(jsonPath("$.content[0].orderLines[0].sku").value("ARG-001"))
+                .andExpect(jsonPath("$.content[0].orderLines[0].unitPrice").value(174.50))
+                .andExpect(jsonPath("$.content[0].orderLines[0].quantity").value(2))
+                .andExpect(jsonPath("$.content[0].orderLines[0].lineTotal").value(349.00))
+                .andExpect(jsonPath("$.content[0].orderLines[0].currency").value("MAD"));
     }
 
     @Test
@@ -462,6 +490,60 @@ class ConfirmationWorkflowIntegrationTest {
                 .andReturn();
 
         return result.getResponse().getContentAsString().replace("\"", "");
+    }
+
+    private String createProductLineOrder(
+            String token,
+            List<OrderController.ProductLineRequest> productLines
+    ) throws Exception {
+        OrderController.CreateOrderRequest createRequest = new OrderController.CreateOrderRequest(
+                new OrderController.CustomerRequest("Product", "Buyer", "product-buyer@example.com", "0612345678"),
+                new OrderController.AddressRequest("1 Main St", "Casablanca", "Casablanca-Settat", "20000", "Morocco"),
+                null,
+                productLines,
+                null,
+                null,
+                null
+        );
+
+        MvcResult result = mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(createRequest)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        return result.getResponse().getContentAsString().replace("\"", "");
+    }
+
+    private ProductController.ProductRequest productRequest(
+            String name,
+            String slug,
+            String priceAmount,
+            String currency,
+            String sku,
+            ProductStatus status
+    ) {
+        return new ProductController.ProductRequest(
+                name,
+                slug,
+                null,
+                new BigDecimal(priceAmount),
+                currency,
+                sku,
+                null,
+                status
+        );
+    }
+
+    private String createProduct(String token, ProductController.ProductRequest request) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/products")
+                .header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText();
     }
 
     private MockHttpServletRequestBuilder recordAttempt(

@@ -131,7 +131,7 @@ public class CourierOperationsController {
     }
 
     public record CourierOperationsQueueResponse(
-            List<Order> content,
+            List<OrderResponse> content,
             int page,
             int size,
             long totalElements,
@@ -139,7 +139,9 @@ public class CourierOperationsController {
     ) {
         static CourierOperationsQueueResponse from(Page<Order> orders) {
             return new CourierOperationsQueueResponse(
-                    orders.getContent(),
+                    orders.getContent().stream()
+                            .map(OrderResponse::from)
+                            .toList(),
                     orders.getNumber(),
                     orders.getSize(),
                     orders.getTotalElements(),
@@ -270,7 +272,7 @@ public class CourierOperationsController {
     ) {}
 
     public record FailedOrderRecoveryQueueItem(
-            Order order,
+            OrderResponse order,
             FailedOrderRecoverySummary recovery
     ) {}
 
@@ -471,7 +473,10 @@ public class CourierOperationsController {
                 .map(currentOrderId -> {
                     Order order = ordersById.get(currentOrderId);
                     FailedOrderRecoverySummary recovery = summariesByOrderId.get(currentOrderId);
-                    return order == null || recovery == null ? null : new FailedOrderRecoveryQueueItem(order, recovery);
+                    return order == null || recovery == null ? null : new FailedOrderRecoveryQueueItem(
+                            OrderResponse.from(order),
+                            recovery
+                    );
                 })
                 .filter(Objects::nonNull)
                 .toList();

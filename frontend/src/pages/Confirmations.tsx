@@ -21,6 +21,7 @@ import {
   recordConfirmationAttempt,
   resolveConfirmationCallback,
 } from '../api/client';
+import { hasOrderLines, orderLineSummary, OrderLineSnapshots } from '../components/OrderLineSnapshots';
 import type {
   ConfirmationAttempt,
   ConfirmationCallback,
@@ -359,6 +360,11 @@ export default function Confirmations() {
                     {callback.order.customer.firstName} {callback.order.customer.lastName}
                   </p>
                   <p className="text-sm text-gray-500">{callback.order.customer.phone}</p>
+                  {orderLineSummary(callback.order.orderLines) && (
+                    <p className="mt-1 text-sm font-medium text-gray-700">
+                      {orderLineSummary(callback.order.orderLines)}
+                    </p>
+                  )}
                 </div>
                 <span className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${callbackStatusColors[callback.status]}`}>
                   {callback.status}
@@ -557,11 +563,12 @@ export default function Confirmations() {
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left border-collapse">
+              <table className="w-full min-w-[860px] text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase">
                     <th className="p-4 font-medium">Order</th>
                     <th className="p-4 font-medium">Customer</th>
+                    <th className="p-4 font-medium">Products</th>
                     <th className="p-4 font-medium">Amount</th>
                     <th className="p-4 font-medium">Status</th>
                     <th className="p-4 font-medium">Next action</th>
@@ -572,6 +579,7 @@ export default function Confirmations() {
                   {orders.map((order) => {
                     const selected = selectedOrder?.id === order.id;
                     const highlighted = createdOrderId === order.id;
+                    const productSummary = orderLineSummary(order.orderLines);
                     return (
                       <tr
                         key={order.id}
@@ -592,6 +600,13 @@ export default function Confirmations() {
                           </p>
                           <p className="text-gray-500">{order.customer.phone}</p>
                         </td>
+                        <td className="p-4">
+                          {productSummary ? (
+                            <span className="text-sm font-medium text-gray-800">{productSummary}</span>
+                          ) : (
+                            <span className="text-sm text-gray-400">-</span>
+                          )}
+                        </td>
                         <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
                         <td className="p-4">
                           <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
@@ -607,7 +622,7 @@ export default function Confirmations() {
                   })}
                   {!isLoading && orders.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-500">
+                      <td colSpan={7} className="p-8 text-center text-gray-500">
                         <div className="mx-auto max-w-sm">
                           <p className="text-sm font-medium text-gray-900">No orders waiting for confirmation.</p>
                           <p className="mt-1 text-sm text-gray-500">
@@ -634,7 +649,7 @@ export default function Confirmations() {
                   )}
                   {isLoading && (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-500">
+                      <td colSpan={7} className="p-8 text-center text-gray-500">
                         <p className="text-sm font-medium text-gray-900">Loading confirmation queue</p>
                         <p className="mt-1 text-sm text-gray-500">
                           Fetching orders that still need a customer decision.
@@ -705,6 +720,17 @@ export default function Confirmations() {
                 <p className="mt-2 text-sm text-gray-500">
                   {selectedOrder.address.city}, {selectedOrder.address.country}
                 </p>
+                {hasOrderLines(selectedOrder.orderLines) && (
+                  <div className="mt-4 border-t border-gray-100 pt-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold uppercase text-gray-500">Product snapshot</p>
+                      <p className="text-xs font-medium text-gray-500">
+                        {selectedOrder.orderLines?.length} {selectedOrder.orderLines?.length === 1 ? 'line' : 'lines'}
+                      </p>
+                    </div>
+                    <OrderLineSnapshots orderLines={selectedOrder.orderLines} compact className="mt-3" />
+                  </div>
+                )}
                 <div className="mt-4 flex flex-wrap gap-2">
                   <a
                     href={phoneHref(selectedOrder.customer.phone)}
