@@ -1,8 +1,8 @@
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, CheckCircle2, ClipboardList, PackagePlus, PhoneCall, Truck } from 'lucide-react';
-import { ApiError, createOrder, getErrorMessage } from '../api/client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ArrowRight, CheckCircle2, ClipboardList, PackagePlus, PhoneCall, Plus, Trash2, Truck } from 'lucide-react';
+import { ApiError, createOrder, fetchProducts, getErrorMessage, type Product } from '../api/client';
 
 interface OrderFormData {
   firstName: string;
@@ -15,6 +15,12 @@ interface OrderFormData {
   zipCode: string;
   country: string;
   amount: string;
+}
+
+interface ProductLineForm {
+  rowId: string;
+  productId: string;
+  quantity: string;
 }
 
 const emptyForm: OrderFormData = {
@@ -44,6 +50,22 @@ export default function CreateOrder() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<OrderFormData>(emptyForm);
+  const [productLines, setProductLines] = useState<ProductLineForm[]>([]);
+
+  const {
+    data: productsPage,
+    error: productsError,
+    isLoading: productsLoading,
+  } = useQuery({
+    queryKey: ['products', { page: 0, size: 100, status: 'ACTIVE' }],
+    queryFn: () => fetchProducts({ page: 0, size: 100, status: 'ACTIVE' }),
+  });
+
+  const activeProducts = (productsPage?.content ?? []).filter((product) => product.status === 'ACTIVE');
+  const hasProductLines = productLines.length > 0;
+  const productLineError =
+    fieldErrors.productLines ??
+    Object.entries(fieldErrors).find(([field]) => field.startsWith('productLines'))?.[1];
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
     const { name, value } = event.target;
@@ -74,11 +96,61 @@ export default function CreateOrder() {
     });
   }
 
+  function addProductLine() {
+    const selectedProductIds = new Set(productLines.map((line) => line.productId));
+    const product = activeProducts.find((candidate) => !selectedProductIds.has(candidate.id));
+    if (!product) {
+      return;
+    }
+    setProductLines((current) => [
+      ...current,
+      {
+        rowId: createRowId(),
+        productId: product.id,
+        quantity: '1',
+      },
+    ]);
+    setFormData((current) => ({ ...current, amount: '' }));
+    clearFieldErrors(['amount', 'productLines']);
+  }
+
+  function updateProductLine(rowId: string, nextLine: Partial<ProductLineForm>) {
+    setProductLines((current) => current.map((line) => (line.rowId === rowId ? { ...line, ...nextLine } : line)));
+    clearProductLineErrors();
+  }
+
+  function removeProductLine(rowId: string) {
+    setProductLines((current) => current.filter((line) => line.rowId !== rowId));
+    clearProductLineErrors();
+  }
+
+  function clearFieldErrors(fields: string[]) {
+    setFieldErrors((current) => {
+      const next = { ...current };
+      fields.forEach((field) => {
+        delete next[field];
+      });
+      return next;
+    });
+  }
+
+  function clearProductLineErrors() {
+    setFieldErrors((current) => {
+      const next = { ...current };
+      Object.keys(next).forEach((field) => {
+        if (field.startsWith('productLines')) {
+          delete next[field];
+        }
+      });
+      return next;
+    });
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 
-    const validationErrors = validateForm(formData);
+    const validationErrors = validateForm(formData, productLines, activeProducts);
     if (Object.keys(validationErrors).length > 0) {
       setFieldErrors(validationErrors);
       setError('Review the highlighted fields before creating this COD order.');
@@ -103,7 +175,14 @@ export default function CreateOrder() {
           zipCode: formData.zipCode.trim(),
           country: formData.country.trim(),
         },
-        amount: Number(formData.amount),
+        ...(hasProductLines
+          ? {
+              productLines: productLines.map((line) => ({
+                productId: line.productId,
+                quantity: Number(line.quantity),
+              })),
+            }
+          : { amount: Number(formData.amount) }),
       });
 
       await Promise.all([
@@ -274,21 +353,128 @@ export default function CreateOrder() {
 
           <FormSection
             icon={<PackagePlus size={18} />}
-            title="Cash amount"
-            detail="Enter the amount the customer should confirm before the package moves to courier operations."
+            title="Catalog products"
+            detail="Select active products when the order should use a catalog snapshot."
           >
-            <Field
-              label="Amount to collect (MAD)"
-              name="amount"
-              type="number"
-              step="0.01"
-              min="0.01"
-              inputMode="decimal"
-              value={formData.amount}
-              error={fieldError('amount')}
-              placeholder="349.00"
-              onChange={handleChange}
-            />
+            {productsError && (
+              <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                {getErrorMessage(productsError)}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {productLines.map((line, index) => {
+                const product = activeProducts.find((candidate) => candidate.id === line.productId);
+                const selectedProductIds = new Set(productLines.map((candidate) => candidate.productId));
+                const lineTotal = product ? product.priceAmount * Number(line.quantity || '0') : 0;
+                const quantityError = fieldErrors[`productLines.${index}.quantity`];
+
+                return (
+                  <div
+                    key={line.rowId}
+                    className="grid grid-cols-1 gap-3 rounded-md border border-gray-200 bg-white p-3 md:grid-cols-[1fr_120px_130px_40px]"
+                  >
+                    <label>
+                      <span className="mb-1 block text-sm font-medium text-gray-700">Product</span>
+                      <select
+                        value={line.productId}
+                        onChange={(event) => updateProductLine(line.rowId, { productId: event.target.value })}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {activeProducts.map((candidate) => (
+                          <option
+                            key={candidate.id}
+                            value={candidate.id}
+                            disabled={selectedProductIds.has(candidate.id) && candidate.id !== line.productId}
+                          >
+                            {candidate.name} - {formatMoney(candidate.priceAmount, candidate.currency)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      <span className="mb-1 block text-sm font-medium text-gray-700">Quantity</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        inputMode="numeric"
+                        value={line.quantity}
+                        onChange={(event) => updateProductLine(line.rowId, { quantity: event.target.value })}
+                        className={`w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                          quantityError ? 'border-red-300' : 'border-gray-300'
+                        }`}
+                      />
+                      {quantityError && <span className="mt-1 block text-xs text-red-600">{quantityError}</span>}
+                    </label>
+                    <div>
+                      <span className="mb-1 block text-sm font-medium text-gray-700">Line total</span>
+                      <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-900">
+                        {formatMoney(Number.isFinite(lineTotal) ? lineTotal : 0, product?.currency ?? 'MAD')}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeProductLine(line.rowId)}
+                      className="mt-6 inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
+                      aria-label={`Remove ${product?.name ?? 'product line'}`}
+                      title="Remove product"
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+                );
+              })}
+
+              {productLineError && <p className="text-xs text-red-600">{productLineError}</p>}
+
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={addProductLine}
+                  disabled={productsLoading || activeProducts.length === productLines.length}
+                  className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                >
+                  <Plus size={16} />
+                  Add product
+                </button>
+                {hasProductLines && (
+                  <p className="text-sm font-semibold text-gray-900">
+                    Product total: {formatProductTotal(productLines, activeProducts)}
+                  </p>
+                )}
+              </div>
+            </div>
+          </FormSection>
+
+          <FormSection
+            icon={<ClipboardList size={18} />}
+            title="Cash amount"
+            detail={
+              hasProductLines
+                ? 'The cash amount is calculated from selected catalog products.'
+                : 'Enter the amount the customer should confirm before the package moves to courier operations.'
+            }
+          >
+            {hasProductLines ? (
+              <div className="rounded-md border border-gray-200 bg-white px-4 py-3">
+                <p className="text-sm font-medium text-gray-700">Amount to collect</p>
+                <p className="mt-1 text-xl font-bold text-gray-900">{formatProductTotal(productLines, activeProducts)}</p>
+              </div>
+            ) : (
+              <Field
+                label="Amount to collect (MAD)"
+                name="amount"
+                type="number"
+                step="0.01"
+                min="0.01"
+                inputMode="decimal"
+                value={formData.amount}
+                error={fieldError('amount')}
+                placeholder="349.00"
+                onChange={handleChange}
+              />
+            )}
           </FormSection>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-5">
@@ -374,6 +560,7 @@ interface FieldProps {
   placeholder?: string;
   autoComplete?: string;
   readOnly?: boolean;
+  required?: boolean;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
 }
 
@@ -390,6 +577,7 @@ function Field({
   placeholder,
   autoComplete,
   readOnly = false,
+  required = true,
   onChange,
 }: FieldProps) {
   return (
@@ -397,7 +585,7 @@ function Field({
       <span className="mb-1 block text-sm font-medium text-gray-700">{label}</span>
       {help && <span className="mb-2 block text-xs leading-5 text-gray-500">{help}</span>}
       <input
-        required
+        required={required}
         name={name}
         type={type}
         step={step}
@@ -426,7 +614,11 @@ function ChecklistItem({ children }: { children: ReactNode }) {
   );
 }
 
-function validateForm(formData: OrderFormData): Record<string, string> {
+function validateForm(
+  formData: OrderFormData,
+  productLines: ProductLineForm[],
+  activeProducts: Product[],
+): Record<string, string> {
   const errors: Record<string, string> = {};
   const requiredFields: Array<keyof OrderFormData> = [
     'firstName',
@@ -450,14 +642,70 @@ function validateForm(formData: OrderFormData): Record<string, string> {
     errors.email = 'Enter a valid email address';
   }
 
-  const amount = Number(formData.amount);
-  if (!formData.amount.trim()) {
-    errors.amount = 'Required';
-  } else if (!Number.isFinite(amount) || amount <= 0) {
-    errors.amount = 'Amount must be greater than 0';
+  if (productLines.length > 0) {
+    const seenProductIds = new Set<string>();
+    productLines.forEach((line, index) => {
+      if (!activeProducts.some((product) => product.id === line.productId)) {
+        errors.productLines = 'Select an active product for each line';
+      }
+      if (seenProductIds.has(line.productId)) {
+        errors.productLines = 'Each product can only be selected once';
+      }
+      seenProductIds.add(line.productId);
+
+      const quantity = Number(line.quantity);
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        errors[`productLines.${index}.quantity`] = 'Quantity must be at least 1';
+      }
+    });
+  } else {
+    const amount = Number(formData.amount);
+    if (!formData.amount.trim()) {
+      errors.amount = 'Required';
+    } else if (!Number.isFinite(amount) || amount <= 0) {
+      errors.amount = 'Amount must be greater than 0';
+    }
   }
 
   return errors;
+}
+
+function calculateProductTotal(productLines: ProductLineForm[], products: Product[]): number {
+  return productLines.reduce((total, line) => {
+    const product = products.find((candidate) => candidate.id === line.productId);
+    const quantity = Number(line.quantity);
+    if (!product || !Number.isFinite(quantity)) {
+      return total;
+    }
+    return total + product.priceAmount * quantity;
+  }, 0);
+}
+
+function formatProductTotal(productLines: ProductLineForm[], products: Product[]): string {
+  const currencies = productLines
+    .map((line) => products.find((product) => product.id === line.productId)?.currency)
+    .filter((currency): currency is string => Boolean(currency));
+  const uniqueCurrencies = Array.from(new Set(currencies));
+  const currency = uniqueCurrencies.length === 1 ? uniqueCurrencies[0] : 'MAD';
+  return formatMoney(calculateProductTotal(productLines, products), currency);
+}
+
+function formatMoney(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency,
+    }).format(amount);
+  } catch {
+    return `${amount.toFixed(2)} ${currency}`;
+  }
+}
+
+function createRowId(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function toFieldErrorMap(error: ApiError): Record<string, string> {

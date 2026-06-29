@@ -2,6 +2,7 @@ package com.nexora.backend.application;
 
 import com.nexora.backend.domain.model.Product;
 import com.nexora.backend.domain.model.ProductStatus;
+import com.nexora.backend.domain.model.OrderLineSnapshot;
 import com.nexora.backend.domain.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -14,6 +15,8 @@ import java.text.Normalizer;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.HashSet;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -53,9 +56,56 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    public Page<Product> listProducts(UUID tenantId, ProductStatus status, Pageable pageable) {
+        if (status == null) {
+            return listProducts(tenantId, pageable);
+        }
+        return productRepository.findByTenantIdAndStatus(tenantId, status, pageable);
+    }
+
+    @Transactional(readOnly = true)
     public Product getProduct(UUID tenantId, UUID productId) {
         return productRepository.findByIdAndTenantId(productId, tenantId)
                 .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderLineSnapshot> snapshotOrderLines(UUID tenantId, List<OrderLineSelection> selections) {
+        if (selections == null || selections.isEmpty()) {
+            return List.of();
+        }
+
+        HashSet<UUID> seenProductIds = new HashSet<>();
+        return selections.stream()
+                .map(selection -> {
+                    if (selection.productId() == null) {
+                        throw new IllegalArgumentException("Product is required for each order line");
+                    }
+                    if (selection.quantity() <= 0) {
+                        throw new IllegalArgumentException("Product quantity must be greater than zero");
+                    }
+                    if (!seenProductIds.add(selection.productId())) {
+                        throw new IllegalArgumentException("Product can only appear once per order");
+                    }
+
+                    Product product = productRepository.findByIdAndTenantId(selection.productId(), tenantId)
+                            .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+                    if (product.getStatus() != ProductStatus.ACTIVE) {
+                        throw new IllegalArgumentException("Product must be ACTIVE to create product-based orders");
+                    }
+
+                    BigDecimal lineTotal = product.getPriceAmount().multiply(BigDecimal.valueOf(selection.quantity()));
+                    return new OrderLineSnapshot(
+                            product.getId(),
+                            product.getName(),
+                            product.getSku(),
+                            product.getPriceAmount(),
+                            product.getCurrency(),
+                            selection.quantity(),
+                            lineTotal
+                    );
+                })
+                .toList();
     }
 
     @Transactional
@@ -135,4 +185,6 @@ public class ProductService {
             String imageUrl,
             ProductStatus status
     ) {}
+
+    public record OrderLineSelection(UUID productId, int quantity) {}
 }

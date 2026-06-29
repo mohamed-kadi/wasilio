@@ -51,6 +51,14 @@ export async function installMockApi(page: Page) {
     });
   });
 
+  await page.route('**/api/products?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyPage()),
+    });
+  });
+
   await page.route('**/api/confirmations/queue?**', async (route) => {
     await route.fulfill({
       status: 200,

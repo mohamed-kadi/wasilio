@@ -85,6 +85,7 @@ public class OrderProjectionService {
                 .customer(payload.customer())
                 .address(payload.address())
                 .amount(payload.amount())
+                .orderLines(payload.orderLines())
                 .source(payload.sourceMetadata() == null ? null : payload.sourceMetadata().source())
                 .inboundOrderId(payload.sourceMetadata() == null ? null : payload.sourceMetadata().inboundOrderId())
                 .externalOrderId(payload.sourceMetadata() == null ? null : payload.sourceMetadata().externalOrderId())

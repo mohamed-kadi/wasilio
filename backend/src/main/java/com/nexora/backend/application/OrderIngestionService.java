@@ -5,6 +5,7 @@ import com.nexora.backend.domain.model.Address;
 import com.nexora.backend.domain.model.Customer;
 import com.nexora.backend.domain.model.InboundOrder;
 import com.nexora.backend.domain.model.InboundOrderStatus;
+import com.nexora.backend.domain.model.OrderLineSnapshot;
 import com.nexora.backend.domain.model.OrderSource;
 import com.nexora.backend.domain.repository.InboundOrderRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -72,6 +74,7 @@ public class OrderIngestionService {
                 command.customer(),
                 command.address(),
                 command.amount(),
+                command.orderLines(),
                 new OrderSourceMetadata(source, inboundOrder.getInboundOrderId(), externalOrderId)
         );
         inboundOrder.markNormalized(orderId, Instant.now());
@@ -147,8 +150,22 @@ public class OrderIngestionService {
             String rawPayload,
             Customer customer,
             Address address,
-            BigDecimal amount
-    ) {}
+            BigDecimal amount,
+            List<OrderLineSnapshot> orderLines
+    ) {
+        public IngestOrderCommand(
+                UUID tenantId,
+                OrderSource source,
+                String externalOrderId,
+                String idempotencyKey,
+                String rawPayload,
+                Customer customer,
+                Address address,
+                BigDecimal amount
+        ) {
+            this(tenantId, source, externalOrderId, idempotencyKey, rawPayload, customer, address, amount, List.of());
+        }
+    }
 
     public record IngestedOrderResult(
             UUID inboundOrderId,

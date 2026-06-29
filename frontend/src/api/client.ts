@@ -85,6 +85,7 @@ export interface Order {
   customer: Customer;
   address: Address;
   amount: number;
+  orderLines: OrderLineSnapshot[];
   courierId?: string;
   failureReason?: string;
   source?: OrderSource;
@@ -93,6 +94,16 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   version: number;
+}
+
+export interface OrderLineSnapshot {
+  productId: string;
+  productName: string;
+  sku?: string;
+  unitPrice: number;
+  currency: string;
+  quantity: number;
+  lineTotal: number;
 }
 
 export interface OrdersPageResponse {
@@ -169,6 +180,7 @@ export interface ProductsPageResponse {
 export interface ProductsQuery {
   page?: number;
   size?: number;
+  status?: ProductStatus;
 }
 
 export interface ProductPayload {
@@ -522,7 +534,11 @@ export interface OrderTimelineItem {
 export interface CreateOrderPayload {
   customer: Customer;
   address: Address;
-  amount: number;
+  amount?: number;
+  productLines?: Array<{
+    productId: string;
+    quantity: number;
+  }>;
   source?: OrderSource;
   externalOrderId?: string;
   idempotencyKey?: string;
@@ -871,6 +887,9 @@ export async function fetchProducts(query: ProductsQuery = {}): Promise<Products
   const params = new URLSearchParams();
   params.set('page', String(query.page ?? 0));
   params.set('size', String(query.size ?? 20));
+  if (query.status) {
+    params.set('status', query.status);
+  }
 
   return apiRequest<ProductsPageResponse>(`/products?${params.toString()}`);
 }

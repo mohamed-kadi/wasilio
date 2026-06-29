@@ -59,7 +59,6 @@ class InboundOrderControllerIntegrationTest {
     private UUID tenantId;
     private UUID otherTenantId;
     private String jwtToken;
-    private String otherTenantJwtToken;
 
     @BeforeEach
     void setup() throws Exception {
@@ -90,7 +89,6 @@ class InboundOrderControllerIntegrationTest {
         });
 
         jwtToken = login("inbound@example.com", "password");
-        otherTenantJwtToken = login("other-inbound@example.com", "password");
     }
 
     @Test

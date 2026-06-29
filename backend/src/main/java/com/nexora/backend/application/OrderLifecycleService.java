@@ -7,6 +7,7 @@ import com.nexora.backend.domain.event.EventStore;
 import com.nexora.backend.domain.event.payload.*;
 import com.nexora.backend.domain.model.Address;
 import com.nexora.backend.domain.model.Customer;
+import com.nexora.backend.domain.model.OrderLineSnapshot;
 import com.nexora.backend.domain.model.OrderStatus;
 import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
 import lombok.RequiredArgsConstructor;
@@ -40,8 +41,20 @@ public class OrderLifecycleService {
             BigDecimal amount,
             OrderSourceMetadata sourceMetadata
     ) {
+        return createOrder(tenantId, customer, address, amount, List.of(), sourceMetadata);
+    }
+
+    @Transactional
+    public UUID createOrder(
+            UUID tenantId,
+            Customer customer,
+            Address address,
+            BigDecimal amount,
+            List<OrderLineSnapshot> orderLines,
+            OrderSourceMetadata sourceMetadata
+    ) {
         UUID orderId = UUID.randomUUID();
-        OrderCreatedEvent payload = new OrderCreatedEvent(customer, address, amount, sourceMetadata);
+        OrderCreatedEvent payload = new OrderCreatedEvent(customer, address, amount, orderLines, sourceMetadata);
         appendEvent(tenantId, orderId, "OrderCreated", payload, 0);
         return orderId;
     }

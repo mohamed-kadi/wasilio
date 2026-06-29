@@ -132,7 +132,8 @@ public class FailedOrderRecoveryQueueQueries {
         query.setParameter("limit", size);
         query.setParameter("offset", page * size);
 
-        return query.getResultList().stream()
+        List<?> rows = query.getResultList();
+        return rows.stream()
                 .map(this::toUuid)
                 .toList();
     }

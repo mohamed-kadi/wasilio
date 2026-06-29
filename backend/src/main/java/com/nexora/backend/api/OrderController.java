@@ -7,12 +7,14 @@ import com.nexora.backend.application.CourierService;
 import com.nexora.backend.application.OrderIngestionService;
 import com.nexora.backend.application.OrderLifecycleService;
 import com.nexora.backend.application.OrderTimelineService;
+import com.nexora.backend.application.ProductService;
 import com.nexora.backend.domain.event.DomainEvent;
 import com.nexora.backend.domain.event.EventStore;
 import com.nexora.backend.domain.model.Address;
 import com.nexora.backend.domain.model.Customer;
 import com.nexora.backend.domain.model.InboundOrderStatus;
 import com.nexora.backend.domain.model.Order;
+import com.nexora.backend.domain.model.OrderLineSnapshot;
 import com.nexora.backend.domain.model.OrderSearchSavedView;
 import com.nexora.backend.domain.model.OrderSource;
 import com.nexora.backend.domain.model.OrderStatus;
@@ -21,6 +23,7 @@ import com.nexora.backend.domain.repository.OrderSearchSavedViewRepository;
 import com.nexora.backend.infrastructure.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -49,6 +52,7 @@ public class OrderController {
 
     private final OrderLifecycleService orderLifecycleService;
     private final OrderIngestionService orderIngestionService;
+    private final ProductService productService;
     private final CourierService courierService;
     private final OrderRepository orderRepository;
     private final OrderSearchSavedViewRepository savedViewRepository;
@@ -67,13 +71,30 @@ public class OrderController {
     public record CreateOrderRequest(
             @Valid @NotNull CustomerRequest customer,
             @Valid @NotNull AddressRequest address,
-            @NotNull @Positive BigDecimal amount,
+            @Positive BigDecimal amount,
+            @Valid @Size(max = 100) List<ProductLineRequest> productLines,
             OrderSource source,
             @Size(max = 255) String externalOrderId,
             @Size(max = 255) String idempotencyKey
     ) {
         public CreateOrderRequest(CustomerRequest customer, AddressRequest address, BigDecimal amount) {
-            this(customer, address, amount, null, null, null);
+            this(customer, address, amount, null, null, null, null);
+        }
+
+        public CreateOrderRequest(
+                CustomerRequest customer,
+                AddressRequest address,
+                BigDecimal amount,
+                OrderSource source,
+                String externalOrderId,
+                String idempotencyKey
+        ) {
+            this(customer, address, amount, null, source, externalOrderId, idempotencyKey);
+        }
+
+        @AssertTrue(message = "amount is required when productLines is empty")
+        public boolean isAmountPresentWhenNoProductLines() {
+            return hasProductLines() || amount != null;
         }
 
         Customer toCustomer() {
@@ -82,6 +103,19 @@ public class OrderController {
 
         Address toAddress() {
             return new Address(address.street(), address.city(), address.state(), address.zipCode(), address.country());
+        }
+
+        boolean hasProductLines() {
+            return productLines != null && !productLines.isEmpty();
+        }
+
+        List<ProductService.OrderLineSelection> toOrderLineSelections() {
+            if (!hasProductLines()) {
+                return List.of();
+            }
+            return productLines.stream()
+                    .map(line -> new ProductService.OrderLineSelection(line.productId(), line.quantity()))
+                    .toList();
         }
     }
 
@@ -98,6 +132,11 @@ public class OrderController {
             @NotBlank @Size(max = 100) String state,
             @NotBlank @Size(max = 30) String zipCode,
             @NotBlank @Size(max = 100) String country
+    ) {}
+
+    public record ProductLineRequest(
+            @NotNull UUID productId,
+            @Positive int quantity
     ) {}
 
     public record RejectOrderRequest(@NotBlank @Size(max = 500) String reason) {}
@@ -154,16 +193,25 @@ public class OrderController {
 
     @PostMapping
     public ResponseEntity<UUID> createOrder(@Valid @RequestBody CreateOrderRequest request) {
+        UUID tenantId = getCurrentTenantId();
+        List<OrderLineSnapshot> orderLines = productService.snapshotOrderLines(tenantId, request.toOrderLineSelections());
+        BigDecimal amount = orderLines.isEmpty()
+                ? request.amount()
+                : orderLines.stream()
+                        .map(OrderLineSnapshot::lineTotal)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         OrderIngestionService.IngestedOrderResult result = orderIngestionService.ingestAndNormalize(
                 new OrderIngestionService.IngestOrderCommand(
-                        getCurrentTenantId(),
+                        tenantId,
                         request.source(),
                         request.externalOrderId(),
                         request.idempotencyKey(),
                         toRawPayload(request),
                         request.toCustomer(),
                         request.toAddress(),
-                        request.amount()
+                        amount,
+                        orderLines
                 )
         );
         if (result.status() == InboundOrderStatus.REJECTED) {

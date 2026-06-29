@@ -5,6 +5,7 @@ import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
 import com.nexora.backend.domain.model.OrderSource;
+import com.nexora.backend.domain.model.ProductStatus;
 import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,11 +23,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -115,7 +118,8 @@ class OrderIntegrationTest {
                 .andExpect(jsonPath("$.status").value("CREATED"))
                 .andExpect(jsonPath("$.customer.firstName").value("Created"))
                 .andExpect(jsonPath("$.address.city").value("Casablanca"))
-                .andExpect(jsonPath("$.amount").value(100.00));
+                .andExpect(jsonPath("$.amount").value(100.00))
+                .andExpect(jsonPath("$.orderLines.length()").value(0));
 
         mockMvc.perform(get("/api/orders/" + orderId + "/events")
                 .header("Authorization", bearer(jwtToken)))
@@ -180,6 +184,138 @@ class OrderIntegrationTest {
                 .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1));
+    }
+
+    @Test
+    void createOrderWithProductLines_storesImmutableOrderLineSnapshots() throws Exception {
+        String oilProductId = createProduct(
+                jwtToken,
+                productRequest("Argan Oil", "argan-oil", "149.00", "MAD", "ARG-001", ProductStatus.ACTIVE)
+        );
+        String soapProductId = createProduct(
+                jwtToken,
+                productRequest("Black Soap", "black-soap", "50.50", "MAD", "SOAP-001", ProductStatus.ACTIVE)
+        );
+
+        OrderController.CreateOrderRequest request = productLineOrderRequest(
+                List.of(
+                        new OrderController.ProductLineRequest(UUID.fromString(oilProductId), 2),
+                        new OrderController.ProductLineRequest(UUID.fromString(soapProductId), 1)
+                )
+        );
+
+        MvcResult result = mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+        String orderId = extractCreatedOrderId(result);
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(348.50))
+                .andExpect(jsonPath("$.orderLines.length()").value(2))
+                .andExpect(jsonPath("$.orderLines[0].productId").value(oilProductId))
+                .andExpect(jsonPath("$.orderLines[0].productName").value("Argan Oil"))
+                .andExpect(jsonPath("$.orderLines[0].sku").value("ARG-001"))
+                .andExpect(jsonPath("$.orderLines[0].unitPrice").value(149.00))
+                .andExpect(jsonPath("$.orderLines[0].currency").value("MAD"))
+                .andExpect(jsonPath("$.orderLines[0].quantity").value(2))
+                .andExpect(jsonPath("$.orderLines[0].lineTotal").value(298.00))
+                .andExpect(jsonPath("$.orderLines[1].productId").value(soapProductId))
+                .andExpect(jsonPath("$.orderLines[1].lineTotal").value(50.50));
+    }
+
+    @Test
+    void productSnapshotRemainsStableAfterProductEdit() throws Exception {
+        String productId = createProduct(
+                jwtToken,
+                productRequest("Original Product", "original-product", "120.00", "MAD", "OLD-SKU", ProductStatus.ACTIVE)
+        );
+        String orderId = extractCreatedOrderId(mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(productLineOrderRequest(List.of(
+                        new OrderController.ProductLineRequest(UUID.fromString(productId), 2)
+                )))))
+                .andExpect(status().isOk())
+                .andReturn());
+
+        mockMvc.perform(put("/api/products/" + productId)
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(productRequest(
+                        "Edited Product",
+                        "edited-product",
+                        "300.00",
+                        "MAD",
+                        "NEW-SKU",
+                        ProductStatus.ACTIVE
+                ))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(240.00))
+                .andExpect(jsonPath("$.orderLines[0].productId").value(productId))
+                .andExpect(jsonPath("$.orderLines[0].productName").value("Original Product"))
+                .andExpect(jsonPath("$.orderLines[0].sku").value("OLD-SKU"))
+                .andExpect(jsonPath("$.orderLines[0].unitPrice").value(120.00))
+                .andExpect(jsonPath("$.orderLines[0].quantity").value(2))
+                .andExpect(jsonPath("$.orderLines[0].lineTotal").value(240.00));
+    }
+
+    @Test
+    void createOrderWithAnotherTenantsProduct_returnsNotFound() throws Exception {
+        String otherTenantProductId = createProduct(
+                otherTenantJwtToken,
+                productRequest("Other Tenant Product", "other-tenant-product", "100.00", "MAD", null, ProductStatus.ACTIVE)
+        );
+
+        mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(productLineOrderRequest(List.of(
+                        new OrderController.ProductLineRequest(UUID.fromString(otherTenantProductId), 1)
+                )))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"));
+    }
+
+    @Test
+    void createOrderWithDraftOrArchivedProduct_returnsBadRequest() throws Exception {
+        String draftProductId = createProduct(
+                jwtToken,
+                productRequest("Draft Product", "draft-product", "80.00", "MAD", null, ProductStatus.DRAFT)
+        );
+        String archivedProductId = createProduct(
+                jwtToken,
+                productRequest("Archived Product", "archived-product", "90.00", "MAD", null, ProductStatus.ACTIVE)
+        );
+        mockMvc.perform(patch("/api/products/" + archivedProductId + "/archive")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(productLineOrderRequest(List.of(
+                        new OrderController.ProductLineRequest(UUID.fromString(draftProductId), 1)
+                )))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Product must be ACTIVE to create product-based orders"));
+
+        mockMvc.perform(post("/api/orders")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(productLineOrderRequest(List.of(
+                        new OrderController.ProductLineRequest(UUID.fromString(archivedProductId), 1)
+                )))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("Product must be ACTIVE to create product-based orders"));
     }
 
     @Test
@@ -555,6 +691,50 @@ class OrderIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
         return extractCreatedOrderId(result);
+    }
+
+    private OrderController.CreateOrderRequest productLineOrderRequest(
+            List<OrderController.ProductLineRequest> productLines
+    ) {
+        return new OrderController.CreateOrderRequest(
+                new OrderController.CustomerRequest("Product", "Buyer", "product-buyer@example.com", "0612345678"),
+                new OrderController.AddressRequest("1 Main St", "Casablanca", "Casablanca-Settat", "20000", "Morocco"),
+                null,
+                productLines,
+                null,
+                null,
+                null
+        );
+    }
+
+    private ProductController.ProductRequest productRequest(
+            String name,
+            String slug,
+            String priceAmount,
+            String currency,
+            String sku,
+            ProductStatus status
+    ) {
+        return new ProductController.ProductRequest(
+                name,
+                slug,
+                null,
+                new BigDecimal(priceAmount),
+                currency,
+                sku,
+                null,
+                status
+        );
+    }
+
+    private String createProduct(String token, ProductController.ProductRequest request) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/products")
+                .header("Authorization", bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+        return objectMapper.readTree(result.getResponse().getContentAsString()).get("id").asText();
     }
 
     private String createCourier(String name) throws Exception {

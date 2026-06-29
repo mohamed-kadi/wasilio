@@ -6,9 +6,11 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import com.nexora.backend.infrastructure.persistence.OrderLineSnapshotListConverter;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -37,6 +39,11 @@ public class Order {
 
     @Column(nullable = false)
     private BigDecimal amount;
+
+    @Builder.Default
+    @Convert(converter = OrderLineSnapshotListConverter.class)
+    @Column(name = "order_lines", nullable = false, columnDefinition = "TEXT")
+    private List<OrderLineSnapshot> orderLines = List.of();
 
     private String courierId;
     private String failureReason;

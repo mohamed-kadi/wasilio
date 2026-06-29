@@ -1,0 +1,1 @@
+ALTER TABLE orders ADD COLUMN order_lines TEXT NOT NULL DEFAULT '[]';

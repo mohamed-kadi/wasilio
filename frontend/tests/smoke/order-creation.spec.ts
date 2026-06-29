@@ -19,9 +19,35 @@ const createdOrder = {
     country: 'Morocco',
   },
   amount: 349,
+  orderLines: [
+    {
+      productId: '55555555-5555-5555-5555-555555555555',
+      productName: 'Argan Oil',
+      sku: 'ARG-001',
+      unitPrice: 174.5,
+      currency: 'MAD',
+      quantity: 2,
+      lineTotal: 349,
+    },
+  ],
   createdAt: '2026-06-23T10:00:00Z',
   updatedAt: '2026-06-23T10:00:00Z',
   version: 1,
+};
+
+const activeProduct = {
+  id: '55555555-5555-5555-5555-555555555555',
+  tenantId: '00000000-0000-0000-0000-000000000001',
+  name: 'Argan Oil',
+  slug: 'argan-oil',
+  description: 'Cold pressed argan oil',
+  priceAmount: 174.5,
+  currency: 'MAD',
+  sku: 'ARG-001',
+  imageUrl: null,
+  status: 'ACTIVE',
+  createdAt: '2026-06-23T09:00:00Z',
+  updatedAt: '2026-06-23T09:00:00Z',
 };
 
 test('merchant creates a COD order and continues to confirmation', async ({ page }) => {
@@ -42,6 +68,20 @@ test('merchant creates a COD order and continues to confirmation', async ({ page
     }
 
     await route.fallback();
+  });
+
+  await page.route('**/api/products?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content: [activeProduct],
+        page: 0,
+        size: 100,
+        totalElements: 1,
+        totalPages: 1,
+      }),
+    });
   });
 
   await page.route('**/api/confirmations/queue?**', async (route) => {
@@ -79,7 +119,8 @@ test('merchant creates a COD order and continues to confirmation', async ({ page
   await page.getByLabel('Email').fill('sara@example.com');
   await page.getByLabel('Street address').fill('Rue Demo 12');
   await page.getByRole('button', { name: 'Casablanca' }).click();
-  await page.getByLabel('Amount to collect (MAD)').fill('349');
+  await page.getByRole('button', { name: 'Add product' }).click();
+  await page.getByLabel('Quantity').fill('2');
   await page.getByRole('button', { name: /create and confirm next/i }).click();
 
   await expect(page).toHaveURL(/\/app\/confirmations$/);
@@ -106,6 +147,12 @@ test('merchant creates a COD order and continues to confirmation', async ({ page
       zipCode: '20000',
       country: 'Morocco',
     },
-    amount: 349,
+    productLines: [
+      {
+        productId: activeProduct.id,
+        quantity: 2,
+      },
+    ],
   });
+  expect(createRequests[0]).not.toHaveProperty('amount');
 });

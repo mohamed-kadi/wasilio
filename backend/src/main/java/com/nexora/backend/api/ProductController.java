@@ -89,10 +89,12 @@ public class ProductController {
     @GetMapping
     public ResponseEntity<ProductsPageResponse> listProducts(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) ProductStatus status
     ) {
         return ResponseEntity.ok(ProductsPageResponse.from(productService.listProducts(
                 getCurrentTenantId(),
+                status,
                 pageRequest(page, size)
         )));
     }
