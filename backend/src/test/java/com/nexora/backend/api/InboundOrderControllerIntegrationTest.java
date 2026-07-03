@@ -117,6 +117,41 @@ class InboundOrderControllerIntegrationTest {
     }
 
     @Test
+    void listInboundOrders_rendersStorefrontOrdersWithPublicCodNullFields() throws Exception {
+        ingestNormalized(tenantId, OrderSource.MANUAL, null, "idem-manual-ops", "Manual");
+        ingestNormalized(tenantId, OrderSource.WHATSAPP, "wa-ops-1001", "idem-wa-ops-1001", "Whatsapp");
+        OrderIngestionService.IngestedOrderResult storefront = ingestPublicStorefrontNormalized(
+                tenantId,
+                "idem-storefront-ops-1001"
+        );
+
+        mockMvc.perform(get("/api/inbound-orders")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(3));
+
+        mockMvc.perform(get("/api/inbound-orders")
+                .param("source", "WASILIO_STOREFRONT")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].inboundOrderId").value(storefront.inboundOrderId().toString()))
+                .andExpect(jsonPath("$.content[0].source").value("WASILIO_STOREFRONT"))
+                .andExpect(jsonPath("$.content[0].externalOrderId").doesNotExist())
+                .andExpect(jsonPath("$.content[0].idempotencyKey").value("idem-storefront-ops-1001"))
+                .andExpect(jsonPath("$.content[0].status").value("NORMALIZED"))
+                .andExpect(jsonPath("$.content[0].normalizedOrderId").value(storefront.orderId().toString()))
+                .andExpect(jsonPath("$.content[0].rawPayload").doesNotExist());
+
+        mockMvc.perform(get("/api/inbound-orders/" + storefront.inboundOrderId())
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.source").value("WASILIO_STOREFRONT"))
+                .andExpect(jsonPath("$.externalOrderId").doesNotExist())
+                .andExpect(jsonPath("$.rawPayload").value("{\"type\":\"public-order-intent\"}"));
+    }
+
+    @Test
     void listInboundOrders_filtersByStatusAndSource() throws Exception {
         ingestNormalized(tenantId, OrderSource.WHATSAPP, "wa-filter", "idem-wa-filter", "Whatsapp");
         ingestNormalized(tenantId, OrderSource.SHOPIFY, "shop-filter", "idem-shop-filter", "Shopify");
@@ -339,6 +374,22 @@ class InboundOrderControllerIntegrationTest {
                 new Customer(firstName, "Customer", firstName.toLowerCase() + "@example.com", "0612345678"),
                 new Address("1 Main St", "Casablanca", "Casablanca-Settat", "20000", "Morocco"),
                 new BigDecimal("100.00")
+        ));
+    }
+
+    private OrderIngestionService.IngestedOrderResult ingestPublicStorefrontNormalized(
+            UUID tenantId,
+            String idempotencyKey
+    ) {
+        return orderIngestionService.ingestAndNormalize(new OrderIngestionService.IngestOrderCommand(
+                tenantId,
+                OrderSource.WASILIO_STOREFRONT,
+                null,
+                idempotencyKey,
+                "{\"type\":\"public-order-intent\"}",
+                new Customer("Amina Buyer", "", null, "0612345678"),
+                new Address("12 Rue Atlas", "Casablanca", null, null, "MA"),
+                new BigDecimal("249.00")
         ));
     }
 
