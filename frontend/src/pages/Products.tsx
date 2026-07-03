@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, ChevronLeft, ChevronRight, Edit3, PackagePlus, X } from 'lucide-react';
+import { Archive, ChevronLeft, ChevronRight, Edit3, Globe2, PackagePlus, X } from 'lucide-react';
 import {
   archiveProduct,
   createProduct,
@@ -122,16 +122,16 @@ export default function Products() {
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Catalog</p>
           <h2 className="mt-1 text-2xl font-bold text-gray-900">Products</h2>
           <p className="mt-1 text-sm text-gray-500">
-            {totalElements} tenant-owned products for future storefronts, imports, adapters, and manual order improvements
+            {totalElements} tenant-owned products. Only ACTIVE products appear on public storefront endpoints
             {isFetching && !isLoading ? ' - Refreshing' : ''}
           </p>
         </div>
       </div>
 
       <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <ProductMetric title="Active" value={activeCount} detail="Visible on this page" tone="green" />
+        <ProductMetric title="Active" value={activeCount} detail="Eligible for public storefronts" tone="green" />
         <ProductMetric title="Draft" value={draftCount} detail="Not ready for use yet" tone="amber" />
-        <ProductMetric title="Archived" value={archivedCount} detail="Retained but hidden from future use" tone="gray" />
+        <ProductMetric title="Archived" value={archivedCount} detail="Hidden from public endpoints" tone="gray" />
         <ProductMetric title="Visible on page" value={products.length} detail="Current page of product records" tone="blue" />
       </section>
 
@@ -142,7 +142,7 @@ export default function Products() {
               {editingProduct ? 'Edit product' : 'Create product'}
             </h3>
             <p className="mt-1 text-sm text-gray-600">
-              Keep product data operational for now. Storefront publishing and checkout remain future work.
+              Public storefronts can read product slug, media, description, and pricing only when status is ACTIVE.
             </p>
           </div>
           {editingProduct && (
@@ -302,6 +302,7 @@ export default function Products() {
               <th className="p-4 font-medium">Price</th>
               <th className="p-4 font-medium">SKU</th>
               <th className="p-4 font-medium">Status</th>
+              <th className="p-4 font-medium">Public</th>
               <th className="p-4 font-medium">Updated</th>
               <th className="p-4 font-medium">Actions</th>
             </tr>
@@ -318,6 +319,9 @@ export default function Products() {
                 <td className="p-4 text-gray-600">{product.sku ?? 'No SKU'}</td>
                 <td className="p-4">
                   <StatusBadge status={product.status} />
+                </td>
+                <td className="p-4">
+                  <PublicAvailabilityBadge status={product.status} />
                 </td>
                 <td className="p-4 text-gray-500">{formatDate(product.updatedAt)}</td>
                 <td className="p-4">
@@ -347,14 +351,14 @@ export default function Products() {
             ))}
             {!isLoading && products.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-gray-500">
+                <td colSpan={7} className="p-8 text-center text-gray-500">
                   No products found.
                 </td>
               </tr>
             )}
             {isLoading && (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-gray-500">
+                <td colSpan={7} className="p-8 text-center text-gray-500">
                   Loading products...
                 </td>
               </tr>
@@ -463,6 +467,19 @@ function StatusBadge({ status }: { status: ProductStatus }) {
   return (
     <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${classes[status]}`}>
       {statusLabel(status)}
+    </span>
+  );
+}
+
+function PublicAvailabilityBadge({ status }: { status: ProductStatus }) {
+  const available = status === 'ACTIVE';
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
+      available ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'
+    }`}>
+      <Globe2 size={14} />
+      {available ? 'Public' : 'Hidden'}
     </span>
   );
 }

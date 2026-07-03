@@ -1,10 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, BarChart3, CheckCircle2, CreditCard, Inbox, LayoutDashboard, LogOut, MessageSquare, Package, PackageCheck, PhoneCall, PlusCircle, RefreshCw, ShoppingCart, Truck, Users } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCircle2, CreditCard, Inbox, LayoutDashboard, LogOut, MessageSquare, Package, PackageCheck, PhoneCall, PlusCircle, RefreshCw, ShoppingCart, Store, Truck, Users } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import OrdersList from './pages/OrdersList';
 import InboundOrders from './pages/InboundOrders';
 import Products from './pages/Products';
+import StorefrontSettings from './pages/StorefrontSettings';
 import CreateOrder from './pages/CreateOrder';
 import OrderDetails from './pages/OrderDetails';
 import Login from './pages/Login';
@@ -50,6 +51,10 @@ function Sidebar() {
             <Link to="/app/products" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
               <Package size={20} />
               <span>Products</span>
+            </Link>
+            <Link to="/app/storefront-settings" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+              <Store size={20} />
+              <span>Storefront</span>
             </Link>
             <Link to="/app/inbound-orders" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
               <Inbox size={20} />
@@ -225,6 +230,7 @@ function ProtectedApp() {
             <Route index element={<Dashboard />} />
             <Route path="orders" element={<OrdersList />} />
             <Route path="products" element={<Products />} />
+            <Route path="storefront-settings" element={<StorefrontSettings />} />
             <Route path="inbound-orders" element={<InboundOrders />} />
             <Route path="confirmations" element={<Confirmations />} />
             <Route path="couriers" element={<Couriers />} />

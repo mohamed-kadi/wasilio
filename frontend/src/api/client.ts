@@ -193,6 +193,30 @@ export interface ProductPayload {
   status?: ProductStatus;
 }
 
+export type StorefrontStatus = 'ACTIVE' | 'DISABLED';
+
+export interface PublicStorefrontSettings {
+  storeSlug: string;
+  publicName: string;
+  status: StorefrontStatus;
+  supportChannelType?: string;
+  supportChannelValue?: string;
+  defaultCountryCode: string;
+  defaultCurrency: string;
+  phonePattern: string;
+}
+
+export interface PublicStorefrontSettingsPayload {
+  storeSlug: string;
+  publicName: string;
+  status: StorefrontStatus;
+  supportChannelType?: string;
+  supportChannelValue?: string;
+  defaultCountryCode: string;
+  defaultCurrency: string;
+  phonePattern: string;
+}
+
 export interface Courier {
   courierId: string;
   tenantId: string;
@@ -914,6 +938,20 @@ export async function updateProduct(productId: string, payload: ProductPayload):
 export async function archiveProduct(productId: string): Promise<Product> {
   return apiRequest<Product>(`/products/${productId}/archive`, {
     method: 'PATCH',
+  });
+}
+
+export async function fetchStorefrontSettings(): Promise<PublicStorefrontSettings | null> {
+  const settings = await apiRequest<PublicStorefrontSettings | undefined>('/storefront-settings');
+  return settings ?? null;
+}
+
+export async function upsertStorefrontSettings(
+  payload: PublicStorefrontSettingsPayload,
+): Promise<PublicStorefrontSettings> {
+  return apiRequest<PublicStorefrontSettings>('/storefront-settings', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   });
 }
 

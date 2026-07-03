@@ -28,3 +28,13 @@ On a fresh machine, install the Playwright browser once before smoke tests:
 ```bash
 npx playwright install chromium
 ```
+
+## landing-engine Local Wiring
+
+After creating a storefront in the merchant dashboard, configure landing-engine with:
+
+```bash
+NEXT_PUBLIC_PRODUCT_PROVIDER=wasilio
+NEXT_PUBLIC_WASILIO_PUBLIC_API_BASE_URL=http://localhost:8080
+NEXT_PUBLIC_WASILIO_STORE_SLUG=<storeSlug>
+```
