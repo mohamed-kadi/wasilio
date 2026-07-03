@@ -53,7 +53,7 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable) // NOSONAR
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**", "/api/onboarding/**", "/actuator/health", "/actuator/health/**", "/error").permitAll()
+                .requestMatchers("/api/auth/**", "/api/onboarding/**", "/api/public/storefront/**", "/actuator/health", "/actuator/health/**", "/error").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/marketing/leads").permitAll()
                 .anyRequest().authenticated()
             )

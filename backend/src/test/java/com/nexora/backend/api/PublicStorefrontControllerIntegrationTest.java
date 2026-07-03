@@ -1,0 +1,562 @@
+package com.nexora.backend.api;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nexora.backend.application.PublicOrderAttributionRequest;
+import com.nexora.backend.application.PublicOrderCustomerRequest;
+import com.nexora.backend.application.PublicOrderDeliveryRequest;
+import com.nexora.backend.application.PublicOrderIntentRequest;
+import com.nexora.backend.application.PublicOrderProductRequest;
+import com.nexora.backend.application.PublicOrderSelectionRequest;
+import com.nexora.backend.domain.model.InboundOrder;
+import com.nexora.backend.domain.model.Order;
+import com.nexora.backend.domain.model.Product;
+import com.nexora.backend.domain.model.ProductStatus;
+import com.nexora.backend.domain.model.PublicStorefront;
+import com.nexora.backend.domain.model.PublicStorefrontStatus;
+import com.nexora.backend.domain.model.Tenant;
+import com.nexora.backend.domain.repository.InboundOrderRepository;
+import com.nexora.backend.domain.repository.OrderRepository;
+import com.nexora.backend.domain.repository.ProductRepository;
+import com.nexora.backend.domain.repository.PublicStorefrontRepository;
+import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
+import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.hamcrest.Matchers.containsString;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class PublicStorefrontControllerIntegrationTest {
+
+    private static final String PUBLIC_PRODUCT_PATH = "/api/public/storefront/coolair-morocco/products/coolair-mini";
+    private static final String PUBLIC_ORDER_PATH = "/api/public/storefront/coolair-morocco/orders";
+    private static final Set<String> FORBIDDEN_PUBLIC_FIELDS = Set.of(
+            "tenantId",
+            "merchantId",
+            "status",
+            "productStatus",
+            "createdAt",
+            "updatedAt",
+            "stockCount"
+    );
+    private static final Set<String> FORBIDDEN_ORDER_RESPONSE_FIELDS = Set.of(
+            "tenantId",
+            "merchantId",
+            "orderId",
+            "lifecycleStatus",
+            "orderStatus",
+            "operationalStatus",
+            "inboundOrderId",
+            "source"
+    );
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private PublicStorefrontRepository publicStorefrontRepository;
+
+    @Autowired
+    private ProductRepository productRepository;
+
+    @Autowired
+    private InboundOrderRepository inboundOrderRepository;
+
+    @Autowired
+    private OrderRepository orderRepository;
+
+    @Autowired
+    private EntityManager entityManager;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    private UUID tenantId;
+
+    @BeforeEach
+    void setup() {
+        tenantId = UUID.randomUUID();
+
+        transactionTemplate.executeWithoutResult(status -> {
+            cleanDatabase();
+            entityManager.persist(new Tenant(tenantId, "Public Storefront Controller Tenant"));
+            entityManager.flush();
+        });
+    }
+
+    @Test
+    void activeProductCanBeFetchedWithoutAuthentication() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        Product product = productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+
+        mockMvc.perform(get(PUBLIC_PRODUCT_PATH))
+                .andExpect(status().isOk())
+                .andExpect(header().exists("X-Correlation-Id"))
+                .andExpect(jsonPath("$.storeSlug").value("coolair-morocco"))
+                .andExpect(jsonPath("$.storePublicName").value("CoolAir Morocco"))
+                .andExpect(jsonPath("$.supportChannel.type").value("whatsapp"))
+                .andExpect(jsonPath("$.supportChannel.value").value("+212600000000"))
+                .andExpect(jsonPath("$.product.productId").value(product.getId().toString()))
+                .andExpect(jsonPath("$.product.productSlug").value("coolair-mini"))
+                .andExpect(jsonPath("$.product.productName").value("CoolAir Mini"))
+                .andExpect(jsonPath("$.product.description").value("Portable cooling fan for COD customers."))
+                .andExpect(jsonPath("$.product.imageUrl").value("https://cdn.example.test/coolair-mini.jpg"))
+                .andExpect(jsonPath("$.offer.price").value(199.00))
+                .andExpect(jsonPath("$.offer.currency").value("MAD"))
+                .andExpect(jsonPath("$.offer.availability").value("available"))
+                .andExpect(jsonPath("$.offer.orderable").value(true))
+                .andExpect(jsonPath("$.seo.title").value("CoolAir Mini | CoolAir Morocco"))
+                .andExpect(jsonPath("$.seo.description").value("Portable cooling fan for COD customers."));
+    }
+
+    @Test
+    void missingStoreAndMissingProductReturnNotFound() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+
+        mockMvc.perform(get("/api/public/storefront/missing-store/products/coolair-mini"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"))
+                .andExpect(jsonPath("$.correlationId").isNotEmpty());
+
+        mockMvc.perform(get(PUBLIC_PRODUCT_PATH))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"))
+                .andExpect(jsonPath("$.correlationId").isNotEmpty());
+    }
+
+    @Test
+    void disabledStorefrontReturnsNotFound() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.DISABLED));
+        productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+
+        mockMvc.perform(get(PUBLIC_PRODUCT_PATH))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"));
+    }
+
+    @Test
+    void draftAndArchivedProductsReturnNotFound() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        productRepository.saveAndFlush(product("draft-product", "Draft Product", ProductStatus.DRAFT));
+        productRepository.saveAndFlush(product("archived-product", "Archived Product", ProductStatus.ARCHIVED));
+
+        mockMvc.perform(get("/api/public/storefront/coolair-morocco/products/draft-product"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"));
+
+        mockMvc.perform(get("/api/public/storefront/coolair-morocco/products/archived-product"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"));
+    }
+
+    @Test
+    void internalProductApiRemainsProtected() throws Exception {
+        mockMvc.perform(get("/api/products"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.title").value("Authentication failed"));
+    }
+
+    @Test
+    void publicOrderCanBeSubmittedWithoutAuthentication() throws Exception {
+        UUID correlationId = UUID.randomUUID();
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+
+        MvcResult result = mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .header(CorrelationIdContext.HEADER_NAME, correlationId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(validOrderRequest("coolair-mini", "idem-post-1"))))
+                .andExpect(status().isAccepted())
+                .andExpect(header().string(CorrelationIdContext.HEADER_NAME, correlationId.toString()))
+                .andExpect(jsonPath("$.receiptId").isNotEmpty())
+                .andExpect(jsonPath("$.status").value("accepted"))
+                .andExpect(jsonPath("$.message").value("Order received"))
+                .andReturn();
+
+        UUID receiptId = UUID.fromString(objectMapper.readTree(result.getResponse().getContentAsString())
+                .path("receiptId")
+                .asText());
+        InboundOrder inboundOrder = inboundOrderRepository.findById(receiptId).orElseThrow();
+        Order order = orderRepository.findByIdAndTenantId(inboundOrder.getNormalizedOrderId(), tenantId).orElseThrow();
+
+        assertEquals(inboundOrder.getInboundOrderId(), receiptId);
+        assertEquals("WASILIO_STOREFRONT", inboundOrder.getSource().name());
+        assertEquals("WASILIO_STOREFRONT", order.getSource().name());
+        assertEquals(correlationId.toString(), objectMapper.readTree(inboundOrder.getRawPayload())
+                .path("correlationId")
+                .asText());
+    }
+
+    @Test
+    void publicStorefrontCorsPreflightAllowsLandingEngineOrigin() throws Exception {
+        mockMvc.perform(options(PUBLIC_PRODUCT_PATH)
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "GET"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"))
+                .andExpect(header().string("Access-Control-Allow-Methods", containsString("GET")));
+
+        mockMvc.perform(options(PUBLIC_ORDER_PATH)
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "Content-Type,X-Correlation-ID"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"))
+                .andExpect(header().string("Access-Control-Allow-Methods", containsString("POST")))
+                .andExpect(header().string("Access-Control-Allow-Headers", containsString("Content-Type")))
+                .andExpect(header().string("Access-Control-Allow-Headers", containsString("X-Correlation-ID")));
+    }
+
+    @Test
+    void internalOrderApiRemainsProtected() throws Exception {
+        mockMvc.perform(post("/api/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.title").value("Authentication failed"));
+    }
+
+    @Test
+    void invalidPublicOrderPayloadsReturnBadRequest() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+
+        PublicOrderIntentRequest[] invalidRequests = {
+                orderRequest(productRequest("coolair-mini"), 0, "Amina Buyer", "0612345678", "Casablanca", "12 Rue Atlas", "bad-quantity"),
+                orderRequest(productRequest("coolair-mini"), 1, "", "0612345678", "Casablanca", "12 Rue Atlas", "bad-name"),
+                orderRequest(productRequest("coolair-mini"), 1, "Amina Buyer", "0812345678", "Casablanca", "12 Rue Atlas", "bad-phone"),
+                orderRequest(productRequest("coolair-mini"), 1, "Amina Buyer", "0612345678", "", "12 Rue Atlas", "bad-city"),
+                orderRequest(productRequest("coolair-mini"), 1, "Amina Buyer", "0612345678", "Casablanca", "", "bad-address")
+        };
+
+        for (PublicOrderIntentRequest invalidRequest : invalidRequests) {
+            mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(json(invalidRequest)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.title").value("Bad request"))
+                    .andExpect(jsonPath("$.correlationId").isNotEmpty());
+        }
+    }
+
+    @Test
+    void missingStoreAndMissingProductReturnNotFoundForPublicOrder() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+
+        mockMvc.perform(post("/api/public/storefront/missing-store/orders")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(validOrderRequest("coolair-mini", "idem-missing-store"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"));
+
+        mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(validOrderRequest("missing-product", "idem-missing-product"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"));
+    }
+
+    @Test
+    void disabledStorefrontReturnsNotFoundForPublicOrder() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.DISABLED));
+        productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+
+        mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(validOrderRequest("coolair-mini", "idem-disabled-store"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"));
+    }
+
+    @Test
+    void draftAndArchivedProductsReturnNotFoundForPublicOrder() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        productRepository.saveAndFlush(product("draft-product", "Draft Product", ProductStatus.DRAFT));
+        productRepository.saveAndFlush(product("archived-product", "Archived Product", ProductStatus.ARCHIVED));
+
+        mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(validOrderRequest("draft-product", "idem-draft-product"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"));
+
+        mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(validOrderRequest("archived-product", "idem-archived-product"))))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.title").value("Resource not found"));
+    }
+
+    @Test
+    void productSlugAndIdMismatchReturnsBadRequestForPublicOrder() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        Product requestedProduct = productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+        productRepository.saveAndFlush(product("other-product", "Other Product", ProductStatus.ACTIVE));
+
+        mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(orderRequest(
+                                new PublicOrderProductRequest(requestedProduct.getId(), "other-product", null),
+                                1,
+                                "Amina Buyer",
+                                "0612345678",
+                                "Casablanca",
+                                "12 Rue Atlas",
+                                "idem-mismatch"
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad request"));
+    }
+
+    @Test
+    void variantIdIsRejectedForPublicOrderV1() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+
+        mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(orderRequest(
+                                new PublicOrderProductRequest(null, "coolair-mini", "blue"),
+                                1,
+                                "Amina Buyer",
+                                "0612345678",
+                                "Casablanca",
+                                "12 Rue Atlas",
+                                "idem-variant"
+                        ))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad request"));
+    }
+
+    @Test
+    void duplicatePublicOrderWithSamePayloadReturnsSameReceipt() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+        PublicOrderIntentRequest request = validOrderRequest("coolair-mini", "idem-duplicate-post");
+
+        MvcResult first = mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(request)))
+                .andExpect(status().isAccepted())
+                .andReturn();
+        MvcResult duplicate = mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(request)))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.message").value("Order already received"))
+                .andReturn();
+
+        assertEquals(
+                objectMapper.readTree(first.getResponse().getContentAsString()).path("receiptId").asText(),
+                objectMapper.readTree(duplicate.getResponse().getContentAsString()).path("receiptId").asText()
+        );
+        assertEquals(1, inboundOrderRepository.count());
+        assertEquals(1, orderRepository.count());
+    }
+
+    @Test
+    void duplicatePublicOrderWithDifferentPayloadReturnsConflict() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+
+        mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(validOrderRequest("coolair-mini", "idem-conflict-post", 1))))
+                .andExpect(status().isAccepted());
+
+        mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(validOrderRequest("coolair-mini", "idem-conflict-post", 2))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.title").value("Resource already exists"))
+                .andExpect(jsonPath("$.correlationId").isNotEmpty());
+    }
+
+    @Test
+    void publicOrderResponseDoesNotExposeLifecycleOrderIdOrOperationalStatus() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+
+        MvcResult result = mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(validOrderRequest("coolair-mini", "idem-public-shape"))))
+                .andExpect(status().isAccepted())
+                .andReturn();
+
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertNoForbiddenFields(response, FORBIDDEN_ORDER_RESPONSE_FIELDS);
+
+        InboundOrder inboundOrder = inboundOrderRepository.findById(UUID.fromString(response.path("receiptId").asText()))
+                .orElseThrow();
+        assertNotEquals(inboundOrder.getNormalizedOrderId().toString(), response.path("receiptId").asText());
+        assertEquals("accepted", response.path("status").asText());
+    }
+
+    @Test
+    void responseDoesNotExposeInternalFields() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+
+        MvcResult result = mockMvc.perform(get(PUBLIC_PRODUCT_PATH))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+        assertNoForbiddenPublicFields(response);
+    }
+
+    private void assertNoForbiddenPublicFields(JsonNode node) {
+        assertNoForbiddenFields(node, FORBIDDEN_PUBLIC_FIELDS);
+    }
+
+    private void assertNoForbiddenFields(JsonNode node, Set<String> forbiddenFields) {
+        Iterator<String> fieldNames = node.fieldNames();
+        while (fieldNames.hasNext()) {
+            String fieldName = fieldNames.next();
+            assertFalse(forbiddenFields.contains(fieldName), "Public response exposes " + fieldName);
+            assertNoForbiddenFields(node.get(fieldName), forbiddenFields);
+        }
+
+        if (node.isArray()) {
+            node.forEach(child -> assertNoForbiddenFields(child, forbiddenFields));
+        }
+    }
+
+    private String json(Object value) throws Exception {
+        return objectMapper.writeValueAsString(value);
+    }
+
+    private PublicOrderIntentRequest validOrderRequest(String productSlug, String idempotencyKey) {
+        return validOrderRequest(productSlug, idempotencyKey, 1);
+    }
+
+    private PublicOrderIntentRequest validOrderRequest(String productSlug, String idempotencyKey, int quantity) {
+        return orderRequest(
+                productRequest(productSlug),
+                quantity,
+                "Amina Buyer",
+                "0612345678",
+                "Casablanca",
+                "12 Rue Atlas",
+                idempotencyKey
+        );
+    }
+
+    private PublicOrderIntentRequest orderRequest(
+            PublicOrderProductRequest product,
+            Integer quantity,
+            String customerName,
+            String phone,
+            String city,
+            String address,
+            String idempotencyKey
+    ) {
+        return new PublicOrderIntentRequest(
+                new PublicOrderSelectionRequest(product, quantity),
+                new PublicOrderCustomerRequest(customerName, phone),
+                new PublicOrderDeliveryRequest(city, address, "Leave with concierge"),
+                idempotencyKey,
+                null,
+                new PublicOrderAttributionRequest(
+                        "facebook",
+                        "paid",
+                        "summer",
+                        null,
+                        null,
+                        "https://ref.example.test",
+                        "https://store.example.test/coolair-mini"
+                )
+        );
+    }
+
+    private PublicOrderProductRequest productRequest(String productSlug) {
+        return new PublicOrderProductRequest(null, productSlug, null);
+    }
+
+    private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM marketing_leads").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM tenant_payments").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM tenant_subscriptions").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM subscription_plans").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM order_search_saved_views").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM delivery_follow_up_tasks").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM delivery_failure_recoveries").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM inbound_orders").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM couriers").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM public_storefronts").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM products").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM password_reset_tokens").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM users").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM tenants").executeUpdate();
+    }
+
+    private PublicStorefront storefront(String storeSlug, PublicStorefrontStatus status) {
+        Instant now = Instant.now();
+        return PublicStorefront.builder()
+                .id(UUID.randomUUID())
+                .tenantId(tenantId)
+                .storeSlug(storeSlug)
+                .publicName("CoolAir Morocco")
+                .status(status)
+                .supportChannelType("whatsapp")
+                .supportChannelValue("+212600000000")
+                .defaultCountryCode("MA")
+                .defaultCurrency("MAD")
+                .phonePattern("^(06|07)\\d{8}$")
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+    }
+
+    private Product product(String slug, String name, ProductStatus status) {
+        Instant now = Instant.now();
+        return Product.builder()
+                .id(UUID.randomUUID())
+                .tenantId(tenantId)
+                .name(name)
+                .slug(slug)
+                .description("Portable cooling fan for COD customers.")
+                .priceAmount(new BigDecimal("199.00"))
+                .currency("MAD")
+                .sku("SKU-" + slug)
+                .imageUrl("https://cdn.example.test/" + slug + ".jpg")
+                .status(status)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+    }
+}

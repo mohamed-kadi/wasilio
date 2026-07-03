@@ -63,7 +63,7 @@ public class OrderIngestionService {
                 .status(InboundOrderStatus.RECEIVED)
                 .build());
 
-        String rejectionReason = validate(command);
+        String rejectionReason = validate(command, source);
         if (rejectionReason != null) {
             inboundOrder.markRejected(rejectionReason);
             return IngestedOrderResult.from(inboundOrderRepository.save(inboundOrder));
@@ -81,17 +81,18 @@ public class OrderIngestionService {
         return IngestedOrderResult.from(inboundOrderRepository.save(inboundOrder));
     }
 
-    private String validate(IngestOrderCommand command) {
+    private String validate(IngestOrderCommand command, OrderSource source) {
+        boolean publicStorefrontOrder = source == OrderSource.WASILIO_STOREFRONT;
         if (command.customer() == null) {
             return "customer is required";
         }
         if (isBlank(command.customer().getFirstName())) {
             return "customer.firstName is required";
         }
-        if (isBlank(command.customer().getLastName())) {
+        if (!publicStorefrontOrder && isBlank(command.customer().getLastName())) {
             return "customer.lastName is required";
         }
-        if (isBlank(command.customer().getEmail())) {
+        if (!publicStorefrontOrder && isBlank(command.customer().getEmail())) {
             return "customer.email is required";
         }
         if (isBlank(command.customer().getPhone())) {
@@ -106,10 +107,10 @@ public class OrderIngestionService {
         if (isBlank(command.address().getCity())) {
             return "address.city is required";
         }
-        if (isBlank(command.address().getState())) {
+        if (!publicStorefrontOrder && isBlank(command.address().getState())) {
             return "address.state is required";
         }
-        if (isBlank(command.address().getZipCode())) {
+        if (!publicStorefrontOrder && isBlank(command.address().getZipCode())) {
             return "address.zipCode is required";
         }
         if (isBlank(command.address().getCountry())) {

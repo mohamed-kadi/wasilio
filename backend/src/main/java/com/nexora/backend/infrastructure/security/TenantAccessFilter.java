@@ -63,6 +63,7 @@ public class TenantAccessFilter extends OncePerRequestFilter {
         }
         if (path.startsWith("/api/auth/")
                 || path.startsWith("/api/onboarding/")
+                || path.startsWith("/api/public/storefront/")
                 || path.startsWith("/actuator/health")
                 || path.equals("/error")) {
             return true;

@@ -190,6 +190,7 @@ class ProductControllerIntegrationTest {
     }
 
     private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM public_storefronts").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM products").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM users").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM tenants").executeUpdate();
