@@ -6,6 +6,7 @@ import OrdersList from './pages/OrdersList';
 import InboundOrders from './pages/InboundOrders';
 import Products from './pages/Products';
 import StorefrontSettings from './pages/StorefrontSettings';
+import StorefrontPublishing from './pages/StorefrontPublishing';
 import CreateOrder from './pages/CreateOrder';
 import OrderDetails from './pages/OrderDetails';
 import Login from './pages/Login';
@@ -44,54 +45,82 @@ function Sidebar() {
               <LayoutDashboard size={20} />
               <span>Dashboard</span>
             </Link>
-            <Link to="/app/orders" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <ShoppingCart size={20} />
-              <span>Orders</span>
-            </Link>
-            <Link to="/app/products" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <Package size={20} />
-              <span>Products</span>
-            </Link>
-            <Link to="/app/storefront-settings" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <Store size={20} />
-              <span>Storefront</span>
-            </Link>
-            <Link to="/app/inbound-orders" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <Inbox size={20} />
-              <span>Inbound Orders</span>
-            </Link>
-            <Link to="/app/confirmations" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <PhoneCall size={20} />
-              <span>Confirmations</span>
-            </Link>
-            <Link to="/app/couriers" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <Users size={20} />
-              <span>Couriers</span>
-            </Link>
-            <Link to="/app/couriers/assignment" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <Truck size={20} />
-              <span>Assignment Queue</span>
-            </Link>
-            <Link to="/app/couriers/pickup" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <PackageCheck size={20} />
-              <span>Pickup Queue</span>
-            </Link>
-            <Link to="/app/couriers/delivery" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <CheckCircle2 size={20} />
-              <span>Delivery Queue</span>
-            </Link>
-            <Link to="/app/delivery-follow-ups" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <MessageSquare size={20} />
-              <span>Follow-ups</span>
-            </Link>
-            <Link to="/app/couriers/performance" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <BarChart3 size={20} />
-              <span>Performance</span>
-            </Link>
-            <Link to="/app/orders/new" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-              <PlusCircle size={20} />
-              <span>Create Order</span>
-            </Link>
+
+            <div className="pt-3">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Catalog</p>
+              <Link to="/app/products" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <Package size={20} />
+                <span>Products</span>
+              </Link>
+            </div>
+
+            <div className="pt-3">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Storefront</p>
+              <Link to="/app/storefront/settings" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <Store size={20} />
+                <span>Settings</span>
+              </Link>
+              <Link to="/app/storefront/publishing" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <PackageCheck size={20} />
+                <span>Product Publishing</span>
+              </Link>
+            </div>
+
+            <div className="pt-3">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Orders</p>
+              <Link to="/app/orders" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <ShoppingCart size={20} />
+                <span>Orders</span>
+              </Link>
+              <Link to="/app/orders/new" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <PlusCircle size={20} />
+                <span>Create Order</span>
+              </Link>
+              <Link to="/app/inbound-orders" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <Inbox size={20} />
+                <span>Inbound Orders</span>
+              </Link>
+            </div>
+
+            <div className="pt-3">
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Operations</p>
+              <Link to="/app/confirmations" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <PhoneCall size={20} />
+                <span>Confirmation</span>
+              </Link>
+              <Link to="/app/couriers" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <Users size={20} />
+                <span>Delivery/Courier</span>
+              </Link>
+              <Link to="/app/couriers/assignment" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <Truck size={20} />
+                <span>Assignment Queue</span>
+              </Link>
+              <Link to="/app/couriers/pickup" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <PackageCheck size={20} />
+                <span>Pickup Queue</span>
+              </Link>
+              <Link to="/app/couriers/delivery" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <CheckCircle2 size={20} />
+                <span>Delivery Queue</span>
+              </Link>
+              <Link to="/app/delivery-follow-ups" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <MessageSquare size={20} />
+                <span>Follow-ups</span>
+              </Link>
+              <Link to="/app/couriers/performance" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <BarChart3 size={20} />
+                <span>Performance</span>
+              </Link>
+            </div>
+
+            <div className="mt-4 rounded-md border border-blue-100 bg-blue-50 px-3 py-3 text-xs leading-5 text-blue-900">
+              <p className="font-semibold uppercase tracking-wide text-blue-700">Workflow guide</p>
+              <p className="mt-2"><span className="font-semibold">Product</span> = catalog item.</p>
+              <p><span className="font-semibold">Storefront</span> = public store identity.</p>
+              <p><span className="font-semibold">Publishing</span> = public landing content.</p>
+              <p><span className="font-semibold">Orders</span> = operational workflow.</p>
+            </div>
           </>
         )}
         {isSuperAdmin && (
@@ -230,7 +259,9 @@ function ProtectedApp() {
             <Route index element={<Dashboard />} />
             <Route path="orders" element={<OrdersList />} />
             <Route path="products" element={<Products />} />
-            <Route path="storefront-settings" element={<StorefrontSettings />} />
+            <Route path="storefront/settings" element={<StorefrontSettings />} />
+            <Route path="storefront/publishing" element={<StorefrontPublishing />} />
+            <Route path="storefront-settings" element={<Navigate to="/app/storefront/settings" replace />} />
             <Route path="inbound-orders" element={<InboundOrders />} />
             <Route path="confirmations" element={<Confirmations />} />
             <Route path="couriers" element={<Couriers />} />

@@ -2,7 +2,6 @@ import { type FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Globe2, Save, Store, ToggleLeft, ToggleRight } from 'lucide-react';
 import {
-  API_BASE_URL,
   fetchStorefrontSettings,
   getErrorMessage,
   upsertStorefrontSettings,
@@ -10,6 +9,11 @@ import {
   type PublicStorefrontSettingsPayload,
   type StorefrontStatus,
 } from '../api/client';
+import {
+  landingEngineEnvSnippet,
+  landingEngineProductPattern,
+  publicProductApiPattern,
+} from '../lib/storefrontUrls';
 
 interface StorefrontFormState {
   storeSlug: string;
@@ -32,9 +36,6 @@ const DEFAULT_FORM: StorefrontFormState = {
   defaultCurrency: 'MAD',
   phonePattern: '^(06|07)\\d{8}$',
 };
-
-const DEFAULT_PUBLIC_API_BASE_URL = 'http://localhost:8080';
-const DEFAULT_LANDING_ENGINE_URL = 'http://localhost:3000';
 
 export default function StorefrontSettings() {
   const {
@@ -99,19 +100,9 @@ function StorefrontSettingsEditor({
   const settings = savedSettings;
   const hasStorefront = Boolean(settings);
   const slugForDisplay = settings?.storeSlug ?? slugPreview(form.storeSlug);
-  const publicApiBaseUrl = publicApiBaseUrlForDisplay();
-  const publicProductUrl = slugForDisplay
-    ? `${publicApiBaseUrl}/api/public/storefront/${slugForDisplay}/products/<productSlug>`
-    : `${publicApiBaseUrl}/api/public/storefront/<storeSlug>/products/<productSlug>`;
-  const landingEngineUrl = landingEngineUrlForDisplay();
-  const landingEnginePattern = slugForDisplay
-    ? `${landingEngineUrl}/products/<productSlug>`
-    : `${landingEngineUrl}/products/<productSlug>`;
-  const envSnippet = useMemo(() => [
-    'NEXT_PUBLIC_PRODUCT_PROVIDER=wasilio',
-    `NEXT_PUBLIC_WASILIO_PUBLIC_API_BASE_URL=${DEFAULT_PUBLIC_API_BASE_URL}`,
-    `NEXT_PUBLIC_WASILIO_STORE_SLUG=${slugForDisplay || '<storeSlug>'}`,
-  ].join('\n'), [slugForDisplay]);
+  const publicProductUrl = publicProductApiPattern(slugForDisplay);
+  const landingEnginePattern = landingEngineProductPattern();
+  const envSnippet = useMemo(() => landingEngineEnvSnippet(slugForDisplay), [slugForDisplay]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -135,7 +126,8 @@ function StorefrontSettingsEditor({
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Storefront</p>
           <h2 className="mt-1 text-2xl font-bold text-gray-900">Storefront Settings</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Configure the public store identity used by Wasilio public product and order endpoints.
+            Configure the public store identity used by Wasilio public product and order endpoints. Store slug identifies
+            the public store; product slug identifies a product inside it.
             {isFetching ? ' Refreshing' : ''}
           </p>
         </div>
@@ -161,7 +153,8 @@ function StorefrontSettingsEditor({
               {hasStorefront ? 'Manage storefront' : 'Create storefront'}
             </h3>
             <p className="mt-1 text-sm text-gray-600">
-              Store slug is global and becomes part of public product and order URLs.
+              Store slug is global and becomes part of public product and order URLs. Only ACTIVE products are publicly
+              visible and orderable.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -208,10 +201,12 @@ function StorefrontSettingsEditor({
             <input
               value={form.storeSlug}
               onChange={(event) => setForm((current) => ({ ...current, storeSlug: event.target.value }))}
+              onBlur={() => setForm((current) => ({ ...current, storeSlug: slugPreview(current.storeSlug) }))}
               className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               maxLength={160}
               required
             />
+            <span className="mt-1 block text-xs text-gray-500">Public store identifier used before product slugs.</span>
           </label>
           <label>
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Status</span>
@@ -242,6 +237,7 @@ function StorefrontSettingsEditor({
               maxLength={255}
               placeholder="+212600000000"
             />
+            <span className="mt-1 block text-xs text-gray-500">Displayed on public product pages for customer support.</span>
           </label>
           <label>
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Country</span>
@@ -299,6 +295,9 @@ function StorefrontSettingsEditor({
             <h3 className="text-sm font-semibold uppercase text-gray-500">Testing URLs</h3>
           </div>
           <div className="mt-4 space-y-3">
+            <p className="text-sm text-gray-600">
+              Replace <span className="font-mono text-gray-900">&lt;productSlug&gt;</span> with an ACTIVE product slug.
+            </p>
             <UrlRow label="Public product GET" value={publicProductUrl} />
             <UrlRow label="Landing-engine pattern" value={landingEnginePattern} />
           </div>
@@ -307,7 +306,10 @@ function StorefrontSettingsEditor({
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-center gap-2">
             <Store size={18} className="text-blue-700" />
-            <h3 className="text-sm font-semibold uppercase text-gray-500">landing-engine .env.local</h3>
+            <div>
+              <h3 className="text-sm font-semibold uppercase text-gray-500">Developer setup</h3>
+              <p className="mt-1 text-sm text-gray-600">landing-engine .env.local values for local integration work.</p>
+            </div>
           </div>
           <pre className="mt-4 overflow-auto rounded-md bg-gray-950 p-4 text-xs leading-6 text-gray-100">
             {envSnippet}
@@ -380,17 +382,4 @@ function slugPreview(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
-}
-
-function publicApiBaseUrlForDisplay(): string {
-  const configured = API_BASE_URL.trim();
-  if (!configured || configured === '/api') {
-    return DEFAULT_PUBLIC_API_BASE_URL;
-  }
-  return configured.replace(/\/api\/?$/, '').replace(/\/$/, '');
-}
-
-function landingEngineUrlForDisplay(): string {
-  const configured = import.meta.env.VITE_LANDING_ENGINE_URL?.trim();
-  return (configured || DEFAULT_LANDING_ENGINE_URL).replace(/\/$/, '');
 }

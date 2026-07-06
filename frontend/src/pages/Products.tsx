@@ -1,5 +1,6 @@
 import { type FormEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { Archive, ChevronLeft, ChevronRight, Edit3, Globe2, PackagePlus, X } from 'lucide-react';
 import {
   archiveProduct,
@@ -122,7 +123,8 @@ export default function Products() {
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Catalog</p>
           <h2 className="mt-1 text-2xl font-bold text-gray-900">Products</h2>
           <p className="mt-1 text-sm text-gray-500">
-            {totalElements} tenant-owned products. Only ACTIVE products appear on public storefront endpoints
+            {totalElements} tenant-owned products. Product slug identifies a product inside the public store. Only ACTIVE
+            products appear on public storefront endpoints
             {isFetching && !isLoading ? ' - Refreshing' : ''}
           </p>
         </div>
@@ -142,7 +144,8 @@ export default function Products() {
               {editingProduct ? 'Edit product' : 'Create product'}
             </h3>
             <p className="mt-1 text-sm text-gray-600">
-              Public storefronts can read product slug, media, description, and pricing only when status is ACTIVE.
+              Store slug identifies the public store. Product slug identifies this product inside that store and is
+              normalized before saving. Only ACTIVE products are publicly visible and orderable.
             </p>
           </div>
           {editingProduct && (
@@ -174,10 +177,13 @@ export default function Products() {
             <input
               value={form.slug}
               onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))}
+              onBlur={() => setForm((current) => ({ ...current, slug: slugPreview(current.slug) }))}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               maxLength={160}
-              placeholder="Generated from name"
+              placeholder="coolair-mini"
+              required
             />
+            <span className="mt-1 block text-xs text-gray-500">Required public product identifier.</span>
           </label>
           <label>
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Status</span>
@@ -212,7 +218,9 @@ export default function Products() {
               onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
               maxLength={3}
+              minLength={3}
               placeholder="MAD"
+              required
             />
           </label>
           <label>
@@ -232,6 +240,7 @@ export default function Products() {
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               maxLength={1000}
             />
+            <span className="mt-1 block text-xs text-gray-500">Optional, but recommended for public product pages and SEO previews.</span>
           </label>
           <label className="lg:col-span-4">
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Description</span>
@@ -241,6 +250,7 @@ export default function Products() {
               className="min-h-24 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               maxLength={2000}
             />
+            <span className="mt-1 block text-xs text-gray-500">Recommended public product copy. SEO uses this when present.</span>
           </label>
         </div>
 
@@ -314,6 +324,11 @@ export default function Products() {
                   <p className="font-medium text-gray-900">{product.name}</p>
                   <p className="mt-1 font-mono text-xs text-gray-500">{product.slug}</p>
                   {product.description && <p className="mt-2 max-w-xl text-xs text-gray-500">{product.description}</p>}
+                  {product.imageUrl ? (
+                    <p className="mt-2 max-w-xl break-all font-mono text-xs text-gray-500">{product.imageUrl}</p>
+                  ) : (
+                    <p className="mt-2 text-xs text-amber-700">Image URL recommended for public pages.</p>
+                  )}
                 </td>
                 <td className="p-4 font-medium text-gray-900">{formatMoney(product.priceAmount, product.currency)}</td>
                 <td className="p-4 text-gray-600">{product.sku ?? 'No SKU'}</td>
@@ -325,7 +340,14 @@ export default function Products() {
                 </td>
                 <td className="p-4 text-gray-500">{formatDate(product.updatedAt)}</td>
                 <td className="p-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Link
+                      to={`/app/storefront/publishing?productId=${product.id}`}
+                      className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+                    >
+                      <Globe2 size={16} />
+                      Edit Storefront Page
+                    </Link>
                     <button
                       type="button"
                       onClick={() => startEditing(product)}
@@ -402,10 +424,10 @@ export default function Products() {
 function payloadFromForm(form: ProductFormState): ProductPayload {
   return {
     name: form.name.trim(),
-    slug: optionalValue(form.slug),
+    slug: form.slug.trim(),
     description: optionalValue(form.description),
     priceAmount: Number(form.priceAmount),
-    currency: optionalValue(form.currency.toUpperCase()),
+    currency: form.currency.trim().toUpperCase(),
     sku: optionalValue(form.sku),
     imageUrl: optionalValue(form.imageUrl),
     status: form.status,
@@ -428,6 +450,14 @@ function formFromProduct(product: Product): ProductFormState {
 function optionalValue(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function slugPreview(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
 }
 
 function ProductMetric({
@@ -479,7 +509,7 @@ function PublicAvailabilityBadge({ status }: { status: ProductStatus }) {
       available ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700'
     }`}>
       <Globe2 size={14} />
-      {available ? 'Public' : 'Hidden'}
+      {available ? 'Orderable' : 'Not public'}
     </span>
   );
 }

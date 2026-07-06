@@ -184,13 +184,59 @@ export interface ProductsQuery {
 
 export interface ProductPayload {
   name: string;
-  slug?: string;
+  slug: string;
   description?: string;
   priceAmount: number;
-  currency?: string;
+  currency: string;
   sku?: string;
   imageUrl?: string;
   status?: ProductStatus;
+}
+
+export type StorefrontProductProfileStatus = 'DRAFT' | 'PUBLISHED';
+
+export interface StorefrontProfileFeature {
+  title?: string;
+  description?: string;
+}
+
+export interface StorefrontProfileFaqItem {
+  question?: string;
+  answer?: string;
+}
+
+export interface StorefrontProfileTrustBadge {
+  label?: string;
+  description?: string;
+}
+
+export interface StorefrontProductProfile {
+  productId: string;
+  headline?: string;
+  subheadline?: string;
+  benefits: string[];
+  features: StorefrontProfileFeature[];
+  faq: StorefrontProfileFaqItem[];
+  trustBadges: StorefrontProfileTrustBadge[];
+  galleryImageUrls: string[];
+  seoTitle?: string;
+  seoDescription?: string;
+  seoImageUrl?: string;
+  status: StorefrontProductProfileStatus;
+}
+
+export interface StorefrontProductProfilePayload {
+  headline?: string;
+  subheadline?: string;
+  benefits?: string[];
+  features?: StorefrontProfileFeature[];
+  faq?: StorefrontProfileFaqItem[];
+  trustBadges?: StorefrontProfileTrustBadge[];
+  galleryImageUrls?: string[];
+  seoTitle?: string;
+  seoDescription?: string;
+  seoImageUrl?: string;
+  status?: StorefrontProductProfileStatus;
 }
 
 export type StorefrontStatus = 'ACTIVE' | 'DISABLED';
@@ -938,6 +984,21 @@ export async function updateProduct(productId: string, payload: ProductPayload):
 export async function archiveProduct(productId: string): Promise<Product> {
   return apiRequest<Product>(`/products/${productId}/archive`, {
     method: 'PATCH',
+  });
+}
+
+export async function fetchProductStorefrontProfile(productId: string): Promise<StorefrontProductProfile | null> {
+  const profile = await apiRequest<StorefrontProductProfile | undefined>(`/products/${productId}/storefront-profile`);
+  return profile ?? null;
+}
+
+export async function upsertProductStorefrontProfile(
+  productId: string,
+  payload: StorefrontProductProfilePayload,
+): Promise<StorefrontProductProfile> {
+  return apiRequest<StorefrontProductProfile>(`/products/${productId}/storefront-profile`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
   });
 }
 
