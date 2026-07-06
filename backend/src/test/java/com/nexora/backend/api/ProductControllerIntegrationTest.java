@@ -3,6 +3,10 @@ package com.nexora.backend.api;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.domain.model.ProductStatus;
 import com.nexora.backend.domain.model.Role;
+import com.nexora.backend.domain.model.StorefrontProductProfileStatus;
+import com.nexora.backend.domain.model.StorefrontProfileFaqItem;
+import com.nexora.backend.domain.model.StorefrontProfileFeature;
+import com.nexora.backend.domain.model.StorefrontProfileTrustBadge;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
 import jakarta.persistence.EntityManager;
@@ -19,6 +23,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -90,10 +95,10 @@ class ProductControllerIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(productRequest(
                         "Argan Oil",
-                        null,
+                        "Argan Oil",
                         "Cold pressed argan oil",
                         "149.00",
-                        null,
+                        "MAD",
                         "ARG-001",
                         "https://example.com/argan.jpg",
                         ProductStatus.ACTIVE
@@ -107,6 +112,39 @@ class ProductControllerIntegrationTest {
                 .andExpect(jsonPath("$.sku").value("ARG-001"))
                 .andExpect(jsonPath("$.imageUrl").value("https://example.com/argan.jpg"))
                 .andExpect(jsonPath("$.status").value("ACTIVE"));
+    }
+
+    @Test
+    void productSlugAndCurrencyAreRequired() throws Exception {
+        mockMvc.perform(post("/api/products")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(productRequest(
+                        "Missing Slug",
+                        " ",
+                        "Description",
+                        "100.00",
+                        "MAD",
+                        null,
+                        null,
+                        ProductStatus.DRAFT
+                ))))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(post("/api/products")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(productRequest(
+                        "Missing Currency",
+                        "missing-currency",
+                        "Description",
+                        "100.00",
+                        " ",
+                        null,
+                        null,
+                        ProductStatus.DRAFT
+                ))))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -189,7 +227,85 @@ class ProductControllerIntegrationTest {
                 .andExpect(jsonPath("$.slug").value("shared-slug"));
     }
 
+    @Test
+    void productOwnerCanCreateAndUpdateStorefrontProfile() throws Exception {
+        String productId = createProduct(jwtToken, productRequest(
+                "CoolAir Mini",
+                "coolair-mini",
+                "Portable cooling fan",
+                "199.00",
+                "MAD",
+                "COOL-001",
+                "https://example.com/coolair.jpg",
+                ProductStatus.ACTIVE
+        ));
+
+        mockMvc.perform(get("/api/products/" + productId + "/storefront-profile")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(put("/api/products/" + productId + "/storefront-profile")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(profileRequest(
+                        "Stay cool anywhere",
+                        "Portable cooling for Moroccan COD customers.",
+                        StorefrontProductProfileStatus.DRAFT
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productId").value(productId))
+                .andExpect(jsonPath("$.headline").value("Stay cool anywhere"))
+                .andExpect(jsonPath("$.subheadline").value("Portable cooling for Moroccan COD customers."))
+                .andExpect(jsonPath("$.benefits[0]").value("Fast delivery"))
+                .andExpect(jsonPath("$.features[0].title").value("Rechargeable"))
+                .andExpect(jsonPath("$.faq[0].question").value("Is delivery available?"))
+                .andExpect(jsonPath("$.trustBadges[0].label").value("COD"))
+                .andExpect(jsonPath("$.galleryImageUrls[0]").value("https://example.com/gallery-1.jpg"))
+                .andExpect(jsonPath("$.seoTitle").value("CoolAir Mini Morocco"))
+                .andExpect(jsonPath("$.seoDescription").value("Order CoolAir Mini with cash on delivery."))
+                .andExpect(jsonPath("$.seoImageUrl").value("https://example.com/seo.jpg"))
+                .andExpect(jsonPath("$.status").value("DRAFT"));
+
+        mockMvc.perform(put("/api/products/" + productId + "/storefront-profile")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(profileRequest(
+                        "Updated landing headline",
+                        null,
+                        StorefrontProductProfileStatus.PUBLISHED
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productId").value(productId))
+                .andExpect(jsonPath("$.headline").value("Updated landing headline"))
+                .andExpect(jsonPath("$.status").value("PUBLISHED"));
+    }
+
+    @Test
+    void storefrontProfileIsTenantScopedToProductOwner() throws Exception {
+        String productId = createProduct(jwtToken, productRequest(
+                "Private Landing Product",
+                "private-landing-product",
+                null,
+                "100.00",
+                "MAD",
+                null,
+                null,
+                ProductStatus.ACTIVE
+        ));
+
+        mockMvc.perform(put("/api/products/" + productId + "/storefront-profile")
+                .header("Authorization", bearer(otherTenantJwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(profileRequest(
+                        "Other tenant edit",
+                        null,
+                        StorefrontProductProfileStatus.PUBLISHED
+                ))))
+                .andExpect(status().isNotFound());
+    }
+
     private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM storefront_product_profiles").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM public_storefronts").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM products").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM users").executeUpdate();
@@ -214,6 +330,26 @@ class ProductControllerIntegrationTest {
                 currency,
                 sku,
                 imageUrl,
+                status
+        );
+    }
+
+    private ProductController.StorefrontProductProfileRequest profileRequest(
+            String headline,
+            String subheadline,
+            StorefrontProductProfileStatus status
+    ) {
+        return new ProductController.StorefrontProductProfileRequest(
+                headline,
+                subheadline,
+                List.of("Fast delivery", "Cash on delivery"),
+                List.of(new StorefrontProfileFeature("Rechargeable", "Runs for hours on a single charge.")),
+                List.of(new StorefrontProfileFaqItem("Is delivery available?", "Yes, delivery is available in major cities.")),
+                List.of(new StorefrontProfileTrustBadge("COD", "Pay only when the order arrives.")),
+                List.of("https://example.com/gallery-1.jpg"),
+                "CoolAir Mini Morocco",
+                "Order CoolAir Mini with cash on delivery.",
+                "https://example.com/seo.jpg",
                 status
         );
     }

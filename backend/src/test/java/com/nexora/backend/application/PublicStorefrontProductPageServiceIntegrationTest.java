@@ -4,9 +4,15 @@ import com.nexora.backend.domain.model.Product;
 import com.nexora.backend.domain.model.ProductStatus;
 import com.nexora.backend.domain.model.PublicStorefront;
 import com.nexora.backend.domain.model.PublicStorefrontStatus;
+import com.nexora.backend.domain.model.StorefrontProductProfile;
+import com.nexora.backend.domain.model.StorefrontProductProfileStatus;
+import com.nexora.backend.domain.model.StorefrontProfileFaqItem;
+import com.nexora.backend.domain.model.StorefrontProfileFeature;
+import com.nexora.backend.domain.model.StorefrontProfileTrustBadge;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.repository.ProductRepository;
 import com.nexora.backend.domain.repository.PublicStorefrontRepository;
+import com.nexora.backend.domain.repository.StorefrontProductProfileRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +30,8 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -41,6 +49,9 @@ class PublicStorefrontProductPageServiceIntegrationTest {
     private ProductRepository productRepository;
 
     @Autowired
+    private StorefrontProductProfileRepository storefrontProductProfileRepository;
+
+    @Autowired
     private EntityManager entityManager;
 
     @Autowired
@@ -55,6 +66,7 @@ class PublicStorefrontProductPageServiceIntegrationTest {
         otherTenantId = UUID.randomUUID();
 
         transactionTemplate.executeWithoutResult(status -> {
+            entityManager.createNativeQuery("DELETE FROM storefront_product_profiles").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM public_storefronts").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM products").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM tenants").executeUpdate();
@@ -82,10 +94,13 @@ class PublicStorefrontProductPageServiceIntegrationTest {
 
         assertEquals("coolair-morocco", response.storeSlug());
         assertEquals("CoolAir Morocco", response.storePublicName());
+        assertEquals("MA", response.defaultCountryCode());
+        assertEquals("MAD", response.defaultCurrency());
         assertEquals("whatsapp", response.supportChannel().type());
         assertEquals("+212600000000", response.supportChannel().value());
         assertEquals(product.getId(), response.product().productId());
         assertEquals("coolair-mini", response.product().productSlug());
+        assertNotEquals(response.storeSlug(), response.product().productSlug());
         assertEquals("CoolAir Mini", response.product().productName());
         assertEquals("Portable cooling fan for COD customers.", response.product().description());
         assertEquals("https://cdn.example.test/coolair-mini.jpg", response.product().imageUrl());
@@ -93,6 +108,60 @@ class PublicStorefrontProductPageServiceIntegrationTest {
         assertEquals("MAD", response.offer().currency());
         assertEquals("available", response.offer().availability());
         assertTrue(response.offer().orderable());
+        assertEquals("CoolAir Mini | CoolAir Morocco", response.seo().title());
+        assertEquals("Portable cooling fan for COD customers.", response.seo().description());
+        assertEquals("https://cdn.example.test/coolair-mini.jpg", response.seo().image());
+        assertNull(response.landingProfile());
+    }
+
+    @Test
+    void publishedProfileAddsLandingContentAndSeoOverrides() {
+        publicStorefrontRepository.saveAndFlush(storefront(tenantId, "coolair-morocco", "CoolAir Morocco"));
+        Product product = productRepository.saveAndFlush(product(
+                tenantId,
+                "coolair-mini",
+                "CoolAir Mini",
+                "Portable cooling fan for COD customers.",
+                ProductStatus.ACTIVE
+        ));
+        storefrontProductProfileRepository.saveAndFlush(profile(product.getId(), StorefrontProductProfileStatus.PUBLISHED));
+
+        PublicStorefrontProductPageResponse response = productPageService.getProductPage(
+                "coolair-morocco",
+                "coolair-mini"
+        );
+
+        assertEquals("Cool air without installation", response.landingProfile().headline());
+        assertEquals("Fast COD delivery", response.landingProfile().benefits().get(0));
+        assertEquals("Rechargeable", response.landingProfile().features().get(0).title());
+        assertEquals("Can I pay on delivery?", response.landingProfile().faq().get(0).question());
+        assertEquals("COD", response.landingProfile().trustBadges().get(0).label());
+        assertEquals("https://cdn.example.test/gallery-1.jpg", response.landingProfile().galleryImageUrls().get(0));
+        assertEquals("Portable CoolAir Morocco", response.seo().title());
+        assertEquals("Order a portable CoolAir fan in Morocco.", response.seo().description());
+        assertEquals("https://cdn.example.test/seo-coolair.jpg", response.seo().image());
+    }
+
+    @Test
+    void draftProfileDoesNotChangePublicResponse() {
+        publicStorefrontRepository.saveAndFlush(storefront(tenantId, "coolair-morocco", "CoolAir Morocco"));
+        Product product = productRepository.saveAndFlush(product(
+                tenantId,
+                "coolair-mini",
+                "CoolAir Mini",
+                "Portable cooling fan for COD customers.",
+                ProductStatus.ACTIVE
+        ));
+        storefrontProductProfileRepository.saveAndFlush(profile(product.getId(), StorefrontProductProfileStatus.DRAFT));
+
+        PublicStorefrontProductPageResponse response = productPageService.getProductPage(
+                "coolair-morocco",
+                "coolair-mini"
+        );
+
+        assertNull(response.landingProfile());
+        assertEquals("CoolAir Mini | CoolAir Morocco", response.seo().title());
+        assertEquals("Portable cooling fan for COD customers.", response.seo().description());
     }
 
     @Test
@@ -110,6 +179,7 @@ class PublicStorefrontProductPageServiceIntegrationTest {
         List<Class<?>> publicDtoTypes = List.of(
                 PublicStorefrontProductPageResponse.class,
                 PublicProductResponse.class,
+                PublicLandingProfileResponse.class,
                 PublicOfferResponse.class,
                 PublicSupportChannelResponse.class,
                 PublicSeoResponse.class
@@ -205,6 +275,7 @@ class PublicStorefrontProductPageServiceIntegrationTest {
 
         assertEquals("Mini Fan | CoolAir Morocco", response.seo().title());
         assertEquals("Order Mini Fan from CoolAir Morocco.", response.seo().description());
+        assertEquals("https://cdn.example.test/mini-fan.jpg", response.seo().image());
     }
 
     private PublicStorefront storefront(UUID ownerTenantId, String storeSlug, String publicName) {
@@ -220,6 +291,37 @@ class PublicStorefrontProductPageServiceIntegrationTest {
                 .defaultCountryCode("MA")
                 .defaultCurrency("MAD")
                 .phonePattern("^(06|07)\\d{8}$")
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+    }
+
+    private StorefrontProductProfile profile(UUID productId, StorefrontProductProfileStatus status) {
+        Instant now = Instant.now();
+        return StorefrontProductProfile.builder()
+                .id(UUID.randomUUID())
+                .tenantId(tenantId)
+                .productId(productId)
+                .headline("Cool air without installation")
+                .subheadline("A portable fan for COD customers.")
+                .benefits(List.of("Fast COD delivery", "Easy returns"))
+                .features(List.of(new StorefrontProfileFeature(
+                        "Rechargeable",
+                        "Runs for hours after charging."
+                )))
+                .faq(List.of(new StorefrontProfileFaqItem(
+                        "Can I pay on delivery?",
+                        "Yes, cash on delivery is supported."
+                )))
+                .trustBadges(List.of(new StorefrontProfileTrustBadge(
+                        "COD",
+                        "Pay when the package arrives."
+                )))
+                .galleryImageUrls(List.of("https://cdn.example.test/gallery-1.jpg"))
+                .seoTitle("Portable CoolAir Morocco")
+                .seoDescription("Order a portable CoolAir fan in Morocco.")
+                .seoImageUrl("https://cdn.example.test/seo-coolair.jpg")
+                .status(status)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();

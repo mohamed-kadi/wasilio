@@ -14,11 +14,17 @@ import com.nexora.backend.domain.model.Product;
 import com.nexora.backend.domain.model.ProductStatus;
 import com.nexora.backend.domain.model.PublicStorefront;
 import com.nexora.backend.domain.model.PublicStorefrontStatus;
+import com.nexora.backend.domain.model.StorefrontProductProfile;
+import com.nexora.backend.domain.model.StorefrontProductProfileStatus;
+import com.nexora.backend.domain.model.StorefrontProfileFaqItem;
+import com.nexora.backend.domain.model.StorefrontProfileFeature;
+import com.nexora.backend.domain.model.StorefrontProfileTrustBadge;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.repository.InboundOrderRepository;
 import com.nexora.backend.domain.repository.OrderRepository;
 import com.nexora.backend.domain.repository.ProductRepository;
 import com.nexora.backend.domain.repository.PublicStorefrontRepository;
+import com.nexora.backend.domain.repository.StorefrontProductProfileRepository;
 import com.nexora.backend.infrastructure.observability.CorrelationIdContext;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +41,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -90,6 +97,9 @@ class PublicStorefrontControllerIntegrationTest {
     private ProductRepository productRepository;
 
     @Autowired
+    private StorefrontProductProfileRepository storefrontProductProfileRepository;
+
+    @Autowired
     private InboundOrderRepository inboundOrderRepository;
 
     @Autowired
@@ -124,6 +134,8 @@ class PublicStorefrontControllerIntegrationTest {
                 .andExpect(header().exists("X-Correlation-Id"))
                 .andExpect(jsonPath("$.storeSlug").value("coolair-morocco"))
                 .andExpect(jsonPath("$.storePublicName").value("CoolAir Morocco"))
+                .andExpect(jsonPath("$.defaultCountryCode").value("MA"))
+                .andExpect(jsonPath("$.defaultCurrency").value("MAD"))
                 .andExpect(jsonPath("$.supportChannel.type").value("whatsapp"))
                 .andExpect(jsonPath("$.supportChannel.value").value("+212600000000"))
                 .andExpect(jsonPath("$.product.productId").value(product.getId().toString()))
@@ -136,7 +148,49 @@ class PublicStorefrontControllerIntegrationTest {
                 .andExpect(jsonPath("$.offer.availability").value("available"))
                 .andExpect(jsonPath("$.offer.orderable").value(true))
                 .andExpect(jsonPath("$.seo.title").value("CoolAir Mini | CoolAir Morocco"))
-                .andExpect(jsonPath("$.seo.description").value("Portable cooling fan for COD customers."));
+                .andExpect(jsonPath("$.seo.description").value("Portable cooling fan for COD customers."))
+                .andExpect(jsonPath("$.seo.image").value("https://cdn.example.test/coolair-mini.jpg"))
+                .andExpect(jsonPath("$.landingProfile").doesNotExist());
+    }
+
+    @Test
+    void publishedStorefrontProductProfileIsIncludedInPublicResponse() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        Product product = productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+        storefrontProductProfileRepository.saveAndFlush(profile(product.getId(), StorefrontProductProfileStatus.PUBLISHED));
+
+        mockMvc.perform(get(PUBLIC_PRODUCT_PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.landingProfile.headline").value("Cool air without installation"))
+                .andExpect(jsonPath("$.landingProfile.subheadline").value("A portable fan for COD customers."))
+                .andExpect(jsonPath("$.landingProfile.benefits[0]").value("Fast COD delivery"))
+                .andExpect(jsonPath("$.landingProfile.features[0].title").value("Rechargeable"))
+                .andExpect(jsonPath("$.landingProfile.features[0].description").value("Runs for hours after charging."))
+                .andExpect(jsonPath("$.landingProfile.faq[0].question").value("Can I pay on delivery?"))
+                .andExpect(jsonPath("$.landingProfile.faq[0].answer").value("Yes, cash on delivery is supported."))
+                .andExpect(jsonPath("$.landingProfile.trustBadges[0].label").value("COD"))
+                .andExpect(jsonPath("$.landingProfile.trustBadges[0].description").value("Pay when the package arrives."))
+                .andExpect(jsonPath("$.landingProfile.galleryImageUrls[0]").value("https://cdn.example.test/gallery-1.jpg"))
+                .andExpect(jsonPath("$.landingProfile.seoTitle").value("Portable CoolAir Morocco"))
+                .andExpect(jsonPath("$.landingProfile.seoDescription").value("Order a portable CoolAir fan in Morocco."))
+                .andExpect(jsonPath("$.landingProfile.seoImageUrl").value("https://cdn.example.test/seo-coolair.jpg"))
+                .andExpect(jsonPath("$.seo.title").value("Portable CoolAir Morocco"))
+                .andExpect(jsonPath("$.seo.description").value("Order a portable CoolAir fan in Morocco."))
+                .andExpect(jsonPath("$.seo.image").value("https://cdn.example.test/seo-coolair.jpg"));
+    }
+
+    @Test
+    void draftStorefrontProductProfileIsExcludedFromPublicResponse() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        Product product = productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+        storefrontProductProfileRepository.saveAndFlush(profile(product.getId(), StorefrontProductProfileStatus.DRAFT));
+
+        mockMvc.perform(get(PUBLIC_PRODUCT_PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.landingProfile").doesNotExist())
+                .andExpect(jsonPath("$.seo.title").value("CoolAir Mini | CoolAir Morocco"))
+                .andExpect(jsonPath("$.seo.description").value("Portable cooling fan for COD customers."))
+                .andExpect(jsonPath("$.seo.image").value("https://cdn.example.test/coolair-mini.jpg"));
     }
 
     @Test
@@ -518,6 +572,7 @@ class PublicStorefrontControllerIntegrationTest {
         entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM couriers").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM public_storefronts").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM storefront_product_profiles").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM products").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM password_reset_tokens").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM users").executeUpdate();
@@ -537,6 +592,37 @@ class PublicStorefrontControllerIntegrationTest {
                 .defaultCountryCode("MA")
                 .defaultCurrency("MAD")
                 .phonePattern("^(06|07)\\d{8}$")
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+    }
+
+    private StorefrontProductProfile profile(UUID productId, StorefrontProductProfileStatus status) {
+        Instant now = Instant.now();
+        return StorefrontProductProfile.builder()
+                .id(UUID.randomUUID())
+                .tenantId(tenantId)
+                .productId(productId)
+                .headline("Cool air without installation")
+                .subheadline("A portable fan for COD customers.")
+                .benefits(List.of("Fast COD delivery", "Easy returns"))
+                .features(List.of(new StorefrontProfileFeature(
+                        "Rechargeable",
+                        "Runs for hours after charging."
+                )))
+                .faq(List.of(new StorefrontProfileFaqItem(
+                        "Can I pay on delivery?",
+                        "Yes, cash on delivery is supported."
+                )))
+                .trustBadges(List.of(new StorefrontProfileTrustBadge(
+                        "COD",
+                        "Pay when the package arrives."
+                )))
+                .galleryImageUrls(List.of("https://cdn.example.test/gallery-1.jpg"))
+                .seoTitle("Portable CoolAir Morocco")
+                .seoDescription("Order a portable CoolAir fan in Morocco.")
+                .seoImageUrl("https://cdn.example.test/seo-coolair.jpg")
+                .status(status)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();

@@ -1,8 +1,14 @@
 package com.nexora.backend.api;
 
 import com.nexora.backend.application.ProductService;
+import com.nexora.backend.application.StorefrontProductProfileResponse;
+import com.nexora.backend.application.StorefrontProductProfileService;
 import com.nexora.backend.domain.model.Product;
 import com.nexora.backend.domain.model.ProductStatus;
+import com.nexora.backend.domain.model.StorefrontProductProfileStatus;
+import com.nexora.backend.domain.model.StorefrontProfileFaqItem;
+import com.nexora.backend.domain.model.StorefrontProfileFeature;
+import com.nexora.backend.domain.model.StorefrontProfileTrustBadge;
 import com.nexora.backend.infrastructure.security.CustomUserDetails;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -38,13 +44,14 @@ import java.util.UUID;
 public class ProductController {
 
     private final ProductService productService;
+    private final StorefrontProductProfileService storefrontProductProfileService;
 
     public record ProductRequest(
             @NotBlank @Size(max = 255) String name,
-            @Size(max = 160) String slug,
+            @NotBlank @Size(max = 160) String slug,
             @Size(max = 2000) String description,
             @NotNull @Positive BigDecimal priceAmount,
-            @Size(min = 3, max = 3) String currency,
+            @NotBlank @Size(min = 3, max = 3) String currency,
             @Size(max = 100) String sku,
             @Size(max = 1000) String imageUrl,
             ProductStatus status
@@ -77,6 +84,36 @@ public class ProductController {
                     products.getSize(),
                     products.getTotalElements(),
                     products.getTotalPages()
+            );
+        }
+    }
+
+    public record StorefrontProductProfileRequest(
+            @Size(max = 255) String headline,
+            @Size(max = 500) String subheadline,
+            @Size(max = 20) List<@Size(max = 160) String> benefits,
+            @Size(max = 20) List<StorefrontProfileFeature> features,
+            @Size(max = 20) List<StorefrontProfileFaqItem> faq,
+            @Size(max = 20) List<StorefrontProfileTrustBadge> trustBadges,
+            @Size(max = 20) List<@Size(max = 1000) String> galleryImageUrls,
+            @Size(max = 255) String seoTitle,
+            @Size(max = 500) String seoDescription,
+            @Size(max = 1000) String seoImageUrl,
+            StorefrontProductProfileStatus status
+    ) {
+        StorefrontProductProfileService.StorefrontProductProfileCommand toCommand() {
+            return new StorefrontProductProfileService.StorefrontProductProfileCommand(
+                    headline,
+                    subheadline,
+                    benefits,
+                    features,
+                    faq,
+                    trustBadges,
+                    galleryImageUrls,
+                    seoTitle,
+                    seoDescription,
+                    seoImageUrl,
+                    status
             );
         }
     }
@@ -115,6 +152,27 @@ public class ProductController {
     @PatchMapping("/{productId}/archive")
     public ResponseEntity<Product> archiveProduct(@PathVariable UUID productId) {
         return ResponseEntity.ok(productService.archiveProduct(getCurrentTenantId(), productId));
+    }
+
+    @GetMapping("/{productId}/storefront-profile")
+    public ResponseEntity<StorefrontProductProfileResponse> getStorefrontProfile(@PathVariable UUID productId) {
+        StorefrontProductProfileResponse response = storefrontProductProfileService.getProfile(
+                getCurrentTenantId(),
+                productId
+        );
+        return response == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{productId}/storefront-profile")
+    public ResponseEntity<StorefrontProductProfileResponse> upsertStorefrontProfile(
+            @PathVariable UUID productId,
+            @Valid @RequestBody StorefrontProductProfileRequest request
+    ) {
+        return ResponseEntity.ok(storefrontProductProfileService.upsertProfile(
+                getCurrentTenantId(),
+                productId,
+                request.toCommand()
+        ));
     }
 
     private PageRequest pageRequest(int page, int size) {

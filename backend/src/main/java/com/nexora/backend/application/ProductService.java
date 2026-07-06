@@ -23,24 +23,24 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class ProductService {
 
-    private static final String DEFAULT_CURRENCY = "MAD";
-
     private final ProductRepository productRepository;
     private final Clock clock;
 
     @Transactional
     public Product createProduct(UUID tenantId, ProductCommand command) {
         Instant now = Instant.now(clock);
-        String slug = normalizeSlug(command.slug(), command.name());
+        String slug = normalizeSlug(command.slug());
         ensureSlugAvailable(tenantId, slug, null);
+        String name = normalizeRequired(command.name(), "Product name is required");
+        BigDecimal priceAmount = requirePositivePrice(command.priceAmount());
 
         return productRepository.save(Product.builder()
                 .id(UUID.randomUUID())
                 .tenantId(tenantId)
-                .name(normalizeRequired(command.name()))
+                .name(name)
                 .slug(slug)
                 .description(normalizeOptional(command.description()))
-                .priceAmount(command.priceAmount())
+                .priceAmount(priceAmount)
                 .currency(normalizeCurrency(command.currency()))
                 .sku(normalizeOptional(command.sku()))
                 .imageUrl(normalizeOptional(command.imageUrl()))
@@ -111,13 +111,15 @@ public class ProductService {
     @Transactional
     public Product updateProduct(UUID tenantId, UUID productId, ProductCommand command) {
         Product product = getProduct(tenantId, productId);
-        String slug = normalizeSlug(command.slug(), command.name());
+        String slug = normalizeSlug(command.slug());
         ensureSlugAvailable(tenantId, slug, productId);
+        String name = normalizeRequired(command.name(), "Product name is required");
+        BigDecimal priceAmount = requirePositivePrice(command.priceAmount());
 
-        product.setName(normalizeRequired(command.name()));
+        product.setName(name);
         product.setSlug(slug);
         product.setDescription(normalizeOptional(command.description()));
-        product.setPriceAmount(command.priceAmount());
+        product.setPriceAmount(priceAmount);
         product.setCurrency(normalizeCurrency(command.currency()));
         product.setSku(normalizeOptional(command.sku()));
         product.setImageUrl(normalizeOptional(command.imageUrl()));
@@ -143,9 +145,11 @@ public class ProductService {
         }
     }
 
-    private String normalizeSlug(String requestedSlug, String fallbackName) {
-        String rawSlug = hasText(requestedSlug) ? requestedSlug : fallbackName;
-        String normalized = Normalizer.normalize(rawSlug, Normalizer.Form.NFD)
+    private String normalizeSlug(String requestedSlug) {
+        if (!hasText(requestedSlug)) {
+            throw new IllegalArgumentException("Product slug is required");
+        }
+        String normalized = Normalizer.normalize(requestedSlug, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}", "")
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-")
@@ -160,11 +164,24 @@ public class ProductService {
     }
 
     private String normalizeCurrency(String currency) {
-        return hasText(currency) ? currency.trim().toUpperCase(Locale.ROOT) : DEFAULT_CURRENCY;
+        if (!hasText(currency)) {
+            throw new IllegalArgumentException("Product currency is required");
+        }
+        return currency.trim().toUpperCase(Locale.ROOT);
     }
 
-    private String normalizeRequired(String value) {
+    private String normalizeRequired(String value, String message) {
+        if (!hasText(value)) {
+            throw new IllegalArgumentException(message);
+        }
         return value.trim();
+    }
+
+    private BigDecimal requirePositivePrice(BigDecimal priceAmount) {
+        if (priceAmount == null || priceAmount.signum() <= 0) {
+            throw new IllegalArgumentException("Product price must be greater than zero");
+        }
+        return priceAmount;
     }
 
     private String normalizeOptional(String value) {
