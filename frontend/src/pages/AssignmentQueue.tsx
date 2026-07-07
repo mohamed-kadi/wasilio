@@ -1,8 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Truck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PackageCheck, SlidersHorizontal, Truck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { assignCourier, fetchAssignmentQueue, fetchCouriers, getErrorMessage } from '../api/client';
+import { orderLineSummary } from '../components/OrderLineSnapshots';
 import type { Order } from '../api/client';
 
 interface AssignmentLocationState {
@@ -27,6 +28,7 @@ export default function AssignmentQueue() {
   const [createdTo, setCreatedTo] = useState('');
   const [selectedCouriers, setSelectedCouriers] = useState<Record<string, string>>({});
   const [assignedHandoff, setAssignedHandoff] = useState<AssignedHandoff | null>(null);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
 
   const {
     data: queuePage,
@@ -90,9 +92,9 @@ export default function AssignmentQueue() {
 
   return (
     <QueueLayout
-      title="Assignment Queue"
+      title="Courier Assignment"
       subtitle={`${totalElements} confirmed orders ready for courier assignment`}
-      stageTitle="Courier assignment"
+      stageTitle="Assign courier"
       stageDescription="These orders are confirmed by the customer. Choose the courier who should collect each package."
       nextAction="Assign a courier to move the order into pickup."
       error={error ?? assignMutation.error}
@@ -109,7 +111,32 @@ export default function AssignmentQueue() {
       setCreatedTo={setCreatedTo}
       canGoBack={canGoBack}
       canGoForward={canGoForward}
+      advancedFiltersOpen={advancedFiltersOpen}
+      setAdvancedFiltersOpen={setAdvancedFiltersOpen}
     >
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryMetric
+          label="Ready for assignment"
+          value={String(totalElements)}
+          detail={isFetching && !isLoading ? 'Refreshing queue' : 'Confirmed orders'}
+        />
+        <SummaryMetric
+          label="Active couriers"
+          value={String(activeCouriers.length)}
+          detail={couriersLoading ? 'Loading couriers' : 'Available for assignment'}
+        />
+        <SummaryMetric
+          label="Highlighted"
+          value={highlightedOrder ? shortOrderId(highlightedOrder.id) : 'None'}
+          detail={confirmedOrderId ? 'From confirmation' : 'No handoff selected'}
+        />
+        <SummaryMetric
+          label="Next stage"
+          value="Pickup"
+          detail="Package leaves merchant"
+        />
+      </section>
+
       {confirmedOrderId && highlightedOrder && !confirmedOrderAssigned && (
         <section className="rounded-lg border border-green-200 bg-green-50 px-4 py-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -120,7 +147,7 @@ export default function AssignmentQueue() {
               </p>
             </div>
             <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-green-700 ring-1 ring-green-200">
-              {highlightedOrder.id.slice(0, 8)}...
+              {shortOrderId(highlightedOrder.id)}
             </span>
           </div>
         </section>
@@ -171,8 +198,8 @@ export default function AssignmentQueue() {
             <div>
               <p className="text-sm font-semibold text-orange-950">Order assigned and moved to pickup</p>
               <p className="mt-1 text-sm text-orange-800">
-                {assignedHandoff.order.customer.firstName} {assignedHandoff.order.customer.lastName} is assigned to{' '}
-                {assignedHandoff.courierName}. Confirm pickup when the package leaves the merchant.
+                {customerName(assignedHandoff.order)} is assigned to {assignedHandoff.courierName}. Confirm pickup
+                when the package leaves the merchant.
               </p>
               <p className="mt-2 font-mono text-xs text-orange-700">{assignedHandoff.order.id}</p>
             </div>
@@ -193,11 +220,12 @@ export default function AssignmentQueue() {
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[780px] text-left text-sm">
+          <table className="w-full min-w-[920px] text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
                 <th className="p-4 font-medium">Order</th>
                 <th className="p-4 font-medium">Customer</th>
+                <th className="p-4 font-medium">Products</th>
                 <th className="p-4 font-medium">Amount</th>
                 <th className="p-4 font-medium">Courier</th>
                 <th className="p-4 font-medium">Next action</th>
@@ -210,7 +238,9 @@ export default function AssignmentQueue() {
                 return (
                   <tr key={order.id} className={`hover:bg-gray-50 ${highlighted ? 'bg-green-50' : ''}`}>
                     <td className="p-4">
-                      <p className="font-mono text-gray-600">{order.id.slice(0, 8)}...</p>
+                      <Link to={`/app/orders/${order.id}`} className="font-mono text-blue-600 hover:underline">
+                        {shortOrderId(order.id)}
+                      </Link>
                       {highlighted && (
                         <span className="mt-2 inline-flex rounded-full bg-green-700 px-2.5 py-1 text-xs font-semibold text-white">
                           From confirmation
@@ -218,10 +248,15 @@ export default function AssignmentQueue() {
                       )}
                     </td>
                     <td className="p-4">
-                      <p className="font-medium text-gray-900">
-                        {order.customer.firstName} {order.customer.lastName}
-                      </p>
+                      <p className="font-medium text-gray-900">{customerName(order)}</p>
                       <p className="text-gray-500">{order.customer.phone}</p>
+                    </td>
+                    <td className="p-4">
+                      {orderLineSummary(order.orderLines) ? (
+                        <span className="font-medium text-gray-800">{orderLineSummary(order.orderLines)}</span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
                     <td className="p-4">
@@ -240,7 +275,7 @@ export default function AssignmentQueue() {
                         ))}
                       </select>
                     </td>
-                    <td className="p-4 text-gray-700">Select courier and assign for pickup</td>
+                    <td className="p-4 text-gray-700">Move to pickup queue</td>
                     <td className="p-4">
                       <button
                         type="button"
@@ -248,7 +283,7 @@ export default function AssignmentQueue() {
                         onClick={() => assignOrder(order)}
                         className="inline-flex items-center gap-2 rounded-md bg-yellow-600 px-3 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
                       >
-                        <Truck size={16} />
+                        <PackageCheck size={16} />
                         Assign
                       </button>
                     </td>
@@ -257,7 +292,7 @@ export default function AssignmentQueue() {
               })}
               {isLoading && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                  <td colSpan={7} className="p-8 text-center text-gray-500">
                     <p className="text-sm font-medium text-gray-900">Loading assignment queue</p>
                     <p className="mt-1 text-sm text-gray-500">Fetching confirmed orders that need a courier.</p>
                   </td>
@@ -265,7 +300,7 @@ export default function AssignmentQueue() {
               )}
               {!isLoading && orders.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                  <td colSpan={7} className="p-8 text-center text-gray-500">
                     <div className="mx-auto max-w-sm">
                       <p className="text-sm font-medium text-gray-900">No confirmed orders need assignment.</p>
                       <p className="mt-1 text-sm text-gray-500">
@@ -303,6 +338,8 @@ interface QueueLayoutProps {
   setCreatedTo: (value: string) => void;
   canGoBack: boolean;
   canGoForward: boolean;
+  advancedFiltersOpen: boolean;
+  setAdvancedFiltersOpen: (value: boolean | ((current: boolean) => boolean)) => void;
   children: ReactNode;
 }
 
@@ -326,6 +363,8 @@ function QueueLayout({
   setCreatedTo,
   canGoBack,
   canGoForward,
+  advancedFiltersOpen,
+  setAdvancedFiltersOpen,
   children,
 }: QueueLayoutProps) {
   return (
@@ -352,61 +391,80 @@ function QueueLayout({
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-4">
-        <label>
-          <span className="mb-1 block text-xs font-medium uppercase text-gray-500">From</span>
-          <input
-            type="date"
-            value={createdFrom}
-            onChange={(event) => {
-              setCreatedFrom(event.target.value);
-              setPage(0);
-            }}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-medium uppercase text-gray-500">To</span>
-          <input
-            type="date"
-            value={createdTo}
-            onChange={(event) => {
-              setCreatedTo(event.target.value);
-              setPage(0);
-            }}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Size</span>
-          <select
-            value={size}
-            onChange={(event) => {
-              setSize(Number(event.target.value));
-              setPage(0);
-            }}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {[10, 20, 50, 100].map((pageSize) => (
-              <option key={pageSize} value={pageSize}>
-                {pageSize}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="flex items-end justify-end">
+      <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">Assignment queue</h3>
+            <p className="text-sm text-gray-500">Confirmed orders waiting for courier assignment.</p>
+          </div>
           <button
             type="button"
-            onClick={() => {
-              setCreatedFrom('');
-              setCreatedTo('');
-              setPage(0);
-            }}
-            className="text-sm font-medium text-gray-600 hover:text-gray-900"
+            onClick={() => setAdvancedFiltersOpen((open) => !open)}
+            className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            Clear filters
+            <SlidersHorizontal size={16} />
+            {advancedFiltersOpen ? 'Hide advanced filters' : 'Advanced filters'}
           </button>
         </div>
+
+        {advancedFiltersOpen && (
+          <div className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 md:grid-cols-4">
+            <label>
+              <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Created from</span>
+              <input
+                type="date"
+                value={createdFrom}
+                onChange={(event) => {
+                  setCreatedFrom(event.target.value);
+                  setPage(0);
+                }}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Created to</span>
+              <input
+                type="date"
+                value={createdTo}
+                onChange={(event) => {
+                  setCreatedTo(event.target.value);
+                  setPage(0);
+                }}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Rows per page</span>
+              <select
+                value={size}
+                onChange={(event) => {
+                  setSize(Number(event.target.value));
+                  setPage(0);
+                }}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {[10, 20, 50, 100].map((pageSize) => (
+                  <option key={pageSize} value={pageSize}>
+                    {pageSize}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-end justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setCreatedFrom('');
+                  setCreatedTo('');
+                  setPage(0);
+                }}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                Clear filters
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {Boolean(error) && (
@@ -452,4 +510,30 @@ function toStartIso(value: string): string | undefined {
 
 function toEndIso(value: string): string | undefined {
   return value ? new Date(`${value}T23:59:59.999Z`).toISOString() : undefined;
+}
+
+function customerName(order: Order) {
+  return `${order.customer.firstName} ${order.customer.lastName}`.trim() || 'Unknown customer';
+}
+
+function shortOrderId(orderId: string) {
+  return `${orderId.slice(0, 8)}...`;
+}
+
+function SummaryMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
+      <p className="mt-1 truncate text-lg font-semibold text-gray-900">{value}</p>
+      <p className="mt-1 truncate text-xs text-gray-500">{detail}</p>
+    </div>
+  );
 }
