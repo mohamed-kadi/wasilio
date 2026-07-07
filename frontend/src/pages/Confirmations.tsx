@@ -6,10 +6,12 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ListChecks,
   MessageCircle,
   PhoneCall,
   RefreshCw,
   Search,
+  SlidersHorizontal,
   Truck,
   XCircle,
 } from 'lucide-react';
@@ -47,6 +49,12 @@ const statusColors: Record<string, string> = {
   CONFIRMATION_REQUESTED: 'bg-blue-100 text-blue-800',
 };
 
+const queueStatusLabels: Record<(typeof queueStatuses)[number], string> = {
+  '': 'All open confirmation',
+  CREATED: 'Not started',
+  CONFIRMATION_REQUESTED: 'In follow-up',
+};
+
 const outcomeColors: Record<ConfirmationOutcome, string> = {
   CONFIRMED: 'bg-green-100 text-green-800',
   REJECTED: 'bg-red-100 text-red-800',
@@ -78,6 +86,13 @@ const callbackStatusColors: Record<ConfirmationCallbackStatus, string> = {
   RESOLVED: 'bg-green-100 text-green-800',
 };
 
+const callbackScopeLabels: Record<ConfirmationCallbackScope, string> = {
+  DUE: 'Due now',
+  OVERDUE: 'Overdue',
+  UPCOMING: 'Upcoming',
+  ALL: 'All callbacks',
+};
+
 interface ConfirmationLocationState {
   createdOrderId?: string;
 }
@@ -89,6 +104,14 @@ function phoneHref(phone: string) {
 function whatsappHref(phone: string) {
   const normalized = phone.replace(/[^\d]/g, '');
   return normalized ? `https://wa.me/${normalized}` : undefined;
+}
+
+function customerName(order: Order) {
+  return `${order.customer.firstName} ${order.customer.lastName}`.trim() || 'Unknown customer';
+}
+
+function shortOrderId(orderId: string) {
+  return `${orderId.slice(0, 8)}...`;
 }
 
 export default function Confirmations() {
@@ -107,6 +130,8 @@ export default function Confirmations() {
   const [createdTo, setCreatedTo] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [confirmedHandoffOrder, setConfirmedHandoffOrder] = useState<Order | null>(null);
+  const [callbacksExpanded, setCallbacksExpanded] = useState(false);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [outcome, setOutcome] = useState<ConfirmationOutcome>('NO_ANSWER');
   const [callbackAt, setCallbackAt] = useState('');
   const [note, setNote] = useState('');
@@ -200,6 +225,9 @@ export default function Confirmations() {
   const canGoBackCallbacks = callbackPage > 0;
   const canGoForwardCallbacks = callbackTotalPages > 0 && callbackPage + 1 < callbackTotalPages;
   const highlightedOrder = createdOrderId ? orders.find((order) => order.id === createdOrderId) : undefined;
+  const visibleNotStarted = orders.filter((order) => order.status === 'CREATED').length;
+  const visibleInFollowUp = orders.filter((order) => order.status === 'CONFIRMATION_REQUESTED').length;
+  const selectedOrderLabel = selectedOrder ? customerName(selectedOrder) : 'None selected';
 
   useEffect(() => {
     if (!highlightedOrder || appliedCreatedOrderId.current === highlightedOrder.id) {
@@ -243,8 +271,8 @@ export default function Confirmations() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Confirmations</h2>
-          <p className="text-sm text-gray-500">{totalElements} orders awaiting customer decision</p>
+          <h2 className="text-2xl font-bold text-gray-900">Confirmation Ops</h2>
+          <p className="text-sm text-gray-500">Call customers, record decisions, and schedule follow-ups.</p>
         </div>
         <button
           type="button"
@@ -256,6 +284,29 @@ export default function Confirmations() {
           <RefreshCw size={18} />
         </button>
       </div>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryMetric
+          label="Open queue"
+          value={String(totalElements)}
+          detail={isFetching && !isLoading ? 'Refreshing queue' : 'Awaiting customer decision'}
+        />
+        <SummaryMetric
+          label="Not started"
+          value={String(visibleNotStarted)}
+          detail="Visible on this page"
+        />
+        <SummaryMetric
+          label="In follow-up"
+          value={String(visibleInFollowUp)}
+          detail="Visible on this page"
+        />
+        <SummaryMetric
+          label="Selected"
+          value={selectedOrderLabel}
+          detail={selectedOrder ? shortOrderId(selectedOrder.id) : 'Choose a queue row'}
+        />
+      </section>
 
       {createdOrderId && highlightedOrder && (
         <section className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
@@ -324,25 +375,35 @@ export default function Confirmations() {
             <div>
               <h3 className="text-base font-semibold text-gray-900">Follow-up callbacks</h3>
               <p className="text-sm text-gray-500">
-                {callbackTotalElements} {callbackScope.toLowerCase()} callbacks
+                {callbackTotalElements} {callbackScopeLabels[callbackScope].toLowerCase()} callbacks
                 {callbacksFetching && !callbacksLoading ? ' - Refreshing' : ''}
               </p>
             </div>
           </div>
-          <select
-            value={callbackScope}
-            onChange={(event) => {
-              setCallbackScope(event.target.value as ConfirmationCallbackScope);
-              setCallbackPage(0);
-            }}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {callbackScopes.map((scope) => (
-              <option key={scope} value={scope}>
-                {scope.replace(/_/g, ' ')}
-              </option>
-            ))}
-          </select>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={callbackScope}
+              onChange={(event) => {
+                setCallbackScope(event.target.value as ConfirmationCallbackScope);
+                setCallbackPage(0);
+              }}
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {callbackScopes.map((scope) => (
+                <option key={scope} value={scope}>
+                  {callbackScopeLabels[scope]}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setCallbacksExpanded((expanded) => !expanded)}
+              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            >
+              <ListChecks size={16} />
+              {callbacksExpanded ? 'Hide callbacks' : 'Review callbacks'}
+            </button>
+          </div>
         </div>
 
         {callbacksError && (
@@ -351,122 +412,152 @@ export default function Confirmations() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
-          {callbacks.map((callback) => (
-            <article key={callback.callbackId} className="rounded-md border border-gray-200 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium text-gray-900">
-                    {callback.order.customer.firstName} {callback.order.customer.lastName}
-                  </p>
-                  <p className="text-sm text-gray-500">{callback.order.customer.phone}</p>
-                  {orderLineSummary(callback.order.orderLines) && (
-                    <p className="mt-1 text-sm font-medium text-gray-700">
-                      {orderLineSummary(callback.order.orderLines)}
-                    </p>
-                  )}
-                </div>
-                <span className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${callbackStatusColors[callback.status]}`}>
-                  {callback.status}
-                </span>
-              </div>
-              <p className="mt-3 text-sm text-gray-700">{new Date(callback.callbackAt).toLocaleString()}</p>
-              {callback.note && <p className="mt-2 text-sm text-gray-600 line-clamp-2">{callback.note}</p>}
-              <div className="mt-3 flex flex-wrap gap-2">
-                <a
-                  href={phoneHref(callback.order.customer.phone)}
-                  className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                >
-                  <PhoneCall size={14} />
-                  Call
-                </a>
-                {whatsappHref(callback.order.customer.phone) && (
-                  <a
-                    href={whatsappHref(callback.order.customer.phone)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center justify-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100"
-                  >
-                    <MessageCircle size={14} />
-                    WhatsApp
-                  </a>
-                )}
-                <button
-                  type="button"
-                  onClick={() => selectCallback(callback)}
-                  className="inline-flex items-center justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                >
-                  Open order
-                </button>
-                <button
-                  type="button"
-                  onClick={() => resolveCallbackMutation.mutate(callback.callbackId)}
-                  disabled={resolveCallbackMutation.isPending}
-                  className="inline-flex items-center justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
-                >
-                  Resolve
-                </button>
-              </div>
-            </article>
-          ))}
-          {!callbacksLoading && callbacks.length === 0 && (
-            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4">
-              <p className="text-sm font-medium text-gray-900">No {callbackScope.toLowerCase()} callbacks.</p>
-              <p className="mt-1 text-sm text-gray-500">
-                Scheduled follow-ups for this window will appear here when customers need another call.
-              </p>
-            </div>
-          )}
-          {callbacksLoading && (
-            <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4">
-              <p className="text-sm font-medium text-gray-900">Loading callbacks</p>
-              <p className="mt-1 text-sm text-gray-500">Checking scheduled follow-ups for this view.</p>
-            </div>
-          )}
-        </div>
-
-        {callbackTotalPages > 1 && (
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              Page {callbackTotalPages === 0 ? 0 : callbackPage + 1} of {callbackTotalPages}
+        {!callbacksExpanded && (
+          <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-4 py-3">
+            <p className="text-sm font-medium text-gray-900">
+              {callbackTotalElements === 0
+                ? `No ${callbackScopeLabels[callbackScope].toLowerCase()} callbacks.`
+                : `${callbackTotalElements} ${callbackScopeLabels[callbackScope].toLowerCase()} callbacks are available.`}
             </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setCallbackPage((currentPage) => currentPage - 1)}
-                disabled={!canGoBackCallbacks}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-                aria-label="Previous callback page"
-                title="Previous callback page"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setCallbackPage((currentPage) => currentPage + 1)}
-                disabled={!canGoForwardCallbacks}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-                aria-label="Next callback page"
-                title="Next callback page"
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
+            <p className="mt-1 text-sm text-gray-500">
+              Keep the queue focused by opening callbacks only when working follow-up calls.
+            </p>
           </div>
         )}
 
-        {resolveCallbackMutation.error && (
-          <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {getErrorMessage(resolveCallbackMutation.error)}
-          </div>
+        {callbacksExpanded && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3">
+              {callbacks.map((callback) => (
+                <article key={callback.callbackId} className="rounded-md border border-gray-200 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-gray-900">{customerName(callback.order)}</p>
+                      <p className="text-sm text-gray-500">{callback.order.customer.phone}</p>
+                      {orderLineSummary(callback.order.orderLines) && (
+                        <p className="mt-1 text-sm font-medium text-gray-700">
+                          {orderLineSummary(callback.order.orderLines)}
+                        </p>
+                      )}
+                    </div>
+                    <span className={`shrink-0 px-2 py-1 rounded-full text-xs font-medium ${callbackStatusColors[callback.status]}`}>
+                      {callback.status}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm text-gray-700">{new Date(callback.callbackAt).toLocaleString()}</p>
+                  {callback.note && <p className="mt-2 text-sm text-gray-600 line-clamp-2">{callback.note}</p>}
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <a
+                      href={phoneHref(callback.order.customer.phone)}
+                      className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                    >
+                      <PhoneCall size={14} />
+                      Call
+                    </a>
+                    {whatsappHref(callback.order.customer.phone) && (
+                      <a
+                        href={whatsappHref(callback.order.customer.phone)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100"
+                      >
+                        <MessageCircle size={14} />
+                        WhatsApp
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => selectCallback(callback)}
+                      className="inline-flex items-center justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                    >
+                      Open order
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => resolveCallbackMutation.mutate(callback.callbackId)}
+                      disabled={resolveCallbackMutation.isPending}
+                      className="inline-flex items-center justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                    >
+                      Resolve
+                    </button>
+                  </div>
+                </article>
+              ))}
+              {!callbacksLoading && callbacks.length === 0 && (
+                <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4">
+                  <p className="text-sm font-medium text-gray-900">No {callbackScopeLabels[callbackScope].toLowerCase()} callbacks.</p>
+                  <p className="mt-1 text-sm text-gray-500">
+                    Scheduled follow-ups for this window will appear here when customers need another call.
+                  </p>
+                </div>
+              )}
+              {callbacksLoading && (
+                <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4">
+                  <p className="text-sm font-medium text-gray-900">Loading callbacks</p>
+                  <p className="mt-1 text-sm text-gray-500">Checking scheduled follow-ups for this view.</p>
+                </div>
+              )}
+            </div>
+
+            {callbackTotalPages > 1 && (
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500">
+                  Page {callbackTotalPages === 0 ? 0 : callbackPage + 1} of {callbackTotalPages}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCallbackPage((currentPage) => currentPage - 1)}
+                    disabled={!canGoBackCallbacks}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                    aria-label="Previous callback page"
+                    title="Previous callback page"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCallbackPage((currentPage) => currentPage + 1)}
+                    disabled={!canGoForwardCallbacks}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+                    aria-label="Next callback page"
+                    title="Next callback page"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {resolveCallbackMutation.error && (
+              <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {getErrorMessage(resolveCallbackMutation.error)}
+              </div>
+            )}
+          </>
         )}
       </section>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-6">
         <section className="space-y-4">
           <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
-            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-              <label className="md:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900">Confirmation queue</h3>
+                <p className="text-sm text-gray-500">{totalElements} orders awaiting a customer decision</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAdvancedFiltersOpen((open) => !open)}
+                className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                <SlidersHorizontal size={16} />
+                {advancedFiltersOpen ? 'Hide advanced filters' : 'Advanced filters'}
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_16rem_auto]">
+              <label>
                 <span className="block text-xs font-medium uppercase text-gray-500 mb-1">Search</span>
                 <div className="relative">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
@@ -477,13 +568,13 @@ export default function Confirmations() {
                       setPage(0);
                     }}
                     className="w-full rounded-md border border-gray-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="Name or phone"
+                    placeholder="Customer, phone, or order ID"
                   />
                 </div>
               </label>
 
               <label>
-                <span className="block text-xs font-medium uppercase text-gray-500 mb-1">Status</span>
+                <span className="block text-xs font-medium uppercase text-gray-500 mb-1">Queue status</span>
                 <select
                   value={status}
                   onChange={(event) => {
@@ -494,65 +585,68 @@ export default function Confirmations() {
                 >
                   {queueStatuses.map((statusOption) => (
                     <option key={statusOption || 'ALL'} value={statusOption}>
-                      {statusOption ? statusOption.replace(/_/g, ' ') : 'All queue'}
+                      {queueStatusLabels[statusOption]}
                     </option>
                   ))}
                 </select>
               </label>
 
-              <label>
-                <span className="block text-xs font-medium uppercase text-gray-500 mb-1">From</span>
-                <input
-                  type="date"
-                  value={createdFrom}
-                  onChange={(event) => {
-                    setCreatedFrom(event.target.value);
-                    setPage(0);
-                  }}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </label>
-
-              <label>
-                <span className="block text-xs font-medium uppercase text-gray-500 mb-1">To</span>
-                <input
-                  type="date"
-                  value={createdTo}
-                  onChange={(event) => {
-                    setCreatedTo(event.target.value);
-                    setPage(0);
-                  }}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </label>
-
-              <label>
-                <span className="block text-xs font-medium uppercase text-gray-500 mb-1">Size</span>
-                <select
-                  value={size}
-                  onChange={(event) => {
-                    setSize(Number(event.target.value));
-                    setPage(0);
-                  }}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {[10, 20, 50, 100].map((pageSize) => (
-                    <option key={pageSize} value={pageSize}>
-                      {pageSize}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="mt-3 flex justify-end">
               <button
                 type="button"
                 onClick={resetFilters}
-                className="text-sm font-medium text-gray-600 hover:text-gray-900"
+                className="self-end rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
               >
                 Clear filters
               </button>
             </div>
+
+            {advancedFiltersOpen && (
+              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 md:grid-cols-3">
+                <label>
+                  <span className="block text-xs font-medium uppercase text-gray-500 mb-1">Created from</span>
+                  <input
+                    type="date"
+                    value={createdFrom}
+                    onChange={(event) => {
+                      setCreatedFrom(event.target.value);
+                      setPage(0);
+                    }}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+
+                <label>
+                  <span className="block text-xs font-medium uppercase text-gray-500 mb-1">Created to</span>
+                  <input
+                    type="date"
+                    value={createdTo}
+                    onChange={(event) => {
+                      setCreatedTo(event.target.value);
+                      setPage(0);
+                    }}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+
+                <label>
+                  <span className="block text-xs font-medium uppercase text-gray-500 mb-1">Rows per page</span>
+                  <select
+                    value={size}
+                    onChange={(event) => {
+                      setSize(Number(event.target.value));
+                      setPage(0);
+                    }}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {[10, 20, 50, 100].map((pageSize) => (
+                      <option key={pageSize} value={pageSize}>
+                        {pageSize}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            )}
           </div>
 
           {queueError && (
@@ -587,7 +681,7 @@ export default function Confirmations() {
                         onClick={() => selectOrder(order)}
                       >
                         <td className="p-4">
-                          <p className="font-mono text-gray-600">{order.id.slice(0, 8)}...</p>
+                          <p className="font-mono text-gray-600">{shortOrderId(order.id)}</p>
                           {highlighted && (
                             <span className="mt-2 inline-flex rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
                               Start here
@@ -595,9 +689,7 @@ export default function Confirmations() {
                           )}
                         </td>
                         <td className="p-4">
-                          <p className="font-medium text-gray-900">
-                            {order.customer.firstName} {order.customer.lastName}
-                          </p>
+                          <p className="font-medium text-gray-900">{customerName(order)}</p>
                           <p className="text-gray-500">{order.customer.phone}</p>
                         </td>
                         <td className="p-4">
@@ -610,11 +702,11 @@ export default function Confirmations() {
                         <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
                         <td className="p-4">
                           <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
-                            {order.status.replace(/_/g, ' ')}
+                            {queueStatusLabels[order.status as (typeof queueStatuses)[number]] ?? order.status.replace(/_/g, ' ')}
                           </span>
                         </td>
                         <td className="p-4 text-gray-700">
-                          {order.status === 'CREATED' ? 'Start confirmation call' : 'Record next attempt'}
+                          {order.status === 'CREATED' ? 'Call customer' : 'Record follow-up attempt'}
                         </td>
                         <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleString()}</td>
                       </tr>
@@ -692,17 +784,17 @@ export default function Confirmations() {
           </div>
         </section>
 
-        <aside className="bg-white border border-gray-200 rounded-lg p-5 space-y-5 h-fit">
+        <aside className="bg-white border border-gray-200 rounded-lg p-5 space-y-5 h-fit xl:sticky xl:top-6">
           <div className="flex items-center gap-2">
             <PhoneCall className="h-5 w-5 text-blue-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Next confirmation action</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Call workspace</h3>
           </div>
 
           {!selectedOrder && (
             <div className="rounded-md border border-dashed border-gray-300 bg-gray-50 p-4">
-              <p className="text-sm font-medium text-gray-900">Select an order from the queue.</p>
+              <p className="text-sm font-medium text-gray-900">No order selected.</p>
               <p className="mt-1 text-sm text-gray-500">
-                Then call the customer, choose the result, and save the next action.
+                Choose a row from the queue to open customer contact and decision controls.
               </p>
             </div>
           )}
@@ -711,10 +803,8 @@ export default function Confirmations() {
             <>
               <div className="rounded-md border border-gray-200 p-4">
                 <p className="text-xs uppercase text-gray-500">Selected order</p>
-                <p className="mt-1 font-mono text-sm text-gray-700">{selectedOrder.id}</p>
-                <p className="mt-3 font-medium text-gray-900">
-                  {selectedOrder.customer.firstName} {selectedOrder.customer.lastName}
-                </p>
+                <p className="mt-1 font-mono text-sm text-gray-700">{shortOrderId(selectedOrder.id)}</p>
+                <p className="mt-3 font-medium text-gray-900">{customerName(selectedOrder)}</p>
                 <p className="text-sm text-gray-500">{selectedOrder.customer.phone}</p>
                 <p className="mt-2 text-sm font-medium">{selectedOrder.amount.toFixed(2)} MAD</p>
                 <p className="mt-2 text-sm text-gray-500">
@@ -750,12 +840,18 @@ export default function Confirmations() {
                       WhatsApp
                     </a>
                   )}
+                  <Link
+                    to={`/app/orders/${selectedOrder.id}`}
+                    className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                  >
+                    View details
+                  </Link>
                 </div>
               </div>
 
               <form className="space-y-4" onSubmit={handleSubmit}>
                 <div className="rounded-md border border-blue-100 bg-blue-50 p-3">
-                  <p className="text-xs font-semibold uppercase text-blue-700">Current decision</p>
+                  <p className="text-xs font-semibold uppercase text-blue-700">Selected outcome</p>
                   <p className="mt-1 text-sm font-medium text-blue-950">{outcomeLabels[outcome]}</p>
                   <p className="mt-1 text-sm text-blue-800">{outcomeDescriptions[outcome]}</p>
                 </div>
@@ -796,7 +892,7 @@ export default function Confirmations() {
                 )}
 
                 <label className="block">
-                  <span className="block text-sm font-medium text-gray-700 mb-1">Note</span>
+                  <span className="block text-sm font-medium text-gray-700 mb-1">Call note</span>
                   <textarea
                     value={note}
                     onChange={(event) => setNote(event.target.value)}
@@ -829,7 +925,7 @@ export default function Confirmations() {
               </form>
 
               <div className="border-t border-gray-200 pt-4">
-                <h4 className="text-sm font-semibold text-gray-900">Attempts</h4>
+                <h4 className="text-sm font-semibold text-gray-900">Call history</h4>
                 {attemptsError && (
                   <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                     {getErrorMessage(attemptsError)}
@@ -911,4 +1007,22 @@ function getAttemptCallbackStatus(attempt: ConfirmationAttempt): ConfirmationCal
     return 'OVERDUE';
   }
   return callbackDate <= new Date() ? 'DUE' : 'UPCOMING';
+}
+
+function SummaryMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
+      <p className="mt-1 truncate text-lg font-semibold text-gray-900">{value}</p>
+      <p className="mt-1 truncate text-xs text-gray-500">{detail}</p>
+    </div>
+  );
 }
