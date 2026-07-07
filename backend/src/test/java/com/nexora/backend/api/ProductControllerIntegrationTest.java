@@ -115,6 +115,26 @@ class ProductControllerIntegrationTest {
     }
 
     @Test
+    void tenantCanCreateProductWithGeneratedSku() throws Exception {
+        mockMvc.perform(post("/api/products")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(productRequest(
+                        "Portable Neck Fan",
+                        "Portable Neck Fan",
+                        "Hands-free cooling fan",
+                        "249.00",
+                        "MAD",
+                        " ",
+                        "https://example.com/fan.jpg",
+                        ProductStatus.ACTIVE
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.slug").value("portable-neck-fan"))
+                .andExpect(jsonPath("$.sku").value("SKU-PORTABLE-NECK-FAN"));
+    }
+
+    @Test
     void productSlugAndCurrencyAreRequired() throws Exception {
         mockMvc.perform(post("/api/products")
                 .header("Authorization", bearer(jwtToken))

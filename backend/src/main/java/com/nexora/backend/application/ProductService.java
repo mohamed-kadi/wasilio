@@ -33,6 +33,7 @@ public class ProductService {
         ensureSlugAvailable(tenantId, slug, null);
         String name = normalizeRequired(command.name(), "Product name is required");
         BigDecimal priceAmount = requirePositivePrice(command.priceAmount());
+        String sku = normalizeSkuForCreation(command.sku(), slug);
 
         return productRepository.save(Product.builder()
                 .id(UUID.randomUUID())
@@ -42,7 +43,7 @@ public class ProductService {
                 .description(normalizeOptional(command.description()))
                 .priceAmount(priceAmount)
                 .currency(normalizeCurrency(command.currency()))
-                .sku(normalizeOptional(command.sku()))
+                .sku(sku)
                 .imageUrl(normalizeOptional(command.imageUrl()))
                 .status(command.status() == null ? ProductStatus.DRAFT : command.status())
                 .createdAt(now)
@@ -186,6 +187,17 @@ public class ProductService {
 
     private String normalizeOptional(String value) {
         return hasText(value) ? value.trim() : null;
+    }
+
+    private String normalizeSkuForCreation(String requestedSku, String slug) {
+        if (hasText(requestedSku)) {
+            return requestedSku.trim();
+        }
+        String generated = "SKU-" + slug.toUpperCase(Locale.ROOT);
+        if (generated.length() > 100) {
+            return generated.substring(0, 100).replaceAll("-+$", "");
+        }
+        return generated;
     }
 
     private boolean hasText(String value) {
