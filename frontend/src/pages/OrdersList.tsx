@@ -11,16 +11,12 @@ import {
   fetchOrders,
   fetchOrderSearchSavedViews,
   getErrorMessage,
-  resolveDeliveryFollowUp,
   retryFailedDelivery,
   updateOrderSearchSavedView,
 } from '../api/client';
 import { orderLineSummary } from '../components/OrderLineSnapshots';
 import type {
-  DeliveryFailureRecovery,
-  DeliveryFailureRecoveryDecision,
   DeliveryFailureRecoveryState,
-  DeliveryFollowUpTask,
   FailedOrderRecoveryQueueResponse,
   FailedOrderRecoverySummary,
   Order,
@@ -43,34 +39,23 @@ const statusColors: Record<string, string> = {
 const statusLabels: Record<OrderStatus, string> = {
   CREATED: 'New order',
   CONFIRMATION_REQUESTED: 'Needs confirmation',
-  CONFIRMED: 'Confirmed',
+  CONFIRMED: 'Ready for delivery',
   REJECTED: 'Rejected',
-  ASSIGNED_TO_COURIER: 'Assigned',
-  PICKED_UP: 'Picked up',
+  ASSIGNED_TO_COURIER: 'In delivery',
+  PICKED_UP: 'Out for delivery',
   DELIVERED: 'Delivered',
-  FAILED: 'Failed delivery',
+  FAILED: 'Failed',
 };
 
 const statusStages: Record<OrderStatus, string> = {
-  CREATED: 'Confirm',
-  CONFIRMATION_REQUESTED: 'Confirm',
-  CONFIRMED: 'Assign',
+  CREATED: 'Needs attention',
+  CONFIRMATION_REQUESTED: 'Needs attention',
+  CONFIRMED: 'Ready for delivery',
   REJECTED: 'Closed',
-  ASSIGNED_TO_COURIER: 'Pickup',
-  PICKED_UP: 'Deliver',
+  ASSIGNED_TO_COURIER: 'In delivery',
+  PICKED_UP: 'In delivery',
   DELIVERED: 'Closed',
-  FAILED: 'Closed',
-};
-
-const nextActions: Record<OrderStatus, string> = {
-  CREATED: 'Request confirmation',
-  CONFIRMATION_REQUESTED: 'Call customer',
-  CONFIRMED: 'Assign courier',
-  REJECTED: 'No action',
-  ASSIGNED_TO_COURIER: 'Wait for pickup',
-  PICKED_UP: 'Record delivery result',
-  DELIVERED: 'Complete',
-  FAILED: 'Review failure',
+  FAILED: 'Needs review',
 };
 
 const failureReasonLabels: Record<string, string> = {
@@ -82,12 +67,6 @@ const failureReasonLabels: Record<string, string> = {
   OTHER: 'Other',
 };
 
-const recoveryDecisionLabels: Record<DeliveryFailureRecoveryDecision, string> = {
-  RETRY_DELIVERY: 'Retry delivery',
-  REFUND_OR_CUSTOMER_FOLLOW_UP: 'Refund / customer follow-up',
-  CLOSE_UNRECOVERABLE: 'Close as unreachable / unrecoverable',
-};
-
 const statuses: OrderStatus[] = [
   'CREATED',
   'CONFIRMATION_REQUESTED',
@@ -97,6 +76,15 @@ const statuses: OrderStatus[] = [
   'PICKED_UP',
   'DELIVERED',
   'FAILED',
+];
+
+const statusPresets: Array<{ value: string; label: string; statuses: OrderStatus[] }> = [
+  { value: 'ALL', label: 'All statuses', statuses: [] },
+  { value: 'NEEDS_CONFIRMATION', label: 'Needs confirmation', statuses: ['CREATED', 'CONFIRMATION_REQUESTED'] },
+  { value: 'IN_DELIVERY', label: 'In delivery', statuses: ['CONFIRMED', 'ASSIGNED_TO_COURIER', 'PICKED_UP'] },
+  { value: 'DELIVERED', label: 'Delivered', statuses: ['DELIVERED'] },
+  { value: 'FAILED', label: 'Failed', statuses: ['FAILED'] },
+  { value: 'CLOSED', label: 'Completed / closed', statuses: ['DELIVERED', 'REJECTED'] },
 ];
 
 interface OrderFilters {
@@ -178,35 +166,48 @@ function getLocationStatuses(state: OrdersLocationState | null): OrderStatus[] {
   return (state?.statuses ?? []).filter((status): status is OrderStatus => statuses.includes(status));
 }
 
+function sameStatuses(left: OrderStatus[], right: OrderStatus[]) {
+  return left.length === right.length && left.every((status) => right.includes(status));
+}
+
+function statusPresetValue(currentStatuses: OrderStatus[]) {
+  const preset = statusPresets.find((option) => sameStatuses(option.statuses, currentStatuses));
+  return preset?.value ?? 'CUSTOM';
+}
+
+function looksLikePhoneSearch(value: string) {
+  return /^[+\d][\d\s().-]{4,}$/.test(value);
+}
+
+function looksLikeOrderIdSearch(value: string) {
+  return /^[0-9a-f]{8,}/i.test(value) || /^[0-9a-f-]{12,}$/i.test(value);
+}
+
+function filtersFromSimpleSearch(value: string, currentFilters: OrderFilters): OrderFilters {
+  const nextFilters = {
+    ...currentFilters,
+    phone: '',
+    customerName: '',
+    orderId: '',
+  };
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return nextFilters;
+  }
+  if (looksLikePhoneSearch(trimmed)) {
+    return { ...nextFilters, phone: trimmed };
+  }
+  if (looksLikeOrderIdSearch(trimmed)) {
+    return { ...nextFilters, orderId: trimmed };
+  }
+  return { ...nextFilters, customerName: trimmed };
+}
+
 function formatFailureReason(reason?: string) {
   if (!reason) {
     return undefined;
   }
   return failureReasonLabels[reason] ?? reason.replace(/_/g, ' ').toLowerCase();
-}
-
-function formatRecoveryDecision(decision: DeliveryFailureRecoveryDecision | string) {
-  return recoveryDecisionLabels[decision as DeliveryFailureRecoveryDecision] ?? decision.replace(/_/g, ' ').toLowerCase();
-}
-
-function formatFollowUpDate(value?: string) {
-  return value ? new Date(value).toLocaleString() : 'No due date';
-}
-
-function failedOrderNextAction(latestRecovery?: DeliveryFailureRecovery, openFollowUp?: DeliveryFollowUpTask) {
-  if (openFollowUp) {
-    return 'Resolve customer follow-up';
-  }
-  if (!latestRecovery) {
-    return 'Record recovery decision';
-  }
-  if (latestRecovery.decision === 'RETRY_DELIVERY') {
-    return 'Move to assignment';
-  }
-  if (latestRecovery.decision === 'CLOSE_UNRECOVERABLE') {
-    return 'Recovery closed';
-  }
-  return 'Review recovery';
 }
 
 function orderMovedToAssignment(order: Order): Order {
@@ -218,6 +219,90 @@ function orderMovedToAssignment(order: Order): Order {
     updatedAt: new Date().toISOString(),
     version: order.version + 1,
   };
+}
+
+type RecoveryTone = 'gray' | 'red' | 'amber' | 'blue' | 'green';
+
+const recoveryTones: Record<RecoveryTone, string> = {
+  gray: 'bg-gray-100 text-gray-700',
+  red: 'bg-red-100 text-red-800',
+  amber: 'bg-amber-100 text-amber-800',
+  blue: 'bg-blue-100 text-blue-800',
+  green: 'bg-emerald-100 text-emerald-800',
+};
+
+interface RecoveryListStatus {
+  label: string;
+  actionLabel: string;
+  tone: RecoveryTone;
+  retryReady: boolean;
+}
+
+function recoveryListStatus(summary?: FailedOrderRecoverySummary): RecoveryListStatus {
+  const latestRecovery = summary?.latestRecovery ?? undefined;
+  const openFollowUp = summary?.openFollowUp ?? undefined;
+
+  if (!latestRecovery) {
+    return {
+      label: 'Needs Decision',
+      actionLabel: 'Continue Recovery',
+      tone: 'red',
+      retryReady: false,
+    };
+  }
+
+  if (openFollowUp) {
+    return {
+      label: 'Follow-up Required',
+      actionLabel: 'Continue Follow-up',
+      tone: 'amber',
+      retryReady: false,
+    };
+  }
+
+  if (latestRecovery.decision === 'RETRY_DELIVERY') {
+    return {
+      label: 'Retry Ready',
+      actionLabel: 'Return to Assignment',
+      tone: 'blue',
+      retryReady: true,
+    };
+  }
+
+  if (latestRecovery.decision === 'REFUND_OR_CUSTOMER_FOLLOW_UP') {
+    return {
+      label: 'Refund Review',
+      actionLabel: 'Review Refund',
+      tone: 'amber',
+      retryReady: false,
+    };
+  }
+
+  return {
+    label: 'Recovery Closed',
+    actionLabel: 'View Details',
+    tone: 'gray',
+    retryReady: false,
+  };
+}
+
+function orderActionLabel(order: Order, recoveryStatus?: RecoveryListStatus) {
+  if (order.status === 'FAILED') {
+    return recoveryStatus?.actionLabel ?? 'Continue Recovery';
+  }
+  if (order.status === 'CREATED' || order.status === 'CONFIRMATION_REQUESTED') {
+    return 'Continue Confirmation';
+  }
+  if (order.status === 'CONFIRMED') {
+    return 'Assign Courier';
+  }
+  if (order.status === 'ASSIGNED_TO_COURIER') {
+    return 'Courier Details';
+  }
+  if (order.status === 'PICKED_UP') {
+    return 'Delivery Details';
+  }
+  return 'View Details';
 }
 
 function updateRecoveryQueueAfterRetry(pageData: FailedOrderRecoveryQueueResponse | undefined, orderId: string) {
@@ -284,6 +369,10 @@ export default function OrdersList() {
     ...emptyFilters,
     statuses: initialStatuses,
   }));
+  const [simpleSearch, setSimpleSearch] = useState('');
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(
+    statusPresetValue(initialStatuses) === 'CUSTOM' || initialFailureRecoveryFilter !== 'ALL',
+  );
   const [recoveryFocus, setRecoveryFocus] = useState(Boolean(locationState?.recoveryFocus || locationState?.failureRecoveryFilter));
   const [failureRecoveryFilter, setFailureRecoveryFilter] = useState<FailureRecoveryFilter>(initialFailureRecoveryFilter);
   const [selectedSavedViewId, setSelectedSavedViewId] = useState('');
@@ -416,7 +505,7 @@ export default function OrdersList() {
     confirm: countByStatus(orders, 'CREATED') + countByStatus(orders, 'CONFIRMATION_REQUESTED'),
     courier:
       countByStatus(orders, 'CONFIRMED') + countByStatus(orders, 'ASSIGNED_TO_COURIER') + countByStatus(orders, 'PICKED_UP'),
-    closed: countByStatus(orders, 'DELIVERED') + countByStatus(orders, 'FAILED') + countByStatus(orders, 'REJECTED'),
+    closed: countByStatus(orders, 'DELIVERED') + countByStatus(orders, 'REJECTED'),
     failed: isFailureRecoveryView ? recoveryCounts?.all ?? 0 : visibleFailedOrders.length,
   };
   const recoveryFilterCounts = new Map<FailureRecoveryFilter, number>(
@@ -433,35 +522,12 @@ export default function OrdersList() {
     ]),
   );
   const displayedOrders = orders;
-
-  const quickResolveFollowUpMutation = useMutation({
-    mutationFn: ({ orderId, taskId }: { orderId: string; taskId: string }) => resolveDeliveryFollowUp(orderId, taskId),
-    onSuccess: async (task, variables) => {
-      queryClient.setQueryData<DeliveryFollowUpTask[] | undefined>(
-        ['delivery-follow-ups', variables.orderId],
-        (currentTasks) => currentTasks?.map((currentTask) => currentTask.taskId === task.taskId ? task : currentTask) ?? [task],
-      );
-      queryClient.setQueriesData<FailedOrderRecoverySummary[] | undefined>(
-        { queryKey: ['failed-order-recovery-summaries'] },
-        (currentSummaries) => currentSummaries?.map((summary) => (
-          summary.orderId === variables.orderId
-            ? {
-                ...summary,
-                openFollowUp: summary.openFollowUp?.taskId === task.taskId ? null : summary.openFollowUp,
-                latestFollowUp: task,
-              }
-            : summary
-        )),
-      );
-      await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups', variables.orderId] });
-      await queryClient.invalidateQueries({ queryKey: ['failed-order-recovery-summaries'] });
-      await queryClient.invalidateQueries({ queryKey: ['failed-order-recovery-queue'] });
-      await queryClient.invalidateQueries({ queryKey: ['delivery-follow-ups-summary'] });
-      await queryClient.invalidateQueries({ queryKey: ['order-timeline', variables.orderId] });
-      await queryClient.invalidateQueries({ queryKey: ['orders'] });
-      await queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
-    },
-  });
+  const selectedStatusPreset = statusPresetValue(filters.statuses);
+  const advancedFiltersActive = selectedStatusPreset === 'CUSTOM'
+    || Boolean(filters.courierId)
+    || failureRecoveryFilter !== 'ALL'
+    || selectedSavedViewId !== ''
+    || size !== 20;
 
   const quickRetryMutation = useMutation({
     mutationFn: (orderId: string) => retryFailedDelivery(orderId),
@@ -522,6 +588,25 @@ export default function OrdersList() {
     setPage(0);
   }
 
+  function updatePreciseSearchFilter<K extends 'customerName' | 'phone' | 'orderId'>(key: K, value: OrderFilters[K]) {
+    setSimpleSearch('');
+    updateFilter(key, value);
+  }
+
+  function updateSimpleSearch(value: string) {
+    setSimpleSearch(value);
+    setFilters((currentFilters) => filtersFromSimpleSearch(value, currentFilters));
+    setPage(0);
+  }
+
+  function applyStatusPreset(presetValue: string) {
+    const preset = statusPresets.find((option) => option.value === presetValue);
+    if (!preset) {
+      return;
+    }
+    updateFilter('statuses', preset.statuses);
+  }
+
   function toggleStatus(status: OrderStatus) {
     const nextStatuses = filters.statuses.includes(status)
       ? filters.statuses.filter((currentStatus) => currentStatus !== status)
@@ -537,6 +622,8 @@ export default function OrdersList() {
       return;
     }
     const nextFilters = savedPayloadToFilters(savedView.filters);
+    setSimpleSearch('');
+    setAdvancedFiltersOpen(true);
     setFilters(nextFilters);
     setRecoveryFocus(nextFilters.statuses.includes('FAILED'));
     if (!nextFilters.statuses.includes('FAILED')) {
@@ -547,15 +634,18 @@ export default function OrdersList() {
   }
 
   function clearFilters() {
+    setSimpleSearch('');
     setFilters(emptyFilters);
     setRecoveryFocus(false);
     setFailureRecoveryFilter('ALL');
     setSelectedSavedViewId('');
     setSavedViewName('');
+    setAdvancedFiltersOpen(false);
     setPage(0);
   }
 
   function applyFailedRecoveryView() {
+    setSimpleSearch('');
     setFilters({
       ...emptyFilters,
       statuses: ['FAILED'],
@@ -564,6 +654,7 @@ export default function OrdersList() {
     setFailureRecoveryFilter('ALL');
     setSelectedSavedViewId('');
     setSavedViewName('');
+    setAdvancedFiltersOpen(false);
     setPage(0);
   }
 
@@ -572,7 +663,7 @@ export default function OrdersList() {
       <div className="flex flex-wrap justify-between items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Orders</h2>
-          <p className="text-sm text-gray-500">{totalElements} total orders across confirmation, courier, and closed stages</p>
+          <p className="text-sm text-gray-500">{totalElements} total orders across attention, progress, closed, and review states</p>
         </div>
         <Link
           to="/app/orders/new"
@@ -584,59 +675,61 @@ export default function OrdersList() {
       </div>
 
       <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <JourneyMetric title="Needs confirmation" value={visibleJourneyCounts.confirm} detail="New or waiting for customer call" tone="blue" />
-        <JourneyMetric title="Courier workflow" value={visibleJourneyCounts.courier} detail="Confirmed, assigned, or picked up" tone="amber" />
-        <JourneyMetric title="Closed orders" value={visibleJourneyCounts.closed} detail="Delivered, failed, or rejected" tone="green" />
-        <JourneyMetric title="Failed recovery" value={visibleJourneyCounts.failed} detail="Visible failures needing review" tone="red" />
+        <JourneyMetric title="Needs attention" value={visibleJourneyCounts.confirm} detail="New orders or waiting for confirmation" tone="blue" />
+        <JourneyMetric title="In progress" value={visibleJourneyCounts.courier} detail="Confirmed, assigned, or in delivery" tone="amber" />
+        <JourneyMetric title="Completed / closed" value={visibleJourneyCounts.closed} detail="Delivered or rejected orders" tone="green" />
+        <JourneyMetric title="Failed / needs review" value={visibleJourneyCounts.failed} detail="Failed deliveries needing review" tone="red" />
       </section>
 
       {isFailureRecoveryView && (
-        <section className="rounded-lg border border-red-200 bg-red-50 px-4 py-4">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-red-950">Failed delivery recovery</p>
-              <p className="mt-1 max-w-3xl text-sm text-red-800">
-                Use this view to see the current recovery state. Record decisions on the order detail page; retry-ready
-                orders can still be moved back to assignment from here.
+        <details className="rounded-lg border border-red-200 bg-red-50 px-4 py-4">
+          <summary className="cursor-pointer text-sm font-semibold text-red-950">
+            Failed delivery recovery
+          </summary>
+          <div className="mt-4">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <p className="max-w-3xl text-sm text-red-800">
+                Review failed delivery states when you need recovery decisions, customer follow-up, retry assignment, or
+                courier performance context.
               </p>
+              <Link
+                to="/app/couriers/performance"
+                className="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
+              >
+                Review courier performance
+              </Link>
             </div>
-            <Link
-              to="/app/couriers/performance"
-              className="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
-            >
-              Review courier performance
-            </Link>
-          </div>
-          <div className="mt-4 flex flex-wrap gap-2">
-            {failureRecoveryFilters.map((filterOption) => {
-              const isActive = failureRecoveryFilter === filterOption.value;
-              const count = recoveryFilterCounts.get(filterOption.value) ?? 0;
+            <div className="mt-4 flex flex-wrap gap-2">
+              {failureRecoveryFilters.map((filterOption) => {
+                const isActive = failureRecoveryFilter === filterOption.value;
+                const count = recoveryFilterCounts.get(filterOption.value) ?? 0;
 
-              return (
-                <button
-                  key={filterOption.value}
-                  type="button"
-                  onClick={() => setFailureRecoveryFilter(filterOption.value)}
-                  className={`rounded-md border px-3 py-2 text-left text-sm ${
-                    isActive
-                      ? 'border-red-500 bg-white text-red-950'
-                      : 'border-red-200 bg-red-50 text-red-800 hover:bg-white'
-                  }`}
-                >
-                  <span className="block font-semibold">{filterOption.label} ({count})</span>
-                  <span className="block text-xs text-red-700">{filterOption.detail}</span>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={filterOption.value}
+                    type="button"
+                    onClick={() => setFailureRecoveryFilter(filterOption.value)}
+                    className={`rounded-md border px-3 py-2 text-left text-sm ${
+                      isActive
+                        ? 'border-red-500 bg-white text-red-950'
+                        : 'border-red-200 bg-red-50 text-red-800 hover:bg-white'
+                    }`}
+                  >
+                    <span className="block font-semibold">{filterOption.label} ({count})</span>
+                    <span className="block text-xs text-red-700">{filterOption.detail}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </section>
+        </details>
       )}
 
       <div className="space-y-4 bg-white border border-gray-200 rounded-lg px-4 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold uppercase text-gray-500">Search and filters</h3>
-            <p className="mt-1 text-sm text-gray-600">Find orders by customer, courier, status, or recovery state.</p>
+            <p className="mt-1 text-sm text-gray-600">Find orders quickly, then open advanced filters for operations work.</p>
           </div>
           <button
             type="button"
@@ -648,64 +741,37 @@ export default function OrdersList() {
           </button>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700" htmlFor="customer-name">
-              Customer
+            <label className="block text-sm font-medium text-gray-700" htmlFor="order-search">
+              Search
             </label>
             <input
-              id="customer-name"
-              value={filters.customerName}
-              onChange={(event) => updateFilter('customerName', event.target.value)}
-              placeholder="Name"
+              id="order-search"
+              value={simpleSearch}
+              onChange={(event) => updateSimpleSearch(event.target.value)}
+              placeholder="Customer, phone, or order ID"
               className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700" htmlFor="phone">
-              Phone
-            </label>
-            <input
-              id="phone"
-              value={filters.phone}
-              onChange={(event) => updateFilter('phone', event.target.value)}
-              placeholder="0600000000"
-              className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700" htmlFor="order-id">
-              Order ID
-            </label>
-            <input
-              id="order-id"
-              value={filters.orderId}
-              onChange={(event) => updateFilter('orderId', event.target.value)}
-              placeholder="Full or partial ID"
-              className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700" htmlFor="courier">
-              Courier
+            <label className="block text-sm font-medium text-gray-700" htmlFor="status-preset">
+              Status
             </label>
             <select
-              id="courier"
-              value={filters.courierId}
-              onChange={(event) => updateFilter('courierId', event.target.value)}
+              id="status-preset"
+              value={selectedStatusPreset}
+              onChange={(event) => applyStatusPreset(event.target.value)}
               className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
             >
-              <option value="">All couriers</option>
-              {couriers.map((courier) => (
-                <option key={courier.courierId} value={courier.courierId}>
-                  {courier.name}
+              {selectedStatusPreset === 'CUSTOM' && <option value="CUSTOM" disabled>Custom advanced statuses</option>}
+              {statusPresets.map((preset) => (
+                <option key={preset.value} value={preset.value}>
+                  {preset.label}
                 </option>
               ))}
             </select>
           </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-4">
           <div>
             <label className="block text-sm font-medium text-gray-700" htmlFor="created-from">
               From
@@ -731,30 +797,11 @@ export default function OrdersList() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700" htmlFor="page-size">
-              Page size
-            </label>
-            <select
-              id="page-size"
-              value={size}
-              onChange={(event) => {
-                setSize(Number(event.target.value));
-                setPage(0);
-              }}
-              className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              {[10, 20, 50, 100].map((pageSize) => (
-                <option key={pageSize} value={pageSize}>
-                  {pageSize}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-end">
+            <span className="block text-sm font-medium text-transparent">Clear</span>
             <button
               type="button"
               onClick={clearFilters}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <X size={16} />
               Clear
@@ -762,83 +809,209 @@ export default function OrdersList() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {statuses.map((statusOption) => (
-            <label
-              key={statusOption}
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 px-3 text-sm text-gray-700"
-            >
-              <input
-                type="checkbox"
-                checked={filters.statuses.includes(statusOption)}
-                onChange={() => toggleStatus(statusOption)}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-              />
-              {statusOption.replace(/_/g, ' ')}
-              <span className="text-xs text-gray-400">({statusLabels[statusOption]})</span>
-            </label>
-          ))}
-        </div>
+        <details
+          className="border-t border-gray-100 pt-4"
+          open={advancedFiltersOpen}
+          onToggle={(event) => setAdvancedFiltersOpen(event.currentTarget.open)}
+        >
+          <summary className="cursor-pointer text-sm font-semibold text-gray-700">
+            Advanced filters
+            {advancedFiltersActive && (
+              <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                Active
+              </span>
+            )}
+          </summary>
 
-        <div className="flex flex-wrap items-end gap-3 border-t border-gray-100 pt-4">
-          <div className="min-w-56">
-            <label className="block text-sm font-medium text-gray-700" htmlFor="saved-view">
-              Saved view
-            </label>
-            <select
-              id="saved-view"
-              value={selectedSavedViewId}
-              onChange={(event) => applySavedView(event.target.value)}
-              className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value="">No saved view</option>
-              {savedViews.map((savedView) => (
-                <option key={savedView.viewId} value={savedView.viewId}>
-                  {savedView.name}
-                </option>
-              ))}
-            </select>
+          <div className="mt-4 space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700" htmlFor="courier">
+                  Courier
+                </label>
+                <select
+                  id="courier"
+                  value={filters.courierId}
+                  onChange={(event) => updateFilter('courierId', event.target.value)}
+                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value="">All couriers</option>
+                  {couriers.map((courier) => (
+                    <option key={courier.courierId} value={courier.courierId}>
+                      {courier.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700" htmlFor="recovery-state">
+                  Failed recovery state
+                </label>
+                <select
+                  id="recovery-state"
+                  value={failureRecoveryFilter}
+                  onChange={(event) => {
+                    const nextRecoveryFilter = event.target.value as FailureRecoveryFilter;
+                    setFailureRecoveryFilter(nextRecoveryFilter);
+                    if (nextRecoveryFilter !== 'ALL' && !filters.statuses.includes('FAILED')) {
+                      updateFilter('statuses', ['FAILED']);
+                    }
+                    setPage(0);
+                  }}
+                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                >
+                  {failureRecoveryFilters.map((filterOption) => (
+                    <option key={filterOption.value} value={filterOption.value}>
+                      {filterOption.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700" htmlFor="page-size">
+                  Page size
+                </label>
+                <select
+                  id="page-size"
+                  value={size}
+                  onChange={(event) => {
+                    setSize(Number(event.target.value));
+                    setPage(0);
+                  }}
+                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                >
+                  {[10, 20, 50, 100].map((pageSize) => (
+                    <option key={pageSize} value={pageSize}>
+                      {pageSize}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-500">Precise search fields</p>
+              <div className="mt-2 grid gap-3 md:grid-cols-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700" htmlFor="customer-name">
+                    Customer
+                  </label>
+                  <input
+                    id="customer-name"
+                    value={filters.customerName}
+                    onChange={(event) => updatePreciseSearchFilter('customerName', event.target.value)}
+                    placeholder="Name"
+                    className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700" htmlFor="phone">
+                    Phone
+                  </label>
+                  <input
+                    id="phone"
+                    value={filters.phone}
+                    onChange={(event) => updatePreciseSearchFilter('phone', event.target.value)}
+                    placeholder="0600000000"
+                    className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700" htmlFor="order-id">
+                    Order ID
+                  </label>
+                  <input
+                    id="order-id"
+                    value={filters.orderId}
+                    onChange={(event) => updatePreciseSearchFilter('orderId', event.target.value)}
+                    placeholder="Full or partial ID"
+                    className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase text-gray-500">Lifecycle status</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {statuses.map((statusOption) => (
+                  <label
+                    key={statusOption}
+                    className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 px-3 text-sm text-gray-700"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={filters.statuses.includes(statusOption)}
+                      onChange={() => toggleStatus(statusOption)}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    {statusLabels[statusOption]}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-end gap-3 border-t border-gray-100 pt-4">
+              <div className="min-w-56">
+                <label className="block text-sm font-medium text-gray-700" htmlFor="saved-view">
+                  Saved view
+                </label>
+                <select
+                  id="saved-view"
+                  value={selectedSavedViewId}
+                  onChange={(event) => applySavedView(event.target.value)}
+                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                >
+                  <option value="">No saved view</option>
+                  {savedViews.map((savedView) => (
+                    <option key={savedView.viewId} value={savedView.viewId}>
+                      {savedView.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-56">
+                <label className="block text-sm font-medium text-gray-700" htmlFor="saved-view-name">
+                  View name
+                </label>
+                <input
+                  id="saved-view-name"
+                  value={savedViewName}
+                  onChange={(event) => setSavedViewName(event.target.value)}
+                  placeholder="Save current filters"
+                  className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => createSavedViewMutation.mutate()}
+                disabled={!savedViewName.trim() || createSavedViewMutation.isPending}
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                <Bookmark size={16} />
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => selectedSavedView && updateSavedViewMutation.mutate(selectedSavedView)}
+                disabled={!selectedSavedView || updateSavedViewMutation.isPending}
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <Save size={16} />
+                Update
+              </button>
+              <button
+                type="button"
+                onClick={() => selectedSavedView && deleteSavedViewMutation.mutate(selectedSavedView.viewId)}
+                disabled={!selectedSavedView || deleteSavedViewMutation.isPending}
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+              >
+                <Trash2 size={16} />
+                Delete
+              </button>
+            </div>
           </div>
-          <div className="min-w-56">
-            <label className="block text-sm font-medium text-gray-700" htmlFor="saved-view-name">
-              View name
-            </label>
-            <input
-              id="saved-view-name"
-              value={savedViewName}
-              onChange={(event) => setSavedViewName(event.target.value)}
-              placeholder="Save current filters"
-              className="mt-1 w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => createSavedViewMutation.mutate()}
-            disabled={!savedViewName.trim() || createSavedViewMutation.isPending}
-            className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            <Bookmark size={16} />
-            Save
-          </button>
-          <button
-            type="button"
-            onClick={() => selectedSavedView && updateSavedViewMutation.mutate(selectedSavedView)}
-            disabled={!selectedSavedView || updateSavedViewMutation.isPending}
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-300 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-          >
-            <Save size={16} />
-            Update
-          </button>
-          <button
-            type="button"
-            onClick={() => selectedSavedView && deleteSavedViewMutation.mutate(selectedSavedView.viewId)}
-            disabled={!selectedSavedView || deleteSavedViewMutation.isPending}
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-red-200 px-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
-          >
-            <Trash2 size={16} />
-            Delete
-          </button>
-        </div>
+        </details>
       </div>
 
       {error && (
@@ -853,183 +1026,124 @@ export default function OrdersList() {
           )}
         </div>
       )}
-      {(quickRetryMutation.error || quickResolveFollowUpMutation.error) && (
+      {quickRetryMutation.error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {getErrorMessage(quickRetryMutation.error ?? quickResolveFollowUpMutation.error)}
+          {getErrorMessage(quickRetryMutation.error)}
         </div>
       )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1080px] text-left border-collapse">
+          <table className="w-full min-w-[960px] text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 text-sm text-gray-500 uppercase tracking-wider">
-                <th className="p-4 font-medium">ID</th>
-                <th className="p-4 font-medium">Customer</th>
-                <th className="p-4 font-medium">Products</th>
-                <th className="p-4 font-medium">Amount</th>
-                <th className="p-4 font-medium">Courier</th>
-                <th className="p-4 font-medium">Status</th>
-                <th className="p-4 font-medium">Next action</th>
-                <th className="p-4 font-medium">Recovery</th>
-                <th className="p-4 font-medium">Date</th>
+                <th className="px-4 py-3 font-medium">Order ID</th>
+                <th className="px-4 py-3 font-medium">Customer</th>
+                <th className="px-4 py-3 font-medium">Product</th>
+                <th className="px-4 py-3 font-medium">Amount</th>
+                <th className="px-4 py-3 font-medium">Current Status</th>
+                <th className="px-4 py-3 font-medium">Recovery Status</th>
+                <th className="px-4 py-3 font-medium">Date</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
               {displayedOrders.map((order) => {
                 const failureReason = formatFailureReason(order.failureReason);
                 const recoverySummary = recoverySummariesByOrderId.get(order.id);
-                const latestFailureRecovery = recoverySummary?.latestRecovery ?? undefined;
-                const openFollowUp = recoverySummary?.openFollowUp ?? undefined;
-                const latestFollowUp = recoverySummary?.latestFollowUp ?? undefined;
-                const canMoveToAssignment = latestFailureRecovery?.decision === 'RETRY_DELIVERY';
-                const failedAction = failedOrderNextAction(latestFailureRecovery, openFollowUp);
+                const recoveryStatus = order.status === 'FAILED' ? recoveryListStatus(recoverySummary) : undefined;
+                const recoverySummaryUnavailable = order.status === 'FAILED' && Boolean(recoverySummariesError);
+                const recoverySummaryPending = order.status === 'FAILED' && isFetchingRecoverySummaries && !recoverySummary;
                 const productSummary = orderLineSummary(order.orderLines);
-                const isResolvingThisOrder = quickResolveFollowUpMutation.isPending
-                  && quickResolveFollowUpMutation.variables?.orderId === order.id;
                 const isRetryingThisOrder = quickRetryMutation.isPending
                   && quickRetryMutation.variables === order.id;
+                const actionLabel = recoverySummaryUnavailable || recoverySummaryPending
+                  ? 'View Details'
+                  : orderActionLabel(order, recoveryStatus);
+                const showRetryAction = recoveryStatus?.retryReady && !recoverySummaryUnavailable && !recoverySummaryPending;
 
                 return (
-                  <tr key={order.id} className={order.status === 'FAILED' ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-gray-50'}>
-                    <td className="p-4 font-mono text-gray-500">
+                  <tr key={order.id} className={order.status === 'FAILED' ? 'bg-red-50/40 hover:bg-red-50' : 'hover:bg-gray-50'}>
+                    <td className="px-4 py-3 font-mono text-gray-500">
                       <Link to={`/app/orders/${order.id}`} className="text-blue-600 hover:underline">
                         {order.id.slice(0, 8)}...
                       </Link>
                     </td>
-                    <td className="p-4">
+                    <td className="px-4 py-3">
                       <p className="font-medium text-gray-900">
                         {order.customer.firstName} {order.customer.lastName}
                       </p>
                       <p className="text-gray-500">{order.customer.phone}</p>
                     </td>
-                    <td className="p-4">
+                    <td className="px-4 py-3">
                       {productSummary ? (
                         <span className="text-sm font-medium text-gray-800">{productSummary}</span>
                       ) : (
                         <span className="text-sm text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
-                    <td className="p-4 text-gray-500">
-                      {couriers.find((courier) => courier.courierId === order.courierId)?.name ?? order.courierId ?? '-'}
-                    </td>
-                    <td className="p-4">
+                    <td className="px-4 py-3 font-medium">{order.amount.toFixed(2)} MAD</td>
+                    <td className="px-4 py-3">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
                         {statusLabels[order.status]}
                       </span>
-                      <p className="mt-1 text-xs text-gray-500">{statusStages[order.status]} stage</p>
+                      <p className="mt-1 text-xs text-gray-500">{statusStages[order.status]}</p>
                     </td>
-                    <td className="p-4">
-                      <span className="text-sm font-medium text-gray-900">
-                        {order.status === 'FAILED' ? failedAction : nextActions[order.status]}
-                      </span>
-                    </td>
-                    <td className="p-4">
+                    <td className="px-4 py-3">
                       {order.status === 'FAILED' ? (
-                        <div className="max-w-sm space-y-3">
-                          <p className="text-sm font-medium text-red-900">
-                            Reason: {failureReason ?? 'Not recorded'}
-                          </p>
-                          <div className="rounded-md border border-red-100 bg-white p-3">
-                            <p className="text-xs font-semibold uppercase text-gray-500">Latest recovery</p>
-                            {recoverySummariesError ? (
-                              <p className="mt-1 text-xs text-red-700">{getErrorMessage(recoverySummariesError)}</p>
-                            ) : isFetchingRecoverySummaries && !recoverySummary ? (
-                              <p className="mt-1 text-sm font-semibold text-gray-500">Loading recovery state...</p>
-                            ) : latestFailureRecovery ? (
-                              <>
-                                <p className="mt-1 text-sm font-semibold text-gray-900">
-                                  {formatRecoveryDecision(latestFailureRecovery.decision)}
-                                </p>
-                                {latestFailureRecovery.note && (
-                                  <p className="mt-1 text-xs text-gray-600">{latestFailureRecovery.note}</p>
-                                )}
-                                {openFollowUp && (
-                                  <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-xs text-amber-900">
-                                    <p className="font-semibold">Open follow-up</p>
-                                    <p>Owner: {openFollowUp.assignedTo}</p>
-                                    <p>Due: {formatFollowUpDate(openFollowUp.dueAt)}</p>
-                                  </div>
-                                )}
-                                {!openFollowUp && latestFollowUp && (
-                                  <p className="mt-2 text-xs text-gray-500">
-                                    Follow-up task: {latestFollowUp.status === 'RESOLVED' ? 'Resolved' : latestFollowUp.status}
-                                  </p>
-                                )}
-                              </>
-                            ) : (
-                              <p className="mt-1 text-sm font-semibold text-red-800">No recovery decision recorded</p>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            {!latestFailureRecovery && (
-                              <Link
-                                to={`/app/orders/${order.id}`}
-                                className="inline-flex items-center rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800"
-                              >
-                                Record decision
-                              </Link>
-                            )}
-                            {openFollowUp && (
-                              <button
-                                type="button"
-                                onClick={() => quickResolveFollowUpMutation.mutate({
-                                  orderId: order.id,
-                                  taskId: openFollowUp.taskId,
-                                })}
-                                disabled={isRetryingThisOrder || isResolvingThisOrder}
-                                className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
-                              >
-                                {isResolvingThisOrder ? 'Resolving...' : 'Mark follow-up resolved'}
-                              </button>
-                            )}
-                            {canMoveToAssignment && (
-                              <button
-                                type="button"
-                                onClick={() => quickRetryMutation.mutate(order.id)}
-                                disabled={isRetryingThisOrder || isResolvingThisOrder}
-                                className="rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50 disabled:opacity-50"
-                              >
-                                {isRetryingThisOrder ? 'Moving...' : 'Move to assignment'}
-                              </button>
-                            )}
-                            <Link
-                              to={`/app/orders/${order.id}`}
-                              className="inline-flex items-center rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50"
-                            >
-                              Open recovery detail
-                            </Link>
-                          </div>
-                          {!latestFailureRecovery && (
-                            <p className="text-xs text-gray-500">Open the order detail to choose retry, customer follow-up, or closure.</p>
+                        <div className="space-y-1">
+                          {recoverySummariesError ? (
+                            <span className="text-sm font-medium text-red-700">Recovery unavailable</span>
+                          ) : isFetchingRecoverySummaries && !recoverySummary ? (
+                            <span className="text-sm font-medium text-gray-500">Loading...</span>
+                          ) : (
+                            <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${recoveryTones[recoveryStatus?.tone ?? 'red']}`}>
+                              {recoveryStatus?.label}
+                            </span>
                           )}
-                          {latestFailureRecovery && !canMoveToAssignment && !openFollowUp && (
-                            <p className="text-xs text-gray-500">
-                              {latestFailureRecovery.decision === 'CLOSE_UNRECOVERABLE'
-                                ? 'Recovery is closed as unreachable or unrecoverable. Open detail only if new information arrives.'
-                                : 'No row action is pending. Open the detail page to review or record another decision.'}
-                            </p>
-                          )}
+                          <p className="text-xs text-gray-500">Reason: {failureReason ?? 'Not recorded'}</p>
                         </div>
                       ) : (
                         <span className="text-sm text-gray-400">-</span>
                       )}
                     </td>
-                    <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3">
+                      {showRetryAction ? (
+                        <button
+                          type="button"
+                          onClick={() => quickRetryMutation.mutate(order.id)}
+                          disabled={isRetryingThisOrder}
+                          className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {isRetryingThisOrder ? 'Returning...' : actionLabel}
+                        </button>
+                      ) : (
+                        <Link
+                          to={`/app/orders/${order.id}`}
+                          className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium ${
+                            order.status === 'FAILED'
+                              ? 'bg-red-700 text-white hover:bg-red-800'
+                              : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {actionLabel}
+                        </Link>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
               {!isLoading && displayedOrders.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-500">
+                  <td colSpan={8} className="p-8 text-center text-gray-500">
                     {isFailureRecoveryView ? 'No failed orders match this recovery filter.' : 'No orders found.'}
                   </td>
                 </tr>
               )}
               {isLoading && (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-500">
+                  <td colSpan={8} className="p-8 text-center text-gray-500">
                     Loading orders...
                   </td>
                 </tr>

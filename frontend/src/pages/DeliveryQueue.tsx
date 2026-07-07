@@ -4,6 +4,7 @@ import { CheckCircle2, ChevronLeft, ChevronRight, XCircle } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   type DeliveryFailureReason,
+  type Order,
   fetchCouriers,
   fetchDeliveryQueue,
   getErrorMessage,
@@ -48,6 +49,7 @@ export default function DeliveryQueue() {
   const [createdTo, setCreatedTo] = useState('');
   const [failureForms, setFailureForms] = useState<Record<string, { reason: DeliveryFailureReason; note: string }>>({});
   const [deliveryConfirmationId, setDeliveryConfirmationId] = useState<string | null>(null);
+  const [failureReviewOrderId, setFailureReviewOrderId] = useState<string | null>(null);
 
   const {
     data: queuePage,
@@ -68,6 +70,7 @@ export default function DeliveryQueue() {
     mutationFn: (orderId: string) => markDelivered(orderId),
     onSuccess: async () => {
       setDeliveryConfirmationId(null);
+      setFailureReviewOrderId(null);
       await invalidateDeliveryData();
     },
   });
@@ -77,6 +80,7 @@ export default function DeliveryQueue() {
       markFailed(orderId, reason, note),
     onSuccess: async () => {
       setDeliveryConfirmationId(null);
+      setFailureReviewOrderId(null);
       await invalidateDeliveryData();
     },
   });
@@ -109,6 +113,12 @@ export default function DeliveryQueue() {
   const mutationError = deliveredMutation.error ?? failedMutation.error;
   const mutationPending = deliveredMutation.isPending || failedMutation.isPending;
   const highlightedOrder = pickedUpOrderId ? orders.find((order) => order.id === pickedUpOrderId) : undefined;
+  const deliveryConfirmationOrder = deliveryConfirmationId
+    ? orders.find((order) => order.id === deliveryConfirmationId) ?? null
+    : null;
+  const failureReviewOrder = failureReviewOrderId
+    ? orders.find((order) => order.id === failureReviewOrderId) ?? null
+    : null;
 
   function resetFilters() {
     setCourierId('');
@@ -260,27 +270,27 @@ export default function DeliveryQueue() {
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-left text-sm">
+          <table className="w-full min-w-[820px] text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
                 <th className="p-4 font-medium">Order</th>
                 <th className="p-4 font-medium">Customer</th>
                 <th className="p-4 font-medium">Courier</th>
-                <th className="p-4 font-medium">Next action</th>
-                <th className="p-4 font-medium">Failure reason</th>
-                <th className="p-4 font-medium">Outcome</th>
+                <th className="p-4 font-medium">Stage</th>
+                <th className="p-4 font-medium">Created</th>
+                <th className="p-4 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {orders.map((order) => {
-                const failureForm = getFailureForm(order.id);
                 const highlighted = pickedUpOrderId === order.id;
-                const confirmingDelivered = deliveryConfirmationId === order.id;
 
                 return (
                   <tr key={order.id} className={`hover:bg-gray-50 ${highlighted ? 'bg-green-50' : ''}`}>
                     <td className="p-4">
-                      <p className="font-mono text-gray-600">{order.id.slice(0, 8)}...</p>
+                      <Link to={`/app/orders/${order.id}`} className="font-mono text-blue-600 hover:underline">
+                        {shortId(order.id)}
+                      </Link>
                       {highlighted && (
                         <span className="mt-2 inline-flex rounded-full bg-green-700 px-2.5 py-1 text-xs font-semibold text-white">
                           From pickup
@@ -297,83 +307,34 @@ export default function DeliveryQueue() {
                       <p className="font-medium text-gray-900">{courierNames.get(order.courierId ?? '') ?? 'Unknown courier'}</p>
                       <p className="font-mono text-xs text-gray-500">{order.courierId}</p>
                     </td>
-                    <td className="p-4 text-gray-700">Record delivery result</td>
+                    <td className="p-4 text-gray-700">Awaiting delivery result</td>
+                    <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleString()}</td>
                     <td className="p-4">
-                      <div className="space-y-2">
-                        <select
-                          value={failureForm.reason}
-                          onChange={(event) => updateFailureForm(order.id, { reason: event.target.value as DeliveryFailureReason })}
-                          className="w-56 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={mutationPending}
+                          onClick={() => {
+                            setFailureReviewOrderId(null);
+                            setDeliveryConfirmationId(order.id);
+                          }}
+                          className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                         >
-                          {failureReasons.map((reason) => (
-                            <option key={reason} value={reason}>
-                              {failureReasonLabels[reason]}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          value={failureForm.note}
-                          onChange={(event) => updateFailureForm(order.id, { note: event.target.value })}
-                          className="w-56 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Optional note"
-                          maxLength={1000}
-                        />
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            disabled={mutationPending}
-                            onClick={() => setDeliveryConfirmationId(order.id)}
-                            className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                          >
-                            <CheckCircle2 size={16} />
-                            Delivered
-                          </button>
-                          <button
-                            type="button"
-                            disabled={mutationPending}
-                            onClick={() => {
-                              setDeliveryConfirmationId(null);
-                              failedMutation.mutate({ orderId: order.id, reason: failureForm.reason, note: failureForm.note });
-                            }}
-                            className="inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                          >
-                            <XCircle size={16} />
-                            Failed
-                          </button>
-                        </div>
-
-                        {confirmingDelivered && (
-                          <div className="rounded-md border border-green-200 bg-green-50 p-3">
-                            <p className="text-sm font-semibold text-green-950">
-                              Are you sure this delivery should be marked delivered?
-                            </p>
-                            <p className="mt-1 text-sm text-green-800">
-                              This records a successful delivery and closes the order from courier tracking.
-                            </p>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                disabled={mutationPending}
-                                onClick={() => deliveredMutation.mutate(order.id)}
-                                className="inline-flex items-center rounded-md bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
-                              >
-                                Yes, mark delivered
-                              </button>
-                              <button
-                                type="button"
-                                disabled={mutationPending}
-                                onClick={() => setDeliveryConfirmationId(null)}
-                                className="inline-flex items-center rounded-md border border-green-300 bg-white px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        )}
+                          <CheckCircle2 size={16} />
+                          Delivered
+                        </button>
+                        <button
+                          type="button"
+                          disabled={mutationPending}
+                          onClick={() => {
+                            setDeliveryConfirmationId(null);
+                            setFailureReviewOrderId(order.id);
+                          }}
+                          className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100 disabled:opacity-50"
+                        >
+                          <XCircle size={16} />
+                          Mark failed
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -419,6 +380,35 @@ export default function DeliveryQueue() {
         </div>
       </div>
 
+      {deliveryConfirmationOrder && (
+        <DeliveryOutcomePanel
+          order={deliveryConfirmationOrder}
+          courierName={courierNames.get(deliveryConfirmationOrder.courierId ?? '') ?? 'Unknown courier'}
+          mutationPending={mutationPending}
+          onCancel={() => setDeliveryConfirmationId(null)}
+          onConfirm={() => deliveredMutation.mutate(deliveryConfirmationOrder.id)}
+        />
+      )}
+
+      {failureReviewOrder && (
+        <FailureOutcomePanel
+          order={failureReviewOrder}
+          courierName={courierNames.get(failureReviewOrder.courierId ?? '') ?? 'Unknown courier'}
+          failureForm={getFailureForm(failureReviewOrder.id)}
+          mutationPending={mutationPending}
+          onChange={(updates) => updateFailureForm(failureReviewOrder.id, updates)}
+          onCancel={() => setFailureReviewOrderId(null)}
+          onConfirm={() => {
+            const failureForm = getFailureForm(failureReviewOrder.id);
+            failedMutation.mutate({
+              orderId: failureReviewOrder.id,
+              reason: failureForm.reason,
+              note: failureForm.note,
+            });
+          }}
+        />
+      )}
+
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">Page {totalPages === 0 ? 0 : page + 1} of {totalPages}</p>
         <div className="flex items-center gap-2">
@@ -446,6 +436,137 @@ export default function DeliveryQueue() {
       </div>
     </div>
   );
+}
+
+function DeliveryOutcomePanel({
+  order,
+  courierName,
+  mutationPending,
+  onCancel,
+  onConfirm,
+}: {
+  order: Order;
+  courierName: string;
+  mutationPending: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <section className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-900">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase">Delivery outcome</p>
+          <h3 className="mt-1 text-lg font-semibold text-gray-900">Mark delivered?</h3>
+          <p className="mt-1 text-sm">
+            {customerName(order)} with {courierName}. This records a successful delivery and closes the order from courier tracking.
+          </p>
+          <p className="mt-2 font-mono text-xs text-green-800">{order.id}</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={mutationPending}
+            onClick={onConfirm}
+            className="inline-flex items-center rounded-md bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
+          >
+            Yes, mark delivered
+          </button>
+          <button
+            type="button"
+            disabled={mutationPending}
+            onClick={onCancel}
+            className="inline-flex items-center rounded-md border border-green-300 bg-white px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FailureOutcomePanel({
+  order,
+  courierName,
+  failureForm,
+  mutationPending,
+  onChange,
+  onCancel,
+  onConfirm,
+}: {
+  order: Order;
+  courierName: string;
+  failureForm: { reason: DeliveryFailureReason; note: string };
+  mutationPending: boolean;
+  onChange: (updates: Partial<{ reason: DeliveryFailureReason; note: string }>) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-900">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase">Failed delivery</p>
+          <h3 className="mt-1 text-lg font-semibold text-gray-900">Document failure reason</h3>
+          <p className="mt-1 text-sm">
+            {customerName(order)} with {courierName}. A failed outcome sends this order into recovery review.
+          </p>
+          <p className="mt-2 font-mono text-xs text-red-800">{order.id}</p>
+        </div>
+        <button
+          type="button"
+          disabled={mutationPending}
+          onClick={onCancel}
+          className="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-900 hover:bg-red-100 disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[260px_minmax(0,1fr)_auto]">
+        <label>
+          <span className="mb-1 block text-sm font-medium text-red-950">Reason</span>
+          <select
+            value={failureForm.reason}
+            onChange={(event) => onChange({ reason: event.target.value as DeliveryFailureReason })}
+            className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+          >
+            {failureReasons.map((reason) => (
+              <option key={reason} value={reason}>
+                {failureReasonLabels[reason]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span className="mb-1 block text-sm font-medium text-red-950">Note</span>
+          <input
+            value={failureForm.note}
+            onChange={(event) => onChange({ note: event.target.value })}
+            className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+            placeholder="Optional courier or customer note"
+            maxLength={1000}
+          />
+        </label>
+        <button
+          type="button"
+          disabled={mutationPending}
+          onClick={onConfirm}
+          className="self-end rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+        >
+          {mutationPending ? 'Recording...' : 'Record failed'}
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function customerName(order: Order) {
+  return `${order.customer.firstName} ${order.customer.lastName}`;
+}
+
+function shortId(id: string) {
+  return `${id.slice(0, 8)}...`;
 }
 
 function toStartIso(value: string): string | undefined {

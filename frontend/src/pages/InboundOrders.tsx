@@ -207,7 +207,7 @@ export default function InboundOrders() {
                   <td className="p-4">
                     <StatusBadge status={inboundOrder.status} />
                     {inboundOrder.status === 'REJECTED' && inboundOrder.rejectionReason && (
-                      <p className="mt-2 max-w-xs text-xs text-red-700">{inboundOrder.rejectionReason}</p>
+                      <p className="mt-2 line-clamp-2 max-w-xs text-xs text-red-700">{inboundOrder.rejectionReason}</p>
                     )}
                   </td>
                   <td className="p-4">
@@ -254,7 +254,7 @@ export default function InboundOrders() {
             <div className="flex min-h-80 flex-col items-center justify-center text-center text-gray-500">
               <Inbox size={32} />
               <p className="mt-3 text-sm font-medium text-gray-900">Select an inbound record</p>
-              <p className="mt-1 text-sm">Inspect raw payloads, rejection reasons, and linked order IDs here.</p>
+              <p className="mt-1 text-sm">Inspect rejection reasons, linked order IDs, and source payloads here.</p>
             </div>
           )}
 
@@ -303,12 +303,17 @@ export default function InboundOrders() {
                 </Link>
               )}
 
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase text-gray-500">Raw payload</p>
-                <pre className="max-h-96 overflow-auto rounded-md bg-gray-950 p-3 text-xs leading-5 text-gray-100">
+              <details className="rounded-md border border-gray-200 bg-gray-50 px-3 py-3">
+                <summary className="cursor-pointer text-xs font-semibold uppercase text-gray-600">
+                  Developer payload
+                </summary>
+                <p className="mt-2 text-xs text-gray-500">
+                  Source JSON used for integration debugging and rejected-payload review.
+                </p>
+                <pre className="mt-3 max-h-96 overflow-auto rounded-md bg-gray-950 p-3 text-xs leading-5 text-gray-100">
                   {formatPayload(selectedInboundOrder.rawPayload)}
                 </pre>
-              </div>
+              </details>
             </div>
           )}
         </aside>
@@ -436,7 +441,11 @@ function formatDateTime(value: string) {
   return new Date(value).toLocaleString();
 }
 
-function formatPayload(payload: string) {
+function formatPayload(payload: unknown) {
+  if (typeof payload !== 'string') {
+    return JSON.stringify(payload, null, 2);
+  }
+
   try {
     return JSON.stringify(JSON.parse(payload), null, 2);
   } catch {
