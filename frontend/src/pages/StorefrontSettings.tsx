@@ -37,6 +37,14 @@ const DEFAULT_FORM: StorefrontFormState = {
   phonePattern: '^(06|07)\\d{8}$',
 };
 
+const SUPPORT_TYPE_OPTIONS = [
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'email', label: 'Email' },
+  { value: 'website', label: 'Website' },
+  { value: 'none', label: 'None' },
+];
+
 export default function StorefrontSettings() {
   const {
     data: loadedSettings,
@@ -113,6 +121,16 @@ function StorefrontSettingsEditor({
     setForm((current) => ({ ...current, status }));
   }
 
+  function setSupportType(supportChannelType: string) {
+    setForm((current) => ({
+      ...current,
+      supportChannelType,
+      supportChannelValue: supportChannelType === 'none' ? '' : current.supportChannelValue,
+    }));
+  }
+
+  const supportValueConfig = supportValueFieldConfig(form.supportChannelType);
+  const knownSupportType = SUPPORT_TYPE_OPTIONS.some((option) => option.value === form.supportChannelType);
   const submitLabel = saveMutation.isPending
     ? 'Saving'
     : hasStorefront
@@ -221,23 +239,34 @@ function StorefrontSettingsEditor({
           </label>
           <label>
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Support type</span>
-            <input
+            <select
               value={form.supportChannelType}
-              onChange={(event) => setForm((current) => ({ ...current, supportChannelType: event.target.value }))}
+              onChange={(event) => setSupportType(event.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              maxLength={50}
-            />
+            >
+              {!knownSupportType && form.supportChannelType && (
+                <option value={form.supportChannelType}>Current: {form.supportChannelType}</option>
+              )}
+              {SUPPORT_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label className="lg:col-span-2">
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Support value</span>
             <input
+              type={supportValueConfig.type}
+              inputMode={supportValueConfig.inputMode}
               value={form.supportChannelValue}
               onChange={(event) => setForm((current) => ({ ...current, supportChannelValue: event.target.value }))}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               maxLength={255}
-              placeholder="+212600000000"
+              placeholder={supportValueConfig.placeholder}
+              disabled={form.supportChannelType === 'none'}
             />
-            <span className="mt-1 block text-xs text-gray-500">Displayed on public product pages for customer support.</span>
+            <span className="mt-1 block text-xs text-gray-500">{supportValueConfig.hint}</span>
           </label>
           <label>
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Country</span>
@@ -248,6 +277,7 @@ function StorefrontSettingsEditor({
               maxLength={2}
               required
             />
+            <span className="mt-1 block text-xs text-gray-500">Default: Morocco (MA). Controls phone validation defaults at checkout.</span>
           </label>
           <label>
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Currency</span>
@@ -258,18 +288,30 @@ function StorefrontSettingsEditor({
               maxLength={3}
               required
             />
-          </label>
-          <label className="lg:col-span-2">
-            <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Phone pattern</span>
-            <input
-              value={form.phonePattern}
-              onChange={(event) => setForm((current) => ({ ...current, phonePattern: event.target.value }))}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              maxLength={255}
-              required
-            />
+            <span className="mt-1 block text-xs text-gray-500">Default: MAD. Keep editable for non-MAD storefronts.</span>
           </label>
         </div>
+
+        <details className="mt-4 border-t border-gray-200 pt-4">
+          <summary className="cursor-pointer text-sm font-semibold uppercase text-gray-600">
+            Advanced
+          </summary>
+          <div className="mt-4 max-w-2xl">
+            <label>
+              <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Phone pattern</span>
+              <input
+                value={form.phonePattern}
+                onChange={(event) => setForm((current) => ({ ...current, phonePattern: event.target.value }))}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                maxLength={255}
+                required
+              />
+              <span className="mt-1 block text-xs text-gray-500">
+                Used to validate customer phone numbers at checkout.
+              </span>
+            </label>
+          </div>
+        </details>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
@@ -288,34 +330,42 @@ function StorefrontSettingsEditor({
         </div>
       </form>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="flex items-center gap-2">
-            <Globe2 size={18} className="text-blue-700" />
-            <h3 className="text-sm font-semibold uppercase text-gray-500">Testing URLs</h3>
-          </div>
-          <div className="mt-4 space-y-3">
-            <p className="text-sm text-gray-600">
-              Replace <span className="font-mono text-gray-900">&lt;productSlug&gt;</span> with an ACTIVE product slug.
-            </p>
-            <UrlRow label="Public product GET" value={publicProductUrl} />
-            <UrlRow label="Landing-engine pattern" value={landingEnginePattern} />
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="flex items-center gap-2">
-            <Store size={18} className="text-blue-700" />
-            <div>
-              <h3 className="text-sm font-semibold uppercase text-gray-500">Developer setup</h3>
-              <p className="mt-1 text-sm text-gray-600">landing-engine .env.local values for local integration work.</p>
+      <details className="rounded-lg border border-gray-200 bg-white p-4">
+        <summary className="cursor-pointer text-sm font-semibold uppercase text-gray-500">
+          Developer setup
+        </summary>
+        <p className="mt-3 text-sm text-gray-600">
+          Technical URLs and landing-engine local configuration for development and integration testing.
+        </p>
+        <section className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div>
+            <div className="flex items-center gap-2">
+              <Globe2 size={18} className="text-blue-700" />
+              <h3 className="text-sm font-semibold uppercase text-gray-500">Testing URLs</h3>
+            </div>
+            <div className="mt-4 space-y-3">
+              <p className="text-sm text-gray-600">
+                Replace <span className="font-mono text-gray-900">&lt;productSlug&gt;</span> with an ACTIVE product slug.
+              </p>
+              <UrlRow label="Public product GET" value={publicProductUrl} />
+              <UrlRow label="Landing-engine pattern" value={landingEnginePattern} />
             </div>
           </div>
-          <pre className="mt-4 overflow-auto rounded-md bg-gray-950 p-4 text-xs leading-6 text-gray-100">
-            {envSnippet}
-          </pre>
-        </div>
-      </section>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <Store size={18} className="text-blue-700" />
+              <div>
+                <h3 className="text-sm font-semibold uppercase text-gray-500">landing-engine .env.local</h3>
+                <p className="mt-1 text-sm text-gray-600">Values for local landing-engine integration work.</p>
+              </div>
+            </div>
+            <pre className="mt-4 overflow-auto rounded-md bg-gray-950 p-4 text-xs leading-6 text-gray-100">
+              {envSnippet}
+            </pre>
+          </div>
+        </section>
+      </details>
     </div>
   );
 }
@@ -346,12 +396,14 @@ function UrlRow({ label, value }: { label: string; value: string }) {
 }
 
 function payloadFromForm(form: StorefrontFormState): PublicStorefrontSettingsPayload {
+  const supportDisabled = form.supportChannelType === 'none';
+
   return {
     storeSlug: form.storeSlug.trim(),
     publicName: form.publicName.trim(),
     status: form.status,
-    supportChannelType: optionalValue(form.supportChannelType),
-    supportChannelValue: optionalValue(form.supportChannelValue),
+    supportChannelType: supportDisabled ? undefined : optionalValue(form.supportChannelType),
+    supportChannelValue: supportDisabled ? undefined : optionalValue(form.supportChannelValue),
     defaultCountryCode: form.defaultCountryCode.trim().toUpperCase(),
     defaultCurrency: form.defaultCurrency.trim().toUpperCase(),
     phonePattern: form.phonePattern.trim(),
@@ -363,12 +415,73 @@ function formFromSettings(settings: PublicStorefrontSettings): StorefrontFormSta
     storeSlug: settings.storeSlug,
     publicName: settings.publicName,
     status: settings.status,
-    supportChannelType: settings.supportChannelType ?? '',
+    supportChannelType: normalizeSupportType(settings.supportChannelType),
     supportChannelValue: settings.supportChannelValue ?? '',
     defaultCountryCode: settings.defaultCountryCode,
     defaultCurrency: settings.defaultCurrency,
     phonePattern: settings.phonePattern,
   };
+}
+
+function normalizeSupportType(value: string | undefined): string {
+  if (!value?.trim()) {
+    return 'none';
+  }
+
+  const normalized = value.trim().toLowerCase();
+  return SUPPORT_TYPE_OPTIONS.some((option) => option.value === normalized) ? normalized : value.trim();
+}
+
+function supportValueFieldConfig(supportChannelType: string): {
+  type: 'email' | 'tel' | 'text' | 'url';
+  inputMode?: 'email' | 'tel' | 'text' | 'url';
+  placeholder: string;
+  hint: string;
+} {
+  switch (supportChannelType) {
+    case 'whatsapp':
+      return {
+        type: 'tel',
+        inputMode: 'tel',
+        placeholder: '+212600000000',
+        hint: 'WhatsApp number shown to customers for product questions and order support.',
+      };
+    case 'phone':
+      return {
+        type: 'tel',
+        inputMode: 'tel',
+        placeholder: '+212600000000',
+        hint: 'Phone number shown to customers for support.',
+      };
+    case 'email':
+      return {
+        type: 'email',
+        inputMode: 'email',
+        placeholder: 'support@example.com',
+        hint: 'Email address shown to customers for support.',
+      };
+    case 'website':
+      return {
+        type: 'url',
+        inputMode: 'url',
+        placeholder: 'https://example.com/support',
+        hint: 'Website URL shown to customers for support.',
+      };
+    case 'none':
+      return {
+        type: 'text',
+        inputMode: 'text',
+        placeholder: 'No support channel',
+        hint: 'No support channel will be shown on public product pages.',
+      };
+    default:
+      return {
+        type: 'text',
+        inputMode: 'text',
+        placeholder: 'Support contact',
+        hint: 'Current saved support type is preserved. Choose a listed type to standardize it.',
+      };
+  }
 }
 
 function optionalValue(value: string): string | undefined {

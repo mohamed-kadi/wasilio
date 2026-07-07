@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
+  Check,
   CheckCircle2,
   Copy,
   Edit3,
@@ -13,6 +14,8 @@ import {
   Send,
   Settings,
   ToggleLeft,
+  X,
+  XCircle,
 } from 'lucide-react';
 import {
   fetchProductStorefrontProfile,
@@ -64,6 +67,10 @@ export default function StorefrontPublishing() {
 
   function selectProduct(productId: string) {
     setSearchParams({ productId });
+  }
+
+  function clearSelectedProduct() {
+    setSearchParams({});
   }
 
   return (
@@ -138,9 +145,9 @@ export default function StorefrontPublishing() {
                 <th className="p-4 font-medium">Product</th>
                 <th className="p-4 font-medium">Catalog status</th>
                 <th className="p-4 font-medium">Profile status</th>
-                <th className="p-4 font-medium">Public availability</th>
+                <th className="p-4 font-medium">Readiness</th>
                 <th className="p-4 font-medium">Price</th>
-                <th className="p-4 font-medium">Landing content</th>
+                <th className="p-4 font-medium">Missing items</th>
                 <th className="p-4 font-medium">Public URLs</th>
                 <th className="p-4 font-medium">Actions</th>
               </tr>
@@ -174,29 +181,51 @@ export default function StorefrontPublishing() {
         </div>
       </section>
 
-      <section className="space-y-3">
-        <div>
-          <h3 className="text-sm font-semibold uppercase text-gray-500">Edit landing content</h3>
-          <p className="mt-1 text-sm text-gray-600">
-            Select a product from the publishing table to edit its storefront profile.
-          </p>
+      {selectedProduct && (
+        <StorefrontEditorPanel product={selectedProduct} onClose={clearSelectedProduct} />
+      )}
+
+      {selectedProductId && !selectedProduct && !productsLoading && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          The selected product is not visible in this publishing page. Return from the Products page again or increase
+          the publishing list size in a later workflow iteration.
         </div>
+      )}
 
-        {selectedProduct && <StorefrontProfileEditor product={selectedProduct} />}
+      {!selectedProductId && (
+        <section className="rounded-lg border border-dashed border-gray-300 bg-white p-5 text-sm text-gray-500">
+          Select Edit Landing Content from the publishing table to open the storefront profile editor.
+        </section>
+      )}
+    </div>
+  );
+}
 
-        {selectedProductId && !selectedProduct && !productsLoading && (
-          <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            The selected product is not visible in this publishing page. Return from the Products page again or increase
-            the publishing list size in a later workflow iteration.
+function StorefrontEditorPanel({ product, onClose }: { product: Product; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-40">
+      <div className="absolute inset-0 bg-gray-900/40" onClick={onClose} />
+      <aside className="absolute right-0 top-0 flex h-full w-full max-w-5xl flex-col bg-gray-50 shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-200 bg-white px-6 py-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Storefront publishing</p>
+            <h3 className="mt-1 text-xl font-bold text-gray-900">{product.name}</h3>
+            <p className="mt-1 font-mono text-xs text-gray-500">{product.slug}</p>
           </div>
-        )}
-
-        {!selectedProductId && (
-          <div className="rounded-lg border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-500">
-            No product selected.
-          </div>
-        )}
-      </section>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
+            aria-label="Close landing content editor"
+            title="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-6">
+          <StorefrontProfileEditor product={product} />
+        </div>
+      </aside>
     </div>
   );
 }
@@ -236,6 +265,8 @@ function PublishingProductRow({
 
   const landingContentExists = hasLandingContent(profile);
   const publicState = publicAvailability(product, settings);
+  const readiness = evaluateReadiness(product, profile ?? null);
+  const publicReady = readiness.status === 'READY' && publicState.tone === 'green';
   const canToggleProfile = Boolean(profile && (profile.status === 'PUBLISHED' || landingContentExists));
   const nextStatus: StorefrontProductProfileStatus = profile?.status === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED';
   const toggleLabel = profile?.status === 'PUBLISHED' ? 'Unpublish' : 'Publish';
@@ -262,12 +293,15 @@ function PublishingProductRow({
         {error && <p className="mt-2 text-xs text-red-700">{getErrorMessage(error)}</p>}
       </td>
       <td className="p-4 align-top">
-        <AvailabilityBadge label={publicState.label} tone={publicState.tone} />
+        <ReadinessBadge status={readiness.status} />
+        <p className="mt-2 text-xs font-medium text-gray-700">
+          {readiness.requiredComplete}/{readiness.requiredTotal} required items complete
+        </p>
         <p className="mt-2 max-w-44 text-xs text-gray-500">{publicState.detail}</p>
       </td>
       <td className="p-4 align-top font-medium text-gray-900">{formatMoney(product.priceAmount, product.currency)}</td>
       <td className="p-4 align-top">
-        <ContentBadge exists={landingContentExists} />
+        <MissingItemsList readiness={readiness} />
       </td>
       <td className="p-4 align-top">
         <div className="space-y-3">
@@ -289,7 +323,7 @@ function PublishingProductRow({
             <Edit3 size={16} />
             Edit Landing Content
           </button>
-          {previewUrl ? (
+          {previewUrl && publicReady ? (
             <a
               href={previewUrl}
               target="_blank"
@@ -298,6 +332,16 @@ function PublishingProductRow({
             >
               <ExternalLink size={16} />
               Preview Public Page
+            </a>
+          ) : previewUrl ? (
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100"
+            >
+              <ExternalLink size={16} />
+              Incomplete Preview
             </a>
           ) : (
             <button
@@ -365,28 +409,69 @@ function ProfileStatusBadge({ profile }: { profile: StorefrontProductProfile | n
   );
 }
 
-function AvailabilityBadge({ label, tone }: { label: string; tone: 'green' | 'amber' | 'gray' }) {
+function ReadinessBadge({ status }: { status: ReadinessStatus }) {
   const classes = {
-    green: 'bg-green-100 text-green-800',
-    amber: 'bg-amber-100 text-amber-800',
-    gray: 'bg-gray-100 text-gray-700',
+    READY: 'bg-green-100 text-green-800',
+    NEEDS_WORK: 'bg-amber-100 text-amber-800',
+    NOT_PUBLIC: 'bg-gray-100 text-gray-700',
   };
+  const labels = {
+    READY: 'Ready',
+    NEEDS_WORK: 'Needs work',
+    NOT_PUBLIC: 'Not public',
+  };
+  const Icon = status === 'READY' ? CheckCircle2 : status === 'NEEDS_WORK' ? AlertTriangle : XCircle;
 
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${classes[tone]}`}>
-      {tone === 'green' ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
-      {label}
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${classes[status]}`}>
+      <Icon size={14} />
+      {labels[status]}
     </span>
   );
 }
 
-function ContentBadge({ exists }: { exists: boolean }) {
+function MissingItemsList({ readiness }: { readiness: ProductReadiness }) {
+  const requiredMissing = readiness.requiredItems.filter((item) => !item.complete);
+  const recommendedMissing = readiness.recommendedItems.filter((item) => !item.complete);
+
+  if (requiredMissing.length === 0 && recommendedMissing.length === 0) {
+    return (
+      <div className="flex items-center gap-2 text-xs font-medium text-green-700">
+        <Check size={14} />
+        Required and recommended content complete.
+      </div>
+    );
+  }
+
   return (
-    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-      exists ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-700'
-    }`}>
-      {exists ? 'Content exists' : 'No landing content'}
-    </span>
+    <div className="max-w-64 space-y-2">
+      {requiredMissing.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase text-gray-500">Required</p>
+          <ul className="mt-1 space-y-1 text-xs text-gray-700">
+            {requiredMissing.map((item) => (
+              <li key={item.label} className="flex gap-1.5">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                <span>{item.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {recommendedMissing.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase text-gray-500">Recommended</p>
+          <ul className="mt-1 space-y-1 text-xs text-gray-500">
+            {recommendedMissing.map((item) => (
+              <li key={item.label} className="flex gap-1.5">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300" />
+                <span>{item.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -430,6 +515,100 @@ function CopyButton({ value }: { value: string }) {
 
 function SmallMuted({ children }: { children: ReactNode }) {
   return <p className="max-w-48 text-xs text-gray-500">{children}</p>;
+}
+
+type ReadinessStatus = 'READY' | 'NEEDS_WORK' | 'NOT_PUBLIC';
+
+interface ReadinessItem {
+  label: string;
+  complete: boolean;
+}
+
+interface ProductReadiness {
+  status: ReadinessStatus;
+  requiredComplete: number;
+  requiredTotal: number;
+  requiredItems: ReadinessItem[];
+  recommendedItems: ReadinessItem[];
+}
+
+function evaluateReadiness(
+  product: Product,
+  profile: StorefrontProductProfile | null,
+): ProductReadiness {
+  const requiredItems: ReadinessItem[] = [
+    {
+      label: 'Set product status to ACTIVE',
+      complete: product.status === 'ACTIVE',
+    },
+    {
+      label: 'Add product description',
+      complete: hasText(product.description),
+    },
+    {
+      label: 'Add a product image',
+      complete: hasText(product.imageUrl),
+    },
+    {
+      label: 'Create storefront profile',
+      complete: Boolean(profile),
+    },
+    {
+      label: 'Publish the storefront profile',
+      complete: profile?.status === 'PUBLISHED',
+    },
+    {
+      label: 'Add a landing headline',
+      complete: hasText(profile?.headline),
+    },
+    {
+      label: 'Add at least one benefit',
+      complete: Boolean(profile?.benefits.length),
+    },
+    {
+      label: 'Add at least one feature',
+      complete: Boolean(profile?.features.length),
+    },
+  ];
+
+  const recommendedItems: ReadinessItem[] = [
+    {
+      label: 'Add FAQ',
+      complete: Boolean(profile?.faq.length),
+    },
+    {
+      label: 'Add trust badges',
+      complete: Boolean(profile?.trustBadges.length),
+    },
+    {
+      label: 'Add SEO title',
+      complete: hasText(profile?.seoTitle),
+    },
+    {
+      label: 'Add SEO description',
+      complete: hasText(profile?.seoDescription),
+    },
+    {
+      label: 'Add gallery image URLs',
+      complete: Boolean(profile?.galleryImageUrls.length),
+    },
+  ];
+
+  const requiredComplete = requiredItems.filter((item) => item.complete).length;
+  const hardPublicBlocker = product.status !== 'ACTIVE' || !profile || profile.status !== 'PUBLISHED';
+  const status = requiredComplete === requiredItems.length
+    ? 'READY'
+    : hardPublicBlocker
+      ? 'NOT_PUBLIC'
+      : 'NEEDS_WORK';
+
+  return {
+    status,
+    requiredComplete,
+    requiredTotal: requiredItems.length,
+    requiredItems,
+    recommendedItems,
+  };
 }
 
 function publicAvailability(product: Product, settings: PublicStorefrontSettings | null) {
@@ -478,6 +657,10 @@ function hasLandingContent(profile: StorefrontProductProfile | null | undefined)
       || profile.trustBadges.length
       || profile.galleryImageUrls.length
   );
+}
+
+function hasText(value: string | null | undefined): boolean {
+  return Boolean(value?.trim());
 }
 
 function profilePayloadWithStatus(
