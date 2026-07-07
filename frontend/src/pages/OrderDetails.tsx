@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, Clock, MessageSquare, Package, PhoneCall, Truck, XCircle } from 'lucide-react';
@@ -128,6 +128,26 @@ function toInstantFromDate(date: string, endOfDay = false) {
 
 function formatFollowUpDate(value?: string) {
   return value ? new Date(value).toLocaleString() : 'No due date';
+}
+
+function formatOrderSource(source?: string) {
+  if (!source) {
+    return 'Manual';
+  }
+  return source
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatDateTime(value?: string) {
+  return value ? new Date(value).toLocaleString() : 'Not recorded';
+}
+
+function formatTimelineKey(key: string) {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (character) => character.toUpperCase());
 }
 
 export default function OrderDetails() {
@@ -395,6 +415,14 @@ export default function OrderDetails() {
           ? 'Recovery closed'
           : 'Record next decision'
         : 'Record recovery decision';
+  const customerName = `${order.customer.firstName} ${order.customer.lastName}`.trim() || 'Unknown customer';
+  const amountLabel = `${order.amount.toFixed(2)} MAD`;
+  const closedOrder = order.status === 'DELIVERED' || order.status === 'REJECTED';
+  const workflowActionDescription = order.status === 'FAILED'
+    ? 'Failed delivery work is handled in the recovery workspace below.'
+    : closedOrder
+      ? 'This order is closed. Use the timeline and notes for investigation.'
+      : 'Use the action that matches the current COD stage.';
 
   const TimelineIcon = ({ type, category }: { type: string; category: string }) => {
     if (category === 'CALLBACK') return <PhoneCall className="w-5 h-5 text-purple-500" />;
@@ -430,30 +458,278 @@ export default function OrderDetails() {
       .filter(([, value]) => value);
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
-      <div className="flex flex-wrap justify-between items-start gap-4">
+    <div className="mx-auto max-w-7xl space-y-6">
+      <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link to="/app/orders" className="text-sm text-blue-600 hover:underline mb-2 block">
+          <Link to="/app/orders" className="text-sm text-blue-600 hover:underline">
             &larr; Back to Orders
           </Link>
-          <h2 className="text-2xl font-bold text-gray-900">Order Details</h2>
-          <p className="text-sm text-gray-500 font-mono mt-1">{order.id}</p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <h2 className="text-2xl font-bold text-gray-900">Order Detail</h2>
+            <span className={`rounded-full border px-2.5 py-1 text-sm font-medium ${statusTones[order.status]}`}>
+              {statusLabels[order.status]}
+            </span>
+          </div>
+          <p className="mt-1 font-mono text-sm text-gray-500">{order.id}</p>
         </div>
-      </div>
+        <div className="text-left text-sm text-gray-500 sm:text-right">
+          <p>Created {formatDateTime(order.createdAt)}</p>
+          <p>Updated {formatDateTime(order.updatedAt)}</p>
+        </div>
+      </header>
 
       <section className={`rounded-lg border p-5 ${statusTones[order.status]}`}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div className="max-w-3xl">
             <p className="text-xs font-semibold uppercase">Current COD stage</p>
             <h3 className="mt-2 text-2xl font-bold text-gray-900">{statusLabels[order.status]}</h3>
-            <p className="mt-2 max-w-2xl text-sm">{statusDescriptions[order.status]}</p>
+            <p className="mt-2 text-sm">{statusDescriptions[order.status]}</p>
           </div>
-          <div className="rounded-md bg-white/70 px-4 py-3 text-sm shadow-sm">
+          <div className="rounded-md bg-white/75 px-4 py-3 text-sm shadow-sm">
             <p className="text-xs font-semibold uppercase text-gray-500">Next action</p>
             <p className="mt-1 font-semibold text-gray-900">{nextActions[order.status]}</p>
           </div>
         </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <SummaryTile label="Customer" value={customerName} detail={order.customer.phone} />
+          <SummaryTile label="Amount" value={amountLabel} detail="Cash on delivery" />
+          <SummaryTile label="Source" value={formatOrderSource(order.source)} detail={order.externalOrderId ?? 'No external reference'} />
+          <SummaryTile label="Courier" value={selectedCourierName ?? 'Not assigned'} detail={order.courierId ? 'Assigned courier' : 'Pending assignment'} />
+        </div>
       </section>
+
+      <section className="rounded-lg border border-gray-200 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-semibold uppercase text-gray-500">Workflow action</h3>
+            <p className="mt-1 text-sm text-gray-600">{workflowActionDescription}</p>
+          </div>
+          <div className="flex max-w-2xl flex-wrap justify-end gap-2">
+            {order.status === 'CREATED' && (
+              <button
+                type="button"
+                disabled={mutationDisabled}
+                onClick={() => mutation.mutate({ action: 'request-confirmation' })}
+                className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              >
+                Request Confirmation
+              </button>
+            )}
+
+            {order.status === 'CONFIRMATION_REQUESTED' && (
+              <>
+                <button
+                  type="button"
+                  disabled={mutationDisabled}
+                  onClick={() => mutation.mutate({ action: 'confirm' })}
+                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  Confirm Order
+                </button>
+                <input
+                  value={rejectReason}
+                  onChange={(event) => setRejectReason(event.target.value)}
+                  className="w-52 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Rejection reason"
+                />
+                <button
+                  type="button"
+                  disabled={mutationDisabled}
+                  onClick={() => mutation.mutate({ action: 'reject', reason: rejectReason })}
+                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  Reject
+                </button>
+              </>
+            )}
+
+            {order.status === 'CONFIRMED' && (
+              <>
+                <select
+                  value={courierId}
+                  onChange={(event) => setCourierId(event.target.value)}
+                  className="w-52 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Courier ID"
+                >
+                  <option value="">Select courier</option>
+                  {activeCouriers.map((courier) => (
+                    <option key={courier.courierId} value={courier.courierId}>
+                      {courier.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={mutationDisabled || !courierId}
+                  onClick={() => mutation.mutate({ action: 'assign-courier', courierId })}
+                  className="rounded-md bg-yellow-600 px-4 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
+                >
+                  Assign Courier
+                </button>
+              </>
+            )}
+
+            {order.status === 'ASSIGNED_TO_COURIER' && (
+              <>
+                <span className="inline-flex items-center rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700">
+                  Courier {selectedPickupCourierId.slice(0, 8)}...
+                </span>
+                <button
+                  type="button"
+                  disabled={mutationDisabled || !selectedPickupCourierId}
+                  onClick={() => mutation.mutate({ action: 'pick-up', courierId: selectedPickupCourierId })}
+                  className="rounded-md bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+                >
+                  Mark Picked Up
+                </button>
+              </>
+            )}
+
+            {order.status === 'PICKED_UP' && (
+              <>
+                <button
+                  type="button"
+                  disabled={mutationDisabled}
+                  onClick={() => setConfirmDeliverOpen(true)}
+                  className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                >
+                  Mark Delivered
+                </button>
+                <select
+                  value={failureReason}
+                  onChange={(event) => setFailureReason(event.target.value as DeliveryFailureReason)}
+                  className="w-48 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  aria-label="Failure reason"
+                >
+                  <option value="CUSTOMER_UNREACHABLE">Customer unreachable</option>
+                  <option value="CUSTOMER_REFUSED">Customer refused</option>
+                  <option value="INVALID_ADDRESS">Invalid address</option>
+                  <option value="CUSTOMER_RESCHEDULED">Customer rescheduled</option>
+                  <option value="LOST_PACKAGE">Lost package</option>
+                  <option value="OTHER">Other</option>
+                </select>
+                <button
+                  type="button"
+                  disabled={mutationDisabled}
+                  onClick={() => {
+                    setConfirmDeliverOpen(false);
+                    mutation.mutate({ action: 'fail', reason: failureReason });
+                  }}
+                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  Mark Failed
+                </button>
+                {confirmDeliverOpen && (
+                  <div className="basis-full rounded-md border border-green-200 bg-green-50 p-3 text-left">
+                    <p className="text-sm font-semibold text-green-950">
+                      Are you sure this delivery should be marked delivered?
+                    </p>
+                    <p className="mt-1 text-sm text-green-800">
+                      This records a successful delivery and closes the order from courier tracking.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={mutationDisabled}
+                        onClick={() => mutation.mutate({ action: 'deliver' })}
+                        className="rounded-md bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
+                      >
+                        Yes, mark delivered
+                      </button>
+                      <button
+                        type="button"
+                        disabled={mutationDisabled}
+                        onClick={() => setConfirmDeliverOpen(false)}
+                        className="rounded-md border border-green-300 bg-white px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {(order.status === 'FAILED' || closedOrder) && (
+              <span className="inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-medium text-gray-700">
+                No direct lifecycle action
+              </span>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {mutation.error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {getErrorMessage(mutation.error)}
+        </div>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
+        <section className="rounded-lg border border-gray-200 bg-white p-6">
+          <SectionHeader
+            eyebrow="Investigation"
+            title="Customer and Order"
+            description="Core information for customer contact, address checks, and product verification."
+          />
+
+          <div className="mt-6 grid gap-8 lg:grid-cols-2">
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900">Customer</h4>
+              <dl className="mt-3 space-y-3">
+                <DetailRow label="Name" value={customerName} />
+                <DetailRow label="Phone" value={order.customer.phone} />
+                <DetailRow label="Email" value={order.customer.email} />
+              </dl>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-semibold text-gray-900">Delivery Address</h4>
+              <dl className="mt-3 space-y-3">
+                <DetailRow label="Street" value={order.address.street} />
+                <DetailRow label="City" value={order.address.city} />
+                <DetailRow label="State / ZIP" value={`${order.address.state} ${order.address.zipCode}`.trim()} />
+                <DetailRow label="Country" value={order.address.country} />
+              </dl>
+            </div>
+          </div>
+
+          {hasOrderLines(order.orderLines) && (
+            <div className="mt-6 border-t border-gray-100 pt-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-sm font-semibold text-gray-900">Product Snapshot</h4>
+                <span className="text-xs font-medium text-gray-500">
+                  {order.orderLines?.length} {order.orderLines?.length === 1 ? 'line' : 'lines'}
+                </span>
+              </div>
+              <OrderLineSnapshots orderLines={order.orderLines} className="mt-3" />
+            </div>
+          )}
+        </section>
+
+        <aside className="rounded-lg border border-gray-200 bg-white p-6">
+          <SectionHeader
+            eyebrow="Operations"
+            title="Order Snapshot"
+            description="Operational identifiers and fulfillment context."
+          />
+          <dl className="mt-6 space-y-3">
+            <DetailRow label="Status">
+              <span className={`rounded-full border px-2.5 py-1 text-sm font-medium ${statusTones[order.status]}`}>
+                {statusLabels[order.status]}
+              </span>
+            </DetailRow>
+            <DetailRow label="Next action" value={nextActions[order.status]} />
+            <DetailRow label="Total amount" value={amountLabel} />
+            <DetailRow label="Source" value={formatOrderSource(order.source)} />
+            <DetailRow label="External order ID" value={order.externalOrderId} mono />
+            <DetailRow label="Inbound order ID" value={order.inboundOrderId} mono />
+            <DetailRow label="Courier" value={selectedCourierName} />
+            <DetailRow label="Failure reason" value={formattedFailureReason} />
+            <DetailRow label="Version" value={String(order.version)} />
+          </dl>
+        </aside>
+      </div>
 
       {order.status === 'FAILED' && (
         <section className="space-y-5 rounded-lg border border-red-200 bg-red-50 p-5 text-red-900">
@@ -461,14 +737,10 @@ export default function OrderDetails() {
             <div>
               <div className="flex items-center gap-2">
                 <AlertCircle size={18} />
-                <p className="text-sm font-semibold">Failed delivery recovery</p>
+                <p className="text-sm font-semibold">Recovery Workspace</p>
               </div>
               <p className="mt-2 text-sm">
                 Failure reason: <span className="font-semibold">{formattedFailureReason ?? 'Not recorded'}</span>
-              </p>
-              <p className="mt-1 max-w-3xl text-sm text-red-800">
-                Contact the customer or courier, confirm what happened, then choose retry, customer follow-up,
-                or close as unreachable when no further contact is realistic.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -477,13 +749,13 @@ export default function OrderDetails() {
                 state={{ statuses: ['FAILED'], recoveryFocus: true }}
                 className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-medium text-red-800 ring-1 ring-red-200 hover:bg-red-100"
               >
-                Back to failed deliveries
+                Failed deliveries
               </Link>
               <Link
                 to="/app/couriers/performance"
                 className="inline-flex items-center rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800"
               >
-                Review courier performance
+                Courier performance
               </Link>
             </div>
           </div>
@@ -500,13 +772,13 @@ export default function OrderDetails() {
               detail={openFollowUpTasks[0] ? `Due: ${formatFollowUpDate(openFollowUpTasks[0].dueAt)}` : 'No customer task waiting'}
             />
             <RecoveryMetric
-              title="Next action"
+              title="Current action"
               value={recoveryNextAction}
-              detail="Use the action panel for the current recovery step"
+              detail="Use the matching recovery control below"
             />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,24rem)]">
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
             <form
               className="space-y-4 rounded-md border border-red-200 bg-white p-4"
               onSubmit={(event) => {
@@ -520,7 +792,7 @@ export default function OrderDetails() {
               }}
             >
               <div>
-                <p className="text-xs font-semibold uppercase text-gray-500">1. Record next decision</p>
+                <p className="text-xs font-semibold uppercase text-gray-500">Record decision</p>
                 <h4 className="mt-1 text-sm font-semibold text-gray-900">Set the recovery path</h4>
               </div>
               <div>
@@ -613,46 +885,49 @@ export default function OrderDetails() {
               </button>
             </form>
 
-            <div className="rounded-md border border-red-200 bg-white p-4">
-              <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                <p className="text-xs font-semibold uppercase text-gray-500">2. Current action</p>
-                <p className="mt-1 text-sm font-semibold text-gray-900">{recoveryNextAction}</p>
-                <p className="mt-1 text-xs text-gray-600">
-                  {openFollowUpTasks.length > 0
-                    ? 'Resolve the customer task when the refund, replacement, or customer contact is complete.'
-                    : canMoveBackToAssignment
-                      ? 'The latest decision is Retry delivery, so this order can return to assignment.'
-                      : latestRecoveryClosed
-                        ? 'This failed order recovery is closed. Record another decision only if new information arrives.'
-                        : 'Record a decision to unlock the next recovery action.'}
-                </p>
+            <div className="space-y-4">
+              <div className="rounded-md border border-red-200 bg-white p-4">
+                <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                  <p className="text-xs font-semibold uppercase text-gray-500">Current recovery action</p>
+                  <p className="mt-1 text-sm font-semibold text-gray-900">{recoveryNextAction}</p>
+                  <p className="mt-1 text-xs text-gray-600">
+                    {openFollowUpTasks.length > 0
+                      ? 'Resolve the customer task when the refund, replacement, or customer contact is complete.'
+                      : canMoveBackToAssignment
+                        ? 'The latest decision is Retry delivery, so this order can return to assignment.'
+                        : latestRecoveryClosed
+                          ? 'This failed order recovery is closed. Record another decision only if new information arrives.'
+                          : 'Record a decision to unlock the next recovery action.'}
+                  </p>
+                </div>
+
+                <h4 className="mt-4 text-sm font-semibold text-gray-900">Recovery decisions</h4>
+                {loadingFailureRecoveries && <p className="mt-3 text-sm text-gray-500">Loading recovery decisions...</p>}
+                {failureRecoveriesError && (
+                  <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {getErrorMessage(failureRecoveriesError)}
+                  </div>
+                )}
+                {!loadingFailureRecoveries && !failureRecoveriesError && failureRecoveries.length === 0 && (
+                  <p className="mt-3 text-sm text-gray-500">No recovery decision recorded yet.</p>
+                )}
+                {failureRecoveries.length > 0 && (
+                  <div className="mt-3 space-y-3">
+                    {failureRecoveries.map((recovery) => (
+                      <div key={recovery.recoveryId} className="border-t border-gray-100 pt-3 first:border-t-0 first:pt-0">
+                        <p className="text-sm font-semibold text-gray-900">{formatRecoveryDecision(recovery.decision)}</p>
+                        {recovery.note && <p className="mt-1 text-sm text-gray-600">{recovery.note}</p>}
+                        <p className="mt-1 text-xs text-gray-500">
+                          By {recovery.createdBy} on {new Date(recovery.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <h4 className="mt-4 text-sm font-semibold text-gray-900">Recorded recovery decisions</h4>
-              {loadingFailureRecoveries && <p className="mt-3 text-sm text-gray-500">Loading recovery decisions...</p>}
-              {failureRecoveriesError && (
-                <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                  {getErrorMessage(failureRecoveriesError)}
-                </div>
-              )}
-              {!loadingFailureRecoveries && !failureRecoveriesError && failureRecoveries.length === 0 && (
-                <p className="mt-3 text-sm text-gray-500">No recovery decision recorded yet.</p>
-              )}
-              {failureRecoveries.length > 0 && (
-                <div className="mt-3 space-y-3">
-                  {failureRecoveries.map((recovery) => (
-                    <div key={recovery.recoveryId} className="border-t border-gray-100 pt-3 first:border-t-0 first:pt-0">
-                      <p className="text-sm font-semibold text-gray-900">{formatRecoveryDecision(recovery.decision)}</p>
-                      {recovery.note && <p className="mt-1 text-sm text-gray-600">{recovery.note}</p>}
-                      <p className="mt-1 text-xs text-gray-500">
-                        By {recovery.createdBy} on {new Date(recovery.createdAt).toLocaleString()}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <div className="mt-4 border-t border-red-100 pt-4">
-                <h4 className="text-sm font-semibold text-gray-900">Customer follow-up tasks</h4>
+              <div className="rounded-md border border-red-200 bg-white p-4">
+                <h4 className="text-sm font-semibold text-gray-900">Customer follow-ups</h4>
                 {loadingFollowUpTasks && <p className="mt-3 text-sm text-gray-500">Loading follow-up tasks...</p>}
                 {followUpTasksError && (
                   <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -722,13 +997,9 @@ export default function OrderDetails() {
                     })}
                   </div>
                 )}
-                {openFollowUpTasks.length > 0 && (
-                  <p className="mt-3 text-xs text-gray-500">
-                    Resolve the customer follow-up when the refund, replacement, or customer contact is complete.
-                  </p>
-                )}
               </div>
-              <div className="mt-4 border-t border-red-100 pt-4">
+
+              <div className="rounded-md border border-red-200 bg-white p-4">
                 <p className="text-sm font-semibold text-gray-900">Retry execution</p>
                 <p className="mt-1 text-sm text-gray-600">
                   Move this order back to the assignment queue only after the latest decision is Retry delivery.
@@ -755,279 +1026,114 @@ export default function OrderDetails() {
         </section>
       )}
 
-      <section className="rounded-lg border border-gray-200 bg-white p-5">
-        <div className="flex flex-wrap justify-between gap-4">
-          <div>
-            <h3 className="text-sm font-semibold uppercase text-gray-500">Available actions</h3>
-            <p className="mt-1 text-sm text-gray-600">Use the action that matches the current COD stage.</p>
+      <section className="rounded-lg border border-gray-200 bg-white p-6">
+        <SectionHeader
+          eyebrow="Audit"
+          title="Event Timeline"
+          description="Lifecycle, confirmation, courier, recovery, and follow-up history."
+        />
+        {timelineError && (
+          <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {getErrorMessage(timelineError)}
           </div>
-        <div className="flex flex-wrap justify-end gap-2 max-w-xl">
-          {order.status === 'CREATED' && (
-            <button
-              type="button"
-              disabled={mutationDisabled}
-              onClick={() => mutation.mutate({ action: 'request-confirmation' })}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-            >
-              Request Confirmation
-            </button>
-          )}
+        )}
+        <div className="mt-6 space-y-6">
+          {timeline.map((item, index) => {
+            const details = timelineDetails(item.details);
 
-          {order.status === 'CONFIRMATION_REQUESTED' && (
-            <>
-              <button
-                type="button"
-                disabled={mutationDisabled}
-                onClick={() => mutation.mutate({ action: 'confirm' })}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
-              >
-                Confirm Order
-              </button>
-              <input
-                value={rejectReason}
-                onChange={(event) => setRejectReason(event.target.value)}
-                className="w-52 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                aria-label="Rejection reason"
-              />
-              <button
-                type="button"
-                disabled={mutationDisabled}
-                onClick={() => mutation.mutate({ action: 'reject', reason: rejectReason })}
-                className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
-              >
-                Reject
-              </button>
-            </>
-          )}
-
-          {order.status === 'CONFIRMED' && (
-            <>
-              <select
-                value={courierId}
-                onChange={(event) => setCourierId(event.target.value)}
-                className="w-52 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                aria-label="Courier ID"
-              >
-                <option value="">Select courier</option>
-                {activeCouriers.map((courier) => (
-                  <option key={courier.courierId} value={courier.courierId}>
-                    {courier.name}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                disabled={mutationDisabled || !courierId}
-                onClick={() => mutation.mutate({ action: 'assign-courier', courierId })}
-                className="px-4 py-2 bg-yellow-600 text-white rounded-md text-sm font-medium hover:bg-yellow-700 disabled:opacity-50"
-              >
-                Assign Courier
-              </button>
-            </>
-          )}
-
-          {order.status === 'ASSIGNED_TO_COURIER' && (
-            <>
-              <span className="inline-flex items-center rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-700">
-                Courier {selectedPickupCourierId.slice(0, 8)}...
-              </span>
-              <button
-                type="button"
-                disabled={mutationDisabled || !selectedPickupCourierId}
-                onClick={() => mutation.mutate({ action: 'pick-up', courierId: selectedPickupCourierId })}
-                className="px-4 py-2 bg-orange-600 text-white rounded-md text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
-              >
-                Mark Picked Up
-              </button>
-            </>
-          )}
-
-          {order.status === 'PICKED_UP' && (
-            <>
-              <button
-                type="button"
-                disabled={mutationDisabled}
-                onClick={() => setConfirmDeliverOpen(true)}
-                className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
-              >
-                Mark Delivered
-              </button>
-              <select
-                value={failureReason}
-                onChange={(event) => setFailureReason(event.target.value as DeliveryFailureReason)}
-                className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                aria-label="Failure reason"
-              >
-                <option value="CUSTOMER_UNREACHABLE">Customer unreachable</option>
-                <option value="CUSTOMER_REFUSED">Customer refused</option>
-                <option value="INVALID_ADDRESS">Invalid address</option>
-                <option value="CUSTOMER_RESCHEDULED">Customer rescheduled</option>
-                <option value="LOST_PACKAGE">Lost package</option>
-                <option value="OTHER">Other</option>
-              </select>
-              <button
-                type="button"
-                disabled={mutationDisabled}
-                onClick={() => {
-                  setConfirmDeliverOpen(false);
-                  mutation.mutate({ action: 'fail', reason: failureReason });
-                }}
-                className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 disabled:opacity-50"
-              >
-                Mark Failed
-              </button>
-              {confirmDeliverOpen && (
-                <div className="basis-full rounded-md border border-green-200 bg-green-50 p-3 text-left">
-                  <p className="text-sm font-semibold text-green-950">
-                    Are you sure this delivery should be marked delivered?
-                  </p>
-                  <p className="mt-1 text-sm text-green-800">
-                    This records a successful delivery and closes the order from courier tracking.
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      disabled={mutationDisabled}
-                      onClick={() => mutation.mutate({ action: 'deliver' })}
-                      className="rounded-md bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
-                    >
-                      Yes, mark delivered
-                    </button>
-                    <button
-                      type="button"
-                      disabled={mutationDisabled}
-                      onClick={() => setConfirmDeliverOpen(false)}
-                      className="rounded-md border border-green-300 bg-white px-3 py-2 text-sm font-medium text-green-900 hover:bg-green-100 disabled:opacity-50"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </div>
-      </section>
-
-      {mutation.error && (
-        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {getErrorMessage(mutation.error)}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-medium text-gray-900 border-b pb-4 mb-4">Customer Info</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Name</p>
-                <p className="font-medium">
-                  {order.customer.firstName} {order.customer.lastName}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Contact</p>
-                <p className="font-medium">{order.customer.phone}</p>
-                <p className="text-sm">{order.customer.email}</p>
-              </div>
-              <div className="sm:col-span-2">
-                <p className="text-sm text-gray-500">Address</p>
-                <p className="font-medium">{order.address.street}</p>
-                <p>
-                  {order.address.city}, {order.address.state} {order.address.zipCode}
-                </p>
-                <p>{order.address.country}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-medium text-gray-900 border-b pb-4 mb-4">Order Summary</h3>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600">Status</span>
-              <span className={`rounded-full border px-2.5 py-1 text-sm font-medium ${statusTones[order.status]}`}>{statusLabels[order.status]}</span>
-            </div>
-            <div className="flex justify-between items-center gap-4 py-2">
-              <span className="text-gray-600">Next action</span>
-              <span className="text-right font-medium">{nextActions[order.status]}</span>
-            </div>
-            {hasOrderLines(order.orderLines) && (
-              <div className="border-t border-gray-100 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h4 className="text-sm font-semibold text-gray-900">Product snapshot</h4>
-                  <span className="text-xs font-medium text-gray-500">
-                    {order.orderLines?.length} {order.orderLines?.length === 1 ? 'line' : 'lines'}
-                  </span>
-                </div>
-                <OrderLineSnapshots orderLines={order.orderLines} className="mt-3" />
-              </div>
-            )}
-            <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600">Total Amount</span>
-              <span className="font-bold text-lg">{order.amount.toFixed(2)} MAD</span>
-            </div>
-            {order.courierId && (
-              <div className="flex justify-between items-center py-2">
-                <span className="text-gray-600">Courier</span>
-                <span className="font-medium">{selectedCourierName}</span>
-              </div>
-            )}
-            {order.failureReason && (
-              <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-md">
-                <p className="font-medium text-sm">Failure Reason</p>
-                <p>{formattedFailureReason ?? order.failureReason}</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h3 className="text-lg font-medium text-gray-900 border-b pb-4 mb-6">Order Timeline</h3>
-          {timelineError && (
-            <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {getErrorMessage(timelineError)}
-            </div>
-          )}
-          <div className="space-y-6">
-            {timeline.map((item, index) => {
-              const details = timelineDetails(item.details);
-
-              return (
+            return (
               <div key={item.itemId} className="relative flex gap-4">
                 {index !== timeline.length - 1 && (
-                  <div className="absolute left-2.5 top-8 bottom-0 w-px bg-gray-200 -mb-6" />
+                  <div className="absolute bottom-0 left-2.5 top-8 -mb-6 w-px bg-gray-200" />
                 )}
                 <div className="relative z-10 flex-shrink-0 bg-white">
                   <TimelineIcon type={item.type} category={item.category} />
                 </div>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium text-sm text-gray-900">{item.title}</p>
-                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                    <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-gray-500">
                       {item.category.toLowerCase()}
                     </span>
                   </div>
                   <p className="text-xs text-gray-500">{new Date(item.timestamp).toLocaleString()}</p>
                   {item.actor && <p className="text-xs text-gray-500">By {item.actor}</p>}
                   {details.length > 0 && (
-                    <div className="mt-2 space-y-1">
+                    <dl className="mt-3 grid gap-2 rounded-md bg-gray-50 p-3 sm:grid-cols-2">
                       {details.map(([key, value]) => (
-                        <p key={key} className="break-words text-xs text-gray-500">
-                          <span className="font-medium text-gray-600">{key}:</span> {value}
-                        </p>
+                        <div key={key} className="min-w-0">
+                          <dt className="text-[11px] font-semibold uppercase text-gray-500">{formatTimelineKey(key)}</dt>
+                          <dd className="break-words text-xs text-gray-700">{value}</dd>
+                        </div>
                       ))}
-                    </div>
+                    </dl>
                   )}
                 </div>
               </div>
-              );
-            })}
-            {timeline.length === 0 && !timelineError && <p className="text-sm text-gray-500">No timeline items recorded.</p>}
-          </div>
+            );
+          })}
+          {timeline.length === 0 && !timelineError && <p className="text-sm text-gray-500">No timeline items recorded.</p>}
         </div>
-      </div>
+      </section>
+    </div>
+  );
+}
+
+function SectionHeader({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase text-gray-500">{eyebrow}</p>
+      <h3 className="mt-1 text-lg font-semibold text-gray-900">{title}</h3>
+      {description && <p className="mt-1 text-sm text-gray-600">{description}</p>}
+    </div>
+  );
+}
+
+function SummaryTile({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: ReactNode;
+  detail?: ReactNode;
+}) {
+  return (
+    <div className="rounded-md bg-white/75 px-4 py-3 shadow-sm">
+      <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
+      <p className="mt-1 truncate text-sm font-semibold text-gray-900">{value}</p>
+      {detail && <p className="mt-1 truncate text-xs text-gray-600">{detail}</p>}
+    </div>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  mono = false,
+  children,
+}: {
+  label: string;
+  value?: ReactNode;
+  mono?: boolean;
+  children?: ReactNode;
+}) {
+  const content = value ?? children ?? 'Not recorded';
+
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <dt className="text-sm text-gray-500">{label}</dt>
+      <dd className={`max-w-[70%] text-right text-sm font-medium text-gray-900 ${mono ? 'font-mono' : ''}`}>
+        {content}
+      </dd>
     </div>
   );
 }
