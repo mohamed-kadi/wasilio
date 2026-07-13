@@ -1,8 +1,44 @@
-# Landing Engine Order Intake
+# Landing Engine Contract
 
-Phase 19F defines the stable handoff from landing-engine into Wasilio Core.
+Phase 19F defined the stable handoff from landing-engine into Wasilio Core. Phase 20C adds a public product readiness review contract so landing-engine can render and QA Wasilio product pages without owning Wasilio operations logic.
 
 Landing-engine is an order-intent client. Wasilio remains the source of truth for order lifecycle, confirmation, courier operations, recovery, and intelligence scoring.
+
+## Public Product Page Endpoint
+
+Use the public storefront product endpoint to render a product page:
+
+`GET /api/public/storefront/{storeSlug}/products/{productSlug}`
+
+The response includes:
+
+- storefront display context
+- product ID, slug, name, description, and image URL
+- offer price, currency, availability, and orderable flag
+- SEO fallback or published SEO overrides
+- published landing profile content when available
+- `readiness`, a Wasilio-owned review object for landing-engine QA
+
+`readiness` is informational. It does not block the public endpoint by itself and does not mutate product, order, confirmation, delivery, or recovery state.
+
+Readiness fields:
+
+- `orderable`: whether the public product response can accept order intent.
+- `requiredComplete`: number of required readiness items currently complete.
+- `requiredTotal`: total required readiness items.
+- `items`: business-readable checks with `key`, `label`, `complete`, `required`, and `detail`.
+
+Current readiness item keys:
+
+- `catalog_active`
+- `product_description`
+- `primary_image`
+- `landing_profile_published`
+- `landing_headline`
+- `landing_benefits`
+- `landing_features`
+- `gallery_media`
+- `seo_image`
 
 ## Public Storefront Order Endpoint
 
@@ -87,6 +123,8 @@ Wasilio ignores score-looking fields such as:
 - `fraudRiskScore`
 
 After a valid order is committed and projected, Wasilio creates the initial internal intelligence snapshot, score reasons, and audit event. The score is available to Wasilio operations queues and reports, but it is not returned to landing-engine.
+
+For storefront orders, Wasilio may use internally owned product/page context, such as product media and published landing content, as low-weight intelligence signals. Landing-engine still does not send scores or score reasons.
 
 The score remains informational. It does not automatically confirm, reject, assign, retry, refund, or close an order.
 

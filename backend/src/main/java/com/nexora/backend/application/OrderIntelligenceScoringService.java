@@ -11,13 +11,20 @@ import com.nexora.backend.domain.model.OrderIntelligenceSignal;
 import com.nexora.backend.domain.model.OrderIntelligenceSignalSeverity;
 import com.nexora.backend.domain.model.OrderIntelligenceSignalSource;
 import com.nexora.backend.domain.model.OrderIntelligenceSnapshot;
+import com.nexora.backend.domain.model.OrderLineSnapshot;
+import com.nexora.backend.domain.model.OrderSource;
 import com.nexora.backend.domain.model.OrderStatus;
+import com.nexora.backend.domain.model.Product;
+import com.nexora.backend.domain.model.StorefrontProductProfile;
+import com.nexora.backend.domain.model.StorefrontProductProfileStatus;
 import com.nexora.backend.domain.repository.ConfirmationAttemptRepository;
 import com.nexora.backend.domain.repository.DeliveryFailureRepository;
 import com.nexora.backend.domain.repository.OrderIntelligenceAuditEventRepository;
 import com.nexora.backend.domain.repository.OrderIntelligenceSignalRepository;
 import com.nexora.backend.domain.repository.OrderIntelligenceSnapshotRepository;
 import com.nexora.backend.domain.repository.OrderRepository;
+import com.nexora.backend.domain.repository.ProductRepository;
+import com.nexora.backend.domain.repository.StorefrontProductProfileRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Propagation;
@@ -27,21 +34,25 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class OrderIntelligenceScoringService {
 
-    private static final ScoringCalibration CALIBRATION = ScoringCalibration.v1();
+    private static final ScoringCalibration CALIBRATION = ScoringCalibration.v2();
 
     private final OrderRepository orderRepository;
     private final ConfirmationAttemptRepository confirmationAttemptRepository;
     private final DeliveryFailureRepository deliveryFailureRepository;
+    private final ProductRepository productRepository;
+    private final StorefrontProductProfileRepository storefrontProductProfileRepository;
     private final OrderIntelligenceSnapshotRepository snapshotRepository;
     private final OrderIntelligenceSignalRepository signalRepository;
     private final OrderIntelligenceAuditEventRepository auditEventRepository;
@@ -126,6 +137,7 @@ public class OrderIntelligenceScoringService {
 
         Score score = new Score();
         scoreOrderQuality(score, order);
+        scoreStorefrontContext(score, tenantId, order);
         scoreCurrentAttempts(score, attempts, now);
         scorePhoneHistory(score, tenantId, order, samePhoneOrders);
         scoreDeliverySignals(score, deliveryFailures);
@@ -191,6 +203,91 @@ public class OrderIntelligenceScoringService {
             score.add("weak_address", "Weak address", "Street, city, or country is missing or too vague.", -15, 15,
                     OrderIntelligenceSignalSeverity.WARNING, OrderIntelligenceSignalSource.ORDER);
         }
+    }
+
+    private void scoreStorefrontContext(Score score, UUID tenantId, Order order) {
+        if (order.getSource() != OrderSource.WASILIO_STOREFRONT) {
+            return;
+        }
+
+        Set<UUID> productIds = productIds(order.getOrderLines());
+        if (productIds.isEmpty()) {
+            score.add("storefront_product_snapshot_missing", "Storefront product snapshot missing",
+                    "The storefront order did not retain a product reference for media review.", -3, 3,
+                    OrderIntelligenceSignalSeverity.INFO, OrderIntelligenceSignalSource.ORDER);
+            return;
+        }
+
+        boolean allProductsAvailable = true;
+        boolean allProductsHavePrimaryImage = true;
+        boolean allProductsHavePublishedProfile = true;
+        boolean allPublishedProfilesHaveCoreContent = true;
+
+        for (UUID productId : productIds) {
+            Product product = productRepository.findByIdAndTenantId(productId, tenantId).orElse(null);
+            if (product == null) {
+                allProductsAvailable = false;
+                allProductsHavePrimaryImage = false;
+                allProductsHavePublishedProfile = false;
+                allPublishedProfilesHaveCoreContent = false;
+                continue;
+            }
+
+            if (!hasText(product.getImageUrl())) {
+                allProductsHavePrimaryImage = false;
+            }
+
+            StorefrontProductProfile profile = storefrontProductProfileRepository
+                    .findByTenantIdAndProductIdAndStatus(tenantId, productId, StorefrontProductProfileStatus.PUBLISHED)
+                    .orElse(null);
+            if (profile == null) {
+                allProductsHavePublishedProfile = false;
+                allPublishedProfilesHaveCoreContent = false;
+                continue;
+            }
+            if (!hasCoreLandingContent(profile)) {
+                allPublishedProfilesHaveCoreContent = false;
+            }
+        }
+
+        if (!allProductsAvailable) {
+            score.add("storefront_product_reference_unavailable", "Storefront product reference unavailable",
+                    "The order snapshot points to a product that is no longer available in the catalog.", -5, 5,
+                    OrderIntelligenceSignalSeverity.WARNING, OrderIntelligenceSignalSource.ORDER);
+        } else if (allProductsHavePrimaryImage) {
+            score.add("storefront_product_image_present", "Storefront product image present",
+                    "The customer ordered from a product page with primary media.", 1, -1,
+                    OrderIntelligenceSignalSeverity.POSITIVE, OrderIntelligenceSignalSource.ORDER);
+        } else {
+            score.add("storefront_product_image_missing", "Storefront product image missing",
+                    "The storefront order came from a product without primary media.", -5, 5,
+                    OrderIntelligenceSignalSeverity.WARNING, OrderIntelligenceSignalSource.ORDER);
+        }
+
+        if (allProductsHavePublishedProfile && allPublishedProfilesHaveCoreContent) {
+            score.add("storefront_landing_content_ready", "Storefront landing content ready",
+                    "Published headline, benefits, and features were available for the ordered product.", 2, -1,
+                    OrderIntelligenceSignalSeverity.POSITIVE, OrderIntelligenceSignalSource.ORDER);
+        }
+    }
+
+    private Set<UUID> productIds(List<OrderLineSnapshot> orderLines) {
+        if (orderLines == null || orderLines.isEmpty()) {
+            return Set.of();
+        }
+        Set<UUID> productIds = new LinkedHashSet<>();
+        for (OrderLineSnapshot orderLine : orderLines) {
+            if (orderLine.productId() != null) {
+                productIds.add(orderLine.productId());
+            }
+        }
+        return productIds;
+    }
+
+    private boolean hasCoreLandingContent(StorefrontProductProfile profile) {
+        return hasText(profile.getHeadline())
+                && !profile.getBenefits().isEmpty()
+                && !profile.getFeatures().isEmpty();
     }
 
     private void scoreCurrentAttempts(Score score, List<ConfirmationAttempt> attempts, Instant now) {
@@ -651,9 +748,9 @@ public class OrderIntelligenceScoringService {
             int minimumPhoneDigits,
             int maximumPhoneDigits
     ) {
-        private static ScoringCalibration v1() {
+        private static ScoringCalibration v2() {
             return new ScoringCalibration(
-                    "v1",
+                    "v2",
                     60,
                     40,
                     75,

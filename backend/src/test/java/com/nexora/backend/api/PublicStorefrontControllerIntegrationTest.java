@@ -155,6 +155,11 @@ class PublicStorefrontControllerIntegrationTest {
                 .andExpect(jsonPath("$.seo.title").value("CoolAir Mini | CoolAir Morocco"))
                 .andExpect(jsonPath("$.seo.description").value("Portable cooling fan for COD customers."))
                 .andExpect(jsonPath("$.seo.image").value("https://cdn.example.test/coolair-mini.jpg"))
+                .andExpect(jsonPath("$.readiness.orderable").value(true))
+                .andExpect(jsonPath("$.readiness.requiredComplete").value(3))
+                .andExpect(jsonPath("$.readiness.requiredTotal").value(7))
+                .andExpect(jsonPath("$.readiness.items[?(@.key=='primary_image')].complete").value(true))
+                .andExpect(jsonPath("$.readiness.items[?(@.key=='landing_profile_published')].complete").value(false))
                 .andExpect(jsonPath("$.landingProfile").doesNotExist());
     }
 
@@ -181,7 +186,9 @@ class PublicStorefrontControllerIntegrationTest {
                 .andExpect(jsonPath("$.landingProfile.seoImageUrl").value("https://cdn.example.test/seo-coolair.jpg"))
                 .andExpect(jsonPath("$.seo.title").value("Portable CoolAir Morocco"))
                 .andExpect(jsonPath("$.seo.description").value("Order a portable CoolAir fan in Morocco."))
-                .andExpect(jsonPath("$.seo.image").value("https://cdn.example.test/seo-coolair.jpg"));
+                .andExpect(jsonPath("$.seo.image").value("https://cdn.example.test/seo-coolair.jpg"))
+                .andExpect(jsonPath("$.readiness.requiredComplete").value(7))
+                .andExpect(jsonPath("$.readiness.items[?(@.key=='gallery_media')].complete").value(true));
     }
 
     @Test
@@ -313,9 +320,36 @@ class PublicStorefrontControllerIntegrationTest {
         Order order = orderRepository.findByIdAndTenantId(inboundOrder.getNormalizedOrderId(), tenantId).orElseThrow();
         OrderIntelligenceScoringService.OrderIntelligenceResult score =
                 orderIntelligenceScoringService.getOrCalculate(tenantId, order.getId());
-        assertEquals(73, score.snapshot().getConfirmationConfidenceScore());
-        assertEquals(34, score.snapshot().getFraudRiskScore());
+        assertEquals(74, score.snapshot().getConfirmationConfidenceScore());
+        assertEquals(33, score.snapshot().getFraudRiskScore());
         assertEquals("NEEDS_ATTENTION", score.snapshot().getLevel().name());
+        assertTrue(score.signals().stream().anyMatch(signal -> signal.getSignalKey().equals("storefront_product_image_present")));
+    }
+
+    @Test
+    void publicOrderIntelligenceFlagsMissingStorefrontProductMedia() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        Product product = product("no-media-product", "No Media Product", ProductStatus.ACTIVE);
+        product.setImageUrl(null);
+        productRepository.saveAndFlush(product);
+
+        MvcResult result = mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(validOrderRequest("no-media-product", "idem-no-media"))))
+                .andExpect(status().isAccepted())
+                .andReturn();
+
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+        InboundOrder inboundOrder = inboundOrderRepository.findById(UUID.fromString(response.path("receiptId").asText()))
+                .orElseThrow();
+        Order order = orderRepository.findByIdAndTenantId(inboundOrder.getNormalizedOrderId(), tenantId).orElseThrow();
+        OrderIntelligenceScoringService.OrderIntelligenceResult score =
+                orderIntelligenceScoringService.getOrCalculate(tenantId, order.getId());
+
+        assertEquals(68, score.snapshot().getConfirmationConfidenceScore());
+        assertEquals(39, score.snapshot().getFraudRiskScore());
+        assertEquals("NEEDS_ATTENTION", score.snapshot().getLevel().name());
+        assertTrue(score.signals().stream().anyMatch(signal -> signal.getSignalKey().equals("storefront_product_image_missing")));
     }
 
     @Test

@@ -206,8 +206,9 @@ Authenticated merchant/admin users can manage the minimal tenant-scoped product 
 
 - Products support create, list, detail, update, and archive operations through `/api/products`.
 - Product status is operational: `DRAFT` for incomplete records, `ACTIVE` for products ready for future order/storefront use, and `ARCHIVED` for retained records not intended for new use.
-- Product media is currently a single optional `imageUrl`; full galleries and storefront publishing are intentionally not implemented yet.
-- Existing order creation is unchanged. The next Catalog/Core connection should add product references to manual order creation with a stable order-line snapshot.
+- Product media supports authenticated primary image uploads through `/api/products/{productId}/media`; gallery and SEO uploads can populate existing storefront profile fields.
+- Public product responses include readiness checks for landing-engine review. These checks are informational and do not mutate order lifecycle.
+- Existing order creation remains stable. Product-referenced orders use stable order-line snapshots so historical orders remain readable after catalog edits.
 
 ## Database Backup And Restore
 

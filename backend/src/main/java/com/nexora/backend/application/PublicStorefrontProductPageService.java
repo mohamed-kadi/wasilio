@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 @Service
@@ -65,6 +67,7 @@ public class PublicStorefrontProductPageService {
                         seoDescription(storefront, product, profile),
                         seoImage(product, profile)
                 ),
+                readiness(product, profile),
                 landingProfile
         );
     }
@@ -98,6 +101,46 @@ public class PublicStorefrontProductPageService {
             return profile.getSeoImageUrl();
         }
         return product.getImageUrl();
+    }
+
+    private PublicProductReadinessResponse readiness(Product product, StorefrontProductProfile profile) {
+        List<PublicProductReadinessItemResponse> items = new ArrayList<>();
+        addReadinessItem(items, "catalog_active", "Catalog product active", true, true,
+                "Product can be returned by the public storefront API.");
+        addReadinessItem(items, "product_description", "Product description", hasText(product.getDescription()), true,
+                "Description gives landing-engine fallback copy and SEO text.");
+        addReadinessItem(items, "primary_image", "Primary product image", hasText(product.getImageUrl()), true,
+                "Primary image is available for the product hero and order review.");
+        addReadinessItem(items, "landing_profile_published", "Landing profile published", profile != null, true,
+                "Published landing content is available for the public product page.");
+        addReadinessItem(items, "landing_headline", "Landing headline", profile != null && hasText(profile.getHeadline()), true,
+                "Headline gives the landing page a clear product promise.");
+        addReadinessItem(items, "landing_benefits", "Landing benefits", profile != null && !profile.getBenefits().isEmpty(), true,
+                "Benefits explain why the customer should answer and confirm.");
+        addReadinessItem(items, "landing_features", "Landing features", profile != null && !profile.getFeatures().isEmpty(), true,
+                "Features support customer recall during confirmation.");
+        addReadinessItem(items, "gallery_media", "Gallery media", profile != null && !profile.getGalleryImageUrls().isEmpty(), false,
+                "Additional images help customers recognize the product.");
+        addReadinessItem(items, "seo_image", "SEO image", hasText(seoImage(product, profile)), false,
+                "SEO/social image is available for public previews.");
+
+        int requiredTotal = (int) items.stream().filter(PublicProductReadinessItemResponse::required).count();
+        int requiredComplete = (int) items.stream()
+                .filter(PublicProductReadinessItemResponse::required)
+                .filter(PublicProductReadinessItemResponse::complete)
+                .count();
+        return new PublicProductReadinessResponse(true, requiredComplete, requiredTotal, items);
+    }
+
+    private void addReadinessItem(
+            List<PublicProductReadinessItemResponse> items,
+            String key,
+            String label,
+            boolean complete,
+            boolean required,
+            String detail
+    ) {
+        items.add(new PublicProductReadinessItemResponse(key, label, complete, required, detail));
     }
 
     private boolean hasText(String value) {

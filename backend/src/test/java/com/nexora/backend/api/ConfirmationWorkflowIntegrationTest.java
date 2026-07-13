@@ -179,7 +179,7 @@ class ConfirmationWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.intelligence.history[0].changeLabel").value("Initial score"))
                 .andExpect(jsonPath("$.intelligence.history[0].confirmationConfidenceScore").value(73))
                 .andExpect(jsonPath("$.intelligence.history[0].fraudRiskScore").value(34))
-                .andExpect(jsonPath("$.intelligence.history[0].calibrationVersion").value("v1"));
+                .andExpect(jsonPath("$.intelligence.history[0].calibrationVersion").value("v2"));
 
         mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.NO_ANSWER, "No answer on first call"))
                 .andExpect(status().isCreated());
@@ -269,7 +269,7 @@ class ConfirmationWorkflowIntegrationTest {
                 .andExpect(jsonPath("$.recentMovements[?(@.changeLabel=='Moved to High risk')].orderId").value(orderId))
                 .andExpect(jsonPath("$.highRiskOrders[0].orderId").value(orderId))
                 .andExpect(jsonPath("$.highRiskOrders[0].customerName").value("Report Buyer"))
-                .andExpect(jsonPath("$.calibration.version").value("v1"))
+                .andExpect(jsonPath("$.calibration.version").value("v2"))
                 .andExpect(jsonPath("$.calibration.highRiskMinimumRisk").value(65));
     }
 

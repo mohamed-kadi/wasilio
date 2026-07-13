@@ -111,6 +111,11 @@ class PublicStorefrontProductPageServiceIntegrationTest {
         assertEquals("CoolAir Mini | CoolAir Morocco", response.seo().title());
         assertEquals("Portable cooling fan for COD customers.", response.seo().description());
         assertEquals("https://cdn.example.test/coolair-mini.jpg", response.seo().image());
+        assertTrue(response.readiness().orderable());
+        assertEquals(3, response.readiness().requiredComplete());
+        assertEquals(7, response.readiness().requiredTotal());
+        assertReadinessItem(response, "primary_image", true);
+        assertReadinessItem(response, "landing_profile_published", false);
         assertNull(response.landingProfile());
     }
 
@@ -140,6 +145,10 @@ class PublicStorefrontProductPageServiceIntegrationTest {
         assertEquals("Portable CoolAir Morocco", response.seo().title());
         assertEquals("Order a portable CoolAir fan in Morocco.", response.seo().description());
         assertEquals("https://cdn.example.test/seo-coolair.jpg", response.seo().image());
+        assertEquals(7, response.readiness().requiredComplete());
+        assertEquals(7, response.readiness().requiredTotal());
+        assertReadinessItem(response, "landing_profile_published", true);
+        assertReadinessItem(response, "gallery_media", true);
     }
 
     @Test
@@ -162,6 +171,8 @@ class PublicStorefrontProductPageServiceIntegrationTest {
         assertNull(response.landingProfile());
         assertEquals("CoolAir Mini | CoolAir Morocco", response.seo().title());
         assertEquals("Portable cooling fan for COD customers.", response.seo().description());
+        assertEquals(3, response.readiness().requiredComplete());
+        assertReadinessItem(response, "landing_profile_published", false);
     }
 
     @Test
@@ -180,6 +191,8 @@ class PublicStorefrontProductPageServiceIntegrationTest {
                 PublicStorefrontProductPageResponse.class,
                 PublicProductResponse.class,
                 PublicLandingProfileResponse.class,
+                PublicProductReadinessResponse.class,
+                PublicProductReadinessItemResponse.class,
                 PublicOfferResponse.class,
                 PublicSupportChannelResponse.class,
                 PublicSeoResponse.class
@@ -349,5 +362,13 @@ class PublicStorefrontProductPageServiceIntegrationTest {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
+    }
+
+    private void assertReadinessItem(PublicStorefrontProductPageResponse response, String key, boolean complete) {
+        PublicProductReadinessItemResponse item = response.readiness().items().stream()
+                .filter(candidate -> candidate.key().equals(key))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(complete, item.complete());
     }
 }

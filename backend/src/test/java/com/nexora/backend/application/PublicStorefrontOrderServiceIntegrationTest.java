@@ -157,8 +157,8 @@ class PublicStorefrontOrderServiceIntegrationTest {
         OrderIntelligenceSnapshot snapshot = orderIntelligenceSnapshotRepository
                 .findByTenantIdAndOrderId(tenantId, order.getId())
                 .orElseThrow();
-        assertEquals(73, snapshot.getConfirmationConfidenceScore());
-        assertEquals(34, snapshot.getFraudRiskScore());
+        assertEquals(74, snapshot.getConfirmationConfidenceScore());
+        assertEquals(33, snapshot.getFraudRiskScore());
         assertEquals("NEEDS_ATTENTION", snapshot.getLevel().name());
         assertFalse(orderIntelligenceSignalRepository.findByTenantIdAndOrderIdOrderBySortRankAsc(tenantId, order.getId()).isEmpty());
         assertEquals(1, orderIntelligenceAuditEventRepository.countByTenantIdAndOrderId(tenantId, order.getId()));

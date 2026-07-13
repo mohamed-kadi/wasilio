@@ -1,6 +1,6 @@
 # Intelligence Scoring
 
-Phase 19 introduces an explainable scoring layer for confirmation quality and fraud risk.
+Phase 19 introduced an explainable scoring layer for confirmation quality and fraud risk. Phase 20C moves the active calibration to `v2` by adding low-weight Wasilio storefront product/media context for storefront-originated orders.
 
 The score is an operations signal only. It must not automatically confirm, reject, assign, retry, or close an order. The order lifecycle remains controlled by existing lifecycle commands and recovery rules.
 
@@ -77,7 +77,7 @@ Scoreable events include:
 - delivery marked failed
 - future orders using the same phone, customer name, or address
 
-## V1 Rule Set
+## V2 Rule Set
 
 Positive signals:
 
@@ -90,6 +90,8 @@ Positive signals:
 | Same phone has previous confirmed order | +15 | -10 |
 | Customer requested callback | +5 | 0 |
 | Callback resolved on time | +8 | -5 |
+| Storefront product has primary media | +1 | -1 |
+| Storefront product has published landing content | +2 | -1 |
 | Order confirmed | set confidence at least 95 | set risk at most 5 |
 | Order delivered | set confidence at least 98 | set risk at most 3 |
 
@@ -99,6 +101,9 @@ Negative signals:
 | --- | ---: | ---: |
 | Weak or incomplete phone | -25 | +25 |
 | Weak address | -15 | +15 |
+| Storefront product image missing | -5 | +5 |
+| Storefront product reference unavailable | -5 | +5 |
+| Storefront product snapshot missing | -3 | +3 |
 | First no-answer attempt | -10 | +10 |
 | Second consecutive no-answer attempt | -15 | +15 |
 | Third or later no-answer attempt | -20 | +20 |
@@ -122,7 +127,7 @@ Negative signals:
 
 ## Calibration Contract
 
-The V1 calibration constants are owned by Wasilio:
+The V2 calibration constants are owned by Wasilio:
 
 - base confidence: `60`
 - base risk: `40`
@@ -131,6 +136,7 @@ The V1 calibration constants are owned by Wasilio:
 - confirmed cap: confidence at least `95`, risk at most `5`
 - delivered cap: confidence at least `98`, risk at most `3`
 - valid phone length: `9-15` digits and not all one repeated digit
+- storefront media/profile signals are low-weight context, not hard fraud rules
 
 Any future calibration change must keep these guarantees:
 

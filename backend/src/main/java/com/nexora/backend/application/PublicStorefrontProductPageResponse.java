@@ -11,6 +11,7 @@ public record PublicStorefrontProductPageResponse(
         PublicProductResponse product,
         PublicOfferResponse offer,
         PublicSeoResponse seo,
+        PublicProductReadinessResponse readiness,
         @JsonInclude(JsonInclude.Include.NON_NULL)
         PublicLandingProfileResponse landingProfile
 ) {}

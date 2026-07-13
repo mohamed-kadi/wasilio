@@ -1,6 +1,7 @@
 # Product Media Upload
 
 Phase 20A added the first Wasilio-owned media upload path for catalog products. Phase 20B connects that media path to storefront publishing and public preview rendering.
+Phase 20C exposes media readiness in public product responses and lets Wasilio intelligence use storefront media context as low-weight scoring evidence.
 
 ## Scope
 
@@ -49,3 +50,5 @@ This is intentionally local-first. A future object-storage implementation should
 ## Landing Engine Boundary
 
 Landing-engine should render the media URLs returned by Wasilio/public product APIs. It should not upload directly to Wasilio-owned storage unless it is acting as an authenticated merchant client or has a future explicit server-to-server media contract.
+
+Public product responses include a `readiness` object with checks such as `primary_image`, `gallery_media`, and `seo_image`. Landing-engine can use these checks for preview/review UX, but they are not lifecycle commands and they do not replace Wasilio's internal intelligence scoring.
