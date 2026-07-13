@@ -27,9 +27,14 @@ public record OrderResponse(
         String externalOrderId,
         Instant createdAt,
         Instant updatedAt,
-        int version
+        int version,
+        OrderIntelligenceResponse intelligence
 ) {
     static OrderResponse from(Order order) {
+        return from(order, null);
+    }
+
+    static OrderResponse from(Order order, OrderIntelligenceResponse intelligence) {
         return new OrderResponse(
                 order.getId(),
                 order.getTenantId(),
@@ -45,7 +50,8 @@ public record OrderResponse(
                 order.getExternalOrderId(),
                 order.getCreatedAt(),
                 order.getUpdatedAt(),
-                order.getVersion()
+                order.getVersion(),
+                intelligence
         );
     }
 

@@ -17,6 +17,7 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Optional<Order> findByIdAndTenantId(UUID id, UUID tenantId);
     List<Order> findByTenantId(UUID tenantId);
     List<Order> findByTenantIdAndIdIn(UUID tenantId, List<UUID> ids);
+    List<Order> findTop20ByTenantIdAndCustomer_PhoneOrderByCreatedAtDesc(UUID tenantId, String phone);
     Page<Order> findByTenantId(UUID tenantId, Pageable pageable);
     Page<Order> findByTenantIdAndStatus(UUID tenantId, OrderStatus status, Pageable pageable);
     boolean existsByIdAndTenantIdNot(UUID id, UUID tenantId);

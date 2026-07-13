@@ -22,6 +22,24 @@ public interface ConfirmationAttemptRepository extends JpaRepository<Confirmatio
     List<ConfirmationAttempt> findByTenantIdAndOrderIdOrderByAttemptNumberAsc(UUID tenantId, UUID orderId);
 
     @Query("""
+            select count(attempt)
+            from ConfirmationAttempt attempt
+            join Order orderProjection
+              on orderProjection.id = attempt.orderId
+             and orderProjection.tenantId = attempt.tenantId
+            where attempt.tenantId = :tenantId
+              and attempt.orderId <> :orderId
+              and orderProjection.customer.phone = :phone
+              and attempt.outcome = :outcome
+            """)
+    long countHistoricalPhoneAttemptsByOutcome(
+            @Param("tenantId") UUID tenantId,
+            @Param("orderId") UUID orderId,
+            @Param("phone") String phone,
+            @Param("outcome") ConfirmationOutcome outcome
+    );
+
+    @Query("""
             select coalesce(max(attempt.attemptNumber), 0)
             from ConfirmationAttempt attempt
             where attempt.tenantId = :tenantId

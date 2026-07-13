@@ -27,6 +27,8 @@ public interface DeliveryFollowUpTaskRepository extends JpaRepository<DeliveryFo
             DeliveryFollowUpStatus status
     );
 
+    boolean existsByTenantIdAndOrderIdAndStatus(UUID tenantId, UUID orderId, DeliveryFollowUpStatus status);
+
     @Query("""
             select task
             from DeliveryFollowUpTask task

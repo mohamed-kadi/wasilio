@@ -14,7 +14,7 @@ import {
   retryFailedDelivery,
   updateOrderSearchSavedView,
 } from '../api/client';
-import { orderLineSummary } from '../components/OrderLineSnapshots';
+import { orderLineSummary } from '../lib/orderLines';
 import type {
   DeliveryFailureRecoveryState,
   FailedOrderRecoveryQueueResponse,
@@ -106,12 +106,20 @@ interface OrdersLocationState {
 type FailureRecoveryFilter = DeliveryFailureRecoveryState;
 
 const failureRecoveryFilters: Array<{ value: FailureRecoveryFilter; label: string; detail: string }> = [
-  { value: 'ALL', label: 'All failures', detail: 'Visible failed orders' },
-  { value: 'NEEDS_DECISION', label: 'Needs decision', detail: 'No recovery path recorded' },
-  { value: 'OPEN_FOLLOW_UP', label: 'Open follow-up', detail: 'Customer task is still active' },
-  { value: 'RETRY_READY', label: 'Retry ready', detail: 'Can return to assignment' },
-  { value: 'REFUND_REVIEW', label: 'Refund review', detail: 'Follow-up/refund path recorded' },
+  { value: 'ALL', label: 'All recovery', detail: 'Every failed order in recovery' },
+  { value: 'NEEDS_DECISION', label: 'Needs decision', detail: 'Choose retry, follow-up, refund, or close' },
+  { value: 'OPEN_FOLLOW_UP', label: 'Waiting follow-up', detail: 'Customer follow-up is still open' },
+  { value: 'RETRY_READY', label: 'Retry ready', detail: 'Ready to return to assignment' },
+  { value: 'REFUND_REVIEW', label: 'Refund review', detail: 'Refund or customer review recorded' },
   { value: 'CLOSED_UNRECOVERABLE', label: 'Closed', detail: 'No further recovery action' },
+];
+
+const recoveryOverviewFilters: FailureRecoveryFilter[] = [
+  'NEEDS_DECISION',
+  'OPEN_FOLLOW_UP',
+  'RETRY_READY',
+  'REFUND_REVIEW',
+  'CLOSED_UNRECOVERABLE',
 ];
 
 const emptyFilters: OrderFilters = {
@@ -244,7 +252,7 @@ function recoveryListStatus(summary?: FailedOrderRecoverySummary): RecoveryListS
 
   if (!latestRecovery) {
     return {
-      label: 'Needs Decision',
+      label: 'Needs decision',
       actionLabel: 'Continue Recovery',
       tone: 'red',
       retryReady: false,
@@ -253,7 +261,7 @@ function recoveryListStatus(summary?: FailedOrderRecoverySummary): RecoveryListS
 
   if (openFollowUp) {
     return {
-      label: 'Follow-up Required',
+      label: 'Waiting follow-up',
       actionLabel: 'Continue Follow-up',
       tone: 'amber',
       retryReady: false,
@@ -262,7 +270,7 @@ function recoveryListStatus(summary?: FailedOrderRecoverySummary): RecoveryListS
 
   if (latestRecovery.decision === 'RETRY_DELIVERY') {
     return {
-      label: 'Retry Ready',
+      label: 'Retry ready',
       actionLabel: 'Return to Assignment',
       tone: 'blue',
       retryReady: true,
@@ -271,7 +279,7 @@ function recoveryListStatus(summary?: FailedOrderRecoverySummary): RecoveryListS
 
   if (latestRecovery.decision === 'REFUND_OR_CUSTOMER_FOLLOW_UP') {
     return {
-      label: 'Refund Review',
+      label: 'Refund review',
       actionLabel: 'Review Refund',
       tone: 'amber',
       retryReady: false,
@@ -279,7 +287,7 @@ function recoveryListStatus(summary?: FailedOrderRecoverySummary): RecoveryListS
   }
 
   return {
-    label: 'Recovery Closed',
+    label: 'Closed',
     actionLabel: 'View Details',
     tone: 'gray',
     retryReady: false,
@@ -682,24 +690,53 @@ export default function OrdersList() {
       </section>
 
       {isFailureRecoveryView && (
-        <details className="rounded-lg border border-red-200 bg-red-50 px-4 py-4">
-          <summary className="cursor-pointer text-sm font-semibold text-red-950">
-            Failed delivery recovery
-          </summary>
-          <div className="mt-4">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <p className="max-w-3xl text-sm text-red-800">
-                Review failed delivery states when you need recovery decisions, customer follow-up, retry assignment, or
-                courier performance context.
+        <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-900">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase">Recovery stage</p>
+              <h3 className="mt-1 text-lg font-semibold text-gray-900">Failed delivery recovery</h3>
+              <p className="mt-1 max-w-3xl text-sm text-red-800">
+                Decide the next action for failed deliveries, continue open follow-ups, return retry-ready orders to assignment,
+                or review refund and closed recovery work.
               </p>
-              <Link
-                to="/app/couriers/performance"
-                className="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
-              >
-                Review courier performance
-              </Link>
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              to="/app/couriers/performance"
+              className="inline-flex h-10 items-center rounded-md border border-red-200 bg-white px-3 text-sm font-medium text-red-800 hover:bg-red-100"
+            >
+              Review courier performance
+            </Link>
+          </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            {recoveryOverviewFilters.map((filterValue) => {
+              const filterOption = failureRecoveryFilters.find((option) => option.value === filterValue);
+              if (!filterOption) {
+                return null;
+              }
+              return (
+                <RecoveryCountCard
+                  key={filterValue}
+                  label={filterOption.label}
+                  value={recoveryFilterCounts.get(filterValue) ?? 0}
+                  detail={filterOption.detail}
+                  tone={recoveryToneForFilter(filterValue)}
+                />
+              );
+            })}
+          </div>
+
+          <div className="mt-4 border-t border-red-100 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-red-950">Recovery status</p>
+                <p className="text-xs text-red-700">Filter failed orders without changing recovery rules.</p>
+              </div>
+              <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-red-800 ring-1 ring-red-200">
+                {failureRecoveryFilters.find((option) => option.value === failureRecoveryFilter)?.label ?? 'All recovery'}
+              </span>
+            </div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-6">
               {failureRecoveryFilters.map((filterOption) => {
                 const isActive = failureRecoveryFilter === filterOption.value;
                 const count = recoveryFilterCounts.get(filterOption.value) ?? 0;
@@ -708,11 +745,15 @@ export default function OrdersList() {
                   <button
                     key={filterOption.value}
                     type="button"
-                    onClick={() => setFailureRecoveryFilter(filterOption.value)}
-                    className={`rounded-md border px-3 py-2 text-left text-sm ${
+                    aria-pressed={isActive}
+                    onClick={() => {
+                      setFailureRecoveryFilter(filterOption.value);
+                      setPage(0);
+                    }}
+                    className={`min-h-[4.5rem] rounded-md border border-red-200 px-3 py-2 text-left text-sm transition-colors ${
                       isActive
-                        ? 'border-red-500 bg-white text-red-950'
-                        : 'border-red-200 bg-red-50 text-red-800 hover:bg-white'
+                        ? 'bg-white text-red-950 ring-1 ring-inset ring-red-500'
+                        : 'bg-red-50 text-red-800 hover:bg-white'
                     }`}
                   >
                     <span className="block font-semibold">{filterOption.label} ({count})</span>
@@ -722,7 +763,7 @@ export default function OrdersList() {
               })}
             </div>
           </div>
-        </details>
+        </section>
       )}
 
       <div className="space-y-4 bg-white border border-gray-200 rounded-lg px-4 py-4">
@@ -809,21 +850,26 @@ export default function OrdersList() {
           </div>
         </div>
 
-        <details
-          className="border-t border-gray-100 pt-4"
-          open={advancedFiltersOpen}
-          onToggle={(event) => setAdvancedFiltersOpen(event.currentTarget.open)}
-        >
-          <summary className="cursor-pointer text-sm font-semibold text-gray-700">
+        <div className="border-t border-gray-100 pt-4">
+          <button
+            type="button"
+            aria-expanded={advancedFiltersOpen}
+            onClick={() => setAdvancedFiltersOpen((open) => !open)}
+            className="inline-flex h-9 min-w-[12rem] items-center justify-center gap-2 rounded-md border border-gray-300 px-3 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
             Advanced filters
-            {advancedFiltersActive && (
-              <span className="ml-2 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                Active
-              </span>
-            )}
-          </summary>
+            <span
+              aria-hidden="true"
+              className={`rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ${
+                advancedFiltersActive ? '' : 'invisible'
+              }`}
+            >
+              Active
+            </span>
+          </button>
 
-          <div className="mt-4 space-y-4">
+          {advancedFiltersOpen && (
+            <div className="mt-4 space-y-4">
             <div className="grid gap-3 md:grid-cols-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700" htmlFor="courier">
@@ -1010,8 +1056,9 @@ export default function OrdersList() {
                 Delete
               </button>
             </div>
-          </div>
-        </details>
+            </div>
+          )}
+        </div>
       </div>
 
       {error && (
@@ -1034,17 +1081,17 @@ export default function OrdersList() {
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left border-collapse">
+          <table className="w-full min-w-[1040px] text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 text-sm text-gray-500 uppercase tracking-wider">
                 <th className="px-4 py-3 font-medium">Order ID</th>
                 <th className="px-4 py-3 font-medium">Customer</th>
                 <th className="px-4 py-3 font-medium">Product</th>
                 <th className="px-4 py-3 font-medium">Amount</th>
-                <th className="px-4 py-3 font-medium">Current Status</th>
-                <th className="px-4 py-3 font-medium">Recovery Status</th>
+                <th className="px-4 py-3 font-medium">{isFailureRecoveryView ? 'Failure reason' : 'Current status'}</th>
+                <th className="px-4 py-3 font-medium">Recovery status</th>
                 <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Actions</th>
+                <th className="px-4 py-3 font-medium">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
@@ -1062,8 +1109,14 @@ export default function OrdersList() {
                   : orderActionLabel(order, recoveryStatus);
                 const showRetryAction = recoveryStatus?.retryReady && !recoverySummaryUnavailable && !recoverySummaryPending;
 
+                const rowClassName = isFailureRecoveryView
+                  ? 'hover:bg-gray-50'
+                  : order.status === 'FAILED'
+                    ? 'bg-red-50/40 hover:bg-red-50'
+                    : 'hover:bg-gray-50';
+
                 return (
-                  <tr key={order.id} className={order.status === 'FAILED' ? 'bg-red-50/40 hover:bg-red-50' : 'hover:bg-gray-50'}>
+                  <tr key={order.id} className={rowClassName}>
                     <td className="px-4 py-3 font-mono text-gray-500">
                       <Link to={`/app/orders/${order.id}`} className="text-blue-600 hover:underline">
                         {order.id.slice(0, 8)}...
@@ -1084,14 +1137,20 @@ export default function OrdersList() {
                     </td>
                     <td className="px-4 py-3 font-medium">{order.amount.toFixed(2)} MAD</td>
                     <td className="px-4 py-3">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
-                        {statusLabels[order.status]}
-                      </span>
-                      <p className="mt-1 text-xs text-gray-500">{statusStages[order.status]}</p>
+                      {isFailureRecoveryView ? (
+                        <span className="text-sm font-medium text-gray-800">{failureReason ?? 'Not recorded'}</span>
+                      ) : (
+                        <>
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
+                            {statusLabels[order.status]}
+                          </span>
+                          <p className="mt-1 text-xs text-gray-500">{statusStages[order.status]}</p>
+                        </>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       {order.status === 'FAILED' ? (
-                        <div className="space-y-1">
+                        <>
                           {recoverySummariesError ? (
                             <span className="text-sm font-medium text-red-700">Recovery unavailable</span>
                           ) : isFetchingRecoverySummaries && !recoverySummary ? (
@@ -1101,8 +1160,7 @@ export default function OrdersList() {
                               {recoveryStatus?.label}
                             </span>
                           )}
-                          <p className="text-xs text-gray-500">Reason: {failureReason ?? 'Not recorded'}</p>
-                        </div>
+                        </>
                       ) : (
                         <span className="text-sm text-gray-400">-</span>
                       )}
@@ -1121,10 +1179,10 @@ export default function OrdersList() {
                       ) : (
                         <Link
                           to={`/app/orders/${order.id}`}
-                          className={`inline-flex items-center rounded-md px-3 py-2 text-sm font-medium ${
-                            order.status === 'FAILED'
-                              ? 'bg-red-700 text-white hover:bg-red-800'
-                              : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
+                          className={`inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium ${
+                            order.status === 'FAILED' && recoveryStatus?.tone !== 'gray'
+                              ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                              : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                           }`}
                         >
                           {actionLabel}
@@ -1210,4 +1268,45 @@ function JourneyMetric({
       <p className="mt-1 text-sm">{detail}</p>
     </div>
   );
+}
+
+function RecoveryCountCard({
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  tone: RecoveryTone;
+}) {
+  const tones = {
+    gray: 'border-gray-200 bg-white text-gray-600',
+    red: 'border-red-200 bg-white text-red-700',
+    amber: 'border-amber-200 bg-white text-amber-700',
+    blue: 'border-blue-200 bg-white text-blue-700',
+    green: 'border-emerald-200 bg-white text-emerald-700',
+  };
+
+  return (
+    <div className={`rounded-lg border p-3 ${tones[tone]}`}>
+      <p className="text-xs font-semibold uppercase">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
+      <p className="mt-1 text-xs">{detail}</p>
+    </div>
+  );
+}
+
+function recoveryToneForFilter(filter: FailureRecoveryFilter): RecoveryTone {
+  if (filter === 'NEEDS_DECISION') {
+    return 'red';
+  }
+  if (filter === 'OPEN_FOLLOW_UP' || filter === 'REFUND_REVIEW') {
+    return 'amber';
+  }
+  if (filter === 'RETRY_READY') {
+    return 'blue';
+  }
+  return 'gray';
 }

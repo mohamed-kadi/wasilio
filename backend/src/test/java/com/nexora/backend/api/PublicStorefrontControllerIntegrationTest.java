@@ -2,6 +2,8 @@ package com.nexora.backend.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.nexora.backend.application.OrderIntelligenceScoringService;
 import com.nexora.backend.application.PublicOrderAttributionRequest;
 import com.nexora.backend.application.PublicOrderCustomerRequest;
 import com.nexora.backend.application.PublicOrderDeliveryRequest;
@@ -104,6 +106,9 @@ class PublicStorefrontControllerIntegrationTest {
 
     @Autowired
     private OrderRepository orderRepository;
+
+    @Autowired
+    private OrderIntelligenceScoringService orderIntelligenceScoringService;
 
     @Autowired
     private EntityManager entityManager;
@@ -269,6 +274,48 @@ class PublicStorefrontControllerIntegrationTest {
         assertEquals(correlationId.toString(), objectMapper.readTree(inboundOrder.getRawPayload())
                 .path("correlationId")
                 .asText());
+    }
+
+    @Test
+    void publicOrderIgnoresExternalScoreHintsAndUsesInternalIntelligence() throws Exception {
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+        ObjectNode request = objectMapper.valueToTree(validOrderRequest("coolair-mini", "idem-score-hints"));
+        request.put("confirmationConfidenceScore", 1);
+        request.put("fraudRiskScore", 99);
+        ObjectNode fakeIntelligence = objectMapper.createObjectNode();
+        fakeIntelligence.put("level", "HIGH_RISK");
+        fakeIntelligence.put("summary", "external score must not be trusted");
+        request.set("intelligence", fakeIntelligence);
+
+        MvcResult result = mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.receiptId").isNotEmpty())
+                .andExpect(jsonPath("$.status").value("accepted"))
+                .andExpect(jsonPath("$.intelligence").doesNotExist())
+                .andExpect(jsonPath("$.confirmationConfidenceScore").doesNotExist())
+                .andExpect(jsonPath("$.fraudRiskScore").doesNotExist())
+                .andReturn();
+
+        JsonNode response = objectMapper.readTree(result.getResponse().getContentAsString());
+        InboundOrder inboundOrder = inboundOrderRepository.findById(UUID.fromString(response.path("receiptId").asText()))
+                .orElseThrow();
+        JsonNode rawPayload = objectMapper.readTree(inboundOrder.getRawPayload());
+        assertFalse(rawPayload.has("intelligence"));
+        assertFalse(rawPayload.has("confirmationConfidenceScore"));
+        assertFalse(rawPayload.has("fraudRiskScore"));
+        assertFalse(rawPayload.path("payload").has("intelligence"));
+        assertFalse(rawPayload.path("payload").has("confirmationConfidenceScore"));
+        assertFalse(rawPayload.path("payload").has("fraudRiskScore"));
+
+        Order order = orderRepository.findByIdAndTenantId(inboundOrder.getNormalizedOrderId(), tenantId).orElseThrow();
+        OrderIntelligenceScoringService.OrderIntelligenceResult score =
+                orderIntelligenceScoringService.getOrCalculate(tenantId, order.getId());
+        assertEquals(73, score.snapshot().getConfirmationConfidenceScore());
+        assertEquals(34, score.snapshot().getFraudRiskScore());
+        assertEquals("NEEDS_ATTENTION", score.snapshot().getLevel().name());
     }
 
     @Test
@@ -567,6 +614,9 @@ class PublicStorefrontControllerIntegrationTest {
         entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM order_intelligence_audit_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM order_intelligence_signals").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM order_intelligence_snapshots").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM inbound_orders").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();

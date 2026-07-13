@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, ChevronLeft, ChevronRight, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronLeft, ChevronRight, SlidersHorizontal, XCircle } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   type DeliveryFailureReason,
@@ -11,6 +11,7 @@ import {
   markDelivered,
   markFailed,
 } from '../api/client';
+import { orderLineSummary } from '../lib/orderLines';
 
 const failureReasons: DeliveryFailureReason[] = [
   'CUSTOMER_UNREACHABLE',
@@ -50,6 +51,7 @@ export default function DeliveryQueue() {
   const [failureForms, setFailureForms] = useState<Record<string, { reason: DeliveryFailureReason; note: string }>>({});
   const [deliveryConfirmationId, setDeliveryConfirmationId] = useState<string | null>(null);
   const [failureReviewOrderId, setFailureReviewOrderId] = useState<string | null>(null);
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
 
   const {
     data: queuePage,
@@ -153,76 +155,129 @@ export default function DeliveryQueue() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 bg-white p-4 md:grid-cols-5">
-        <label>
-          <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Courier</span>
-          <select
-            value={courierId}
-            onChange={(event) => {
-              setCourierId(event.target.value);
-              setPage(0);
-            }}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryMetric
+          label="Out for delivery"
+          value={String(totalElements)}
+          detail={isFetching && !isLoading ? 'Refreshing queue' : 'Picked up orders'}
+        />
+        <SummaryMetric
+          label="Couriers"
+          value={courierId ? (courierNames.get(courierId) ?? 'Filtered') : String(couriers.length)}
+          detail={courierId ? 'Filtered courier' : 'Available in filter'}
+        />
+        <SummaryMetric
+          label="Highlighted"
+          value={highlightedOrder ? shortId(highlightedOrder.id) : 'None'}
+          detail={pickedUpOrderId ? 'From pickup' : 'No handoff selected'}
+        />
+        <SummaryMetric
+          label="Next stage"
+          value="Recovery"
+          detail="Only if delivery fails"
+        />
+      </section>
+
+      <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">Delivery queue</h3>
+            <p className="text-sm text-gray-500">Picked up orders waiting for the courier delivery result.</p>
+          </div>
+          <button
+            type="button"
+            aria-expanded={advancedFiltersOpen}
+            onClick={() => setAdvancedFiltersOpen((open) => !open)}
+            className="inline-flex min-w-[12rem] items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            <option value="">All couriers</option>
-            {couriers.map((courier) => (
-              <option key={courier.courierId} value={courier.courierId}>
-                {courier.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Status</span>
-          <select
-            value="PICKED_UP"
-            disabled
-            className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500"
+            <SlidersHorizontal size={16} />
+            Advanced filters
+          </button>
+        </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+          <label>
+            <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Courier</span>
+            <select
+              value={courierId}
+              onChange={(event) => {
+                setCourierId(event.target.value);
+                setPage(0);
+              }}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All couriers</option>
+              {couriers.map((courier) => (
+                <option key={courier.courierId} value={courier.courierId}>
+                  {courier.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="self-end rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
-            <option value="PICKED_UP">PICKED UP</option>
-          </select>
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-medium uppercase text-gray-500">From</span>
-          <input
-            type="date"
-            value={createdFrom}
-            onChange={(event) => {
-              setCreatedFrom(event.target.value);
-              setPage(0);
-            }}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-medium uppercase text-gray-500">To</span>
-          <input
-            type="date"
-            value={createdTo}
-            onChange={(event) => {
-              setCreatedTo(event.target.value);
-              setPage(0);
-            }}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </label>
-        <label>
-          <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Size</span>
-          <select
-            value={size}
-            onChange={(event) => {
-              setSize(Number(event.target.value));
-              setPage(0);
-            }}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {[10, 20, 50, 100].map((pageSize) => (
-              <option key={pageSize} value={pageSize}>
-                {pageSize}
-              </option>
-            ))}
-          </select>
-        </label>
+            Clear filters
+          </button>
+        </div>
+
+        {advancedFiltersOpen && (
+          <div className="mt-4 grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 md:grid-cols-4">
+            <label>
+              <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Delivery stage</span>
+              <select
+                value="OUT_FOR_DELIVERY"
+                disabled
+                className="w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500"
+              >
+                <option value="OUT_FOR_DELIVERY">Out for delivery</option>
+              </select>
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Created from</span>
+              <input
+                type="date"
+                value={createdFrom}
+                onChange={(event) => {
+                  setCreatedFrom(event.target.value);
+                  setPage(0);
+                }}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Created to</span>
+              <input
+                type="date"
+                value={createdTo}
+                onChange={(event) => {
+                  setCreatedTo(event.target.value);
+                  setPage(0);
+                }}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Rows per page</span>
+              <select
+                value={size}
+                onChange={(event) => {
+                  setSize(Number(event.target.value));
+                  setPage(0);
+                }}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {[10, 20, 50, 100].map((pageSize) => (
+                  <option key={pageSize} value={pageSize}>
+                    {pageSize}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
       </div>
 
       {(error || mutationError) && (
@@ -270,15 +325,17 @@ export default function DeliveryQueue() {
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left text-sm">
+          <table className="w-full min-w-[1040px] text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
                 <th className="p-4 font-medium">Order</th>
                 <th className="p-4 font-medium">Customer</th>
+                <th className="p-4 font-medium">Products</th>
+                <th className="p-4 font-medium">Amount</th>
                 <th className="p-4 font-medium">Courier</th>
-                <th className="p-4 font-medium">Stage</th>
+                <th className="p-4 font-medium">Next action</th>
                 <th className="p-4 font-medium">Created</th>
-                <th className="p-4 font-medium">Actions</th>
+                <th className="p-4 font-medium">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -304,6 +361,14 @@ export default function DeliveryQueue() {
                       <p className="text-gray-500">{order.customer.phone}</p>
                     </td>
                     <td className="p-4">
+                      {orderLineSummary(order.orderLines) ? (
+                        <span className="font-medium text-gray-800">{orderLineSummary(order.orderLines)}</span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
+                    <td className="p-4">
                       <p className="font-medium text-gray-900">{courierNames.get(order.courierId ?? '') ?? 'Unknown courier'}</p>
                       <p className="font-mono text-xs text-gray-500">{order.courierId}</p>
                     </td>
@@ -318,10 +383,10 @@ export default function DeliveryQueue() {
                             setFailureReviewOrderId(null);
                             setDeliveryConfirmationId(order.id);
                           }}
-                          className="inline-flex items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                          className="inline-flex min-h-10 items-center gap-2 rounded-md bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                         >
                           <CheckCircle2 size={16} />
-                          Delivered
+                          Record delivered
                         </button>
                         <button
                           type="button"
@@ -330,10 +395,10 @@ export default function DeliveryQueue() {
                             setDeliveryConfirmationId(null);
                             setFailureReviewOrderId(order.id);
                           }}
-                          className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100 disabled:opacity-50"
+                          className="inline-flex min-h-10 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100 disabled:opacity-50"
                         >
                           <XCircle size={16} />
-                          Mark failed
+                          Record failed delivery
                         </button>
                       </div>
                     </td>
@@ -342,7 +407,7 @@ export default function DeliveryQueue() {
               })}
               {!isLoading && orders.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                  <td colSpan={8} className="p-8 text-center text-gray-500">
                     <div className="mx-auto max-w-sm">
                       <p className="text-sm font-medium text-gray-900">No picked up orders are waiting delivery outcome.</p>
                       <p className="mt-1 text-sm text-gray-500">
@@ -369,7 +434,7 @@ export default function DeliveryQueue() {
               )}
               {isLoading && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                  <td colSpan={8} className="p-8 text-center text-gray-500">
                     <p className="text-sm font-medium text-gray-900">Loading delivery queue</p>
                     <p className="mt-1 text-sm text-gray-500">Fetching picked up orders that need a final outcome.</p>
                   </td>
@@ -456,7 +521,7 @@ function DeliveryOutcomePanel({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase">Delivery outcome</p>
-          <h3 className="mt-1 text-lg font-semibold text-gray-900">Mark delivered?</h3>
+          <h3 className="mt-1 text-lg font-semibold text-gray-900">Record delivered?</h3>
           <p className="mt-1 text-sm">
             {customerName(order)} with {courierName}. This records a successful delivery and closes the order from courier tracking.
           </p>
@@ -469,7 +534,7 @@ function DeliveryOutcomePanel({
             onClick={onConfirm}
             className="inline-flex items-center rounded-md bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50"
           >
-            Yes, mark delivered
+            Record delivered
           </button>
           <button
             type="button"
@@ -507,7 +572,7 @@ function FailureOutcomePanel({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase">Failed delivery</p>
-          <h3 className="mt-1 text-lg font-semibold text-gray-900">Document failure reason</h3>
+          <h3 className="mt-1 text-lg font-semibold text-gray-900">Record failed delivery</h3>
           <p className="mt-1 text-sm">
             {customerName(order)} with {courierName}. A failed outcome sends this order into recovery review.
           </p>
@@ -539,7 +604,7 @@ function FailureOutcomePanel({
           </select>
         </label>
         <label>
-          <span className="mb-1 block text-sm font-medium text-red-950">Note</span>
+          <span className="mb-1 block text-sm font-medium text-red-950">Delivery note</span>
           <input
             value={failureForm.note}
             onChange={(event) => onChange({ note: event.target.value })}
@@ -554,7 +619,7 @@ function FailureOutcomePanel({
           onClick={onConfirm}
           className="self-end rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
         >
-          {mutationPending ? 'Recording...' : 'Record failed'}
+          {mutationPending ? 'Recording...' : 'Record failed delivery'}
         </button>
       </div>
     </section>
@@ -562,7 +627,7 @@ function FailureOutcomePanel({
 }
 
 function customerName(order: Order) {
-  return `${order.customer.firstName} ${order.customer.lastName}`;
+  return `${order.customer.firstName} ${order.customer.lastName}`.trim() || 'Unknown customer';
 }
 
 function shortId(id: string) {
@@ -575,4 +640,22 @@ function toStartIso(value: string): string | undefined {
 
 function toEndIso(value: string): string | undefined {
   return value ? new Date(`${value}T23:59:59.999Z`).toISOString() : undefined;
+}
+
+function SummaryMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
+      <p className="mt-1 truncate text-lg font-semibold text-gray-900">{value}</p>
+      <p className="mt-1 truncate text-xs text-gray-500">{detail}</p>
+    </div>
+  );
 }

@@ -32,6 +32,7 @@ public class ConfirmationWorkflowService {
     private final OrderRepository orderRepository;
     private final ConfirmationAttemptRepository attemptRepository;
     private final OrderLifecycleService orderLifecycleService;
+    private final OrderIntelligenceScoringService orderIntelligenceScoringService;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -109,6 +110,7 @@ public class ConfirmationWorkflowService {
             );
         }
 
+        orderIntelligenceScoringService.recalculate(tenantId, orderId);
         return attempt;
     }
 
@@ -159,6 +161,7 @@ public class ConfirmationWorkflowService {
         if (callback.getCallbackResolvedAt() == null) {
             callback.setCallbackResolvedAt(Instant.now(clock));
             callback.setCallbackResolvedBy(resolvedBy);
+            orderIntelligenceScoringService.recalculate(tenantId, callback.getOrderId());
         }
 
         return callback;

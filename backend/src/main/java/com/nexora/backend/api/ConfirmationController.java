@@ -1,6 +1,7 @@
 package com.nexora.backend.api;
 
 import com.nexora.backend.application.ConfirmationWorkflowService;
+import com.nexora.backend.application.OrderIntelligenceScoringService;
 import com.nexora.backend.domain.model.ConfirmationAttempt;
 import com.nexora.backend.domain.model.ConfirmationCallbackScope;
 import com.nexora.backend.domain.model.ConfirmationOutcome;
@@ -32,6 +33,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -44,6 +46,7 @@ public class ConfirmationController {
     private static final int MAX_SEARCH_LENGTH = 100;
 
     private final ConfirmationWorkflowService confirmationWorkflowService;
+    private final OrderIntelligenceScoringService orderIntelligenceScoringService;
 
     public record ConfirmationQueueResponse(
             List<OrderResponse> content,
@@ -52,10 +55,16 @@ public class ConfirmationController {
             long totalElements,
             int totalPages
     ) {
-        static ConfirmationQueueResponse from(Page<Order> orders) {
+        static ConfirmationQueueResponse from(
+                Page<Order> orders,
+                Map<UUID, OrderIntelligenceScoringService.OrderIntelligenceResult> intelligence
+        ) {
             return new ConfirmationQueueResponse(
                     orders.getContent().stream()
-                            .map(OrderResponse::from)
+                            .map(order -> OrderResponse.from(
+                                    order,
+                                    OrderIntelligenceResponse.from(intelligence.get(order.getId()), 3)
+                            ))
                             .toList(),
                     orders.getNumber(),
                     orders.getSize(),
@@ -175,15 +184,18 @@ public class ConfirmationController {
                 Sort.by(Sort.Direction.ASC, "createdAt").and(Sort.by(Sort.Direction.ASC, "id"))
         );
 
+        UUID tenantId = getCurrentTenantId();
         Page<Order> orders = confirmationWorkflowService.listQueue(
-                getCurrentTenantId(),
+                tenantId,
                 status,
                 toStartOfDay(createdFrom),
                 toExclusiveEndOfDay(createdTo),
                 search,
                 pageRequest
         );
-        return ResponseEntity.ok(ConfirmationQueueResponse.from(orders));
+        Map<UUID, OrderIntelligenceScoringService.OrderIntelligenceResult> intelligence =
+                orderIntelligenceScoringService.getOrCalculate(tenantId, orders.getContent());
+        return ResponseEntity.ok(ConfirmationQueueResponse.from(orders, intelligence));
     }
 
     @PostMapping("/orders/{orderId}/confirmation-attempts")

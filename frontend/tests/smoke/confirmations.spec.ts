@@ -19,6 +19,24 @@ const order = {
     country: 'Morocco',
   },
   amount: 349,
+  intelligence: {
+    confirmationConfidenceScore: 73,
+    fraudRiskScore: 34,
+    level: 'NEEDS_ATTENTION',
+    summary: 'Review confirmation signals before progressing',
+    calculatedAt: '2026-06-21T10:00:00Z',
+    signals: [
+      {
+        key: 'complete_address',
+        label: 'Address has delivery basics',
+        detail: 'Street, city, and country are present.',
+        confidenceDelta: 5,
+        riskDelta: -3,
+        severity: 'POSITIVE',
+        source: 'ORDER',
+      },
+    ],
+  },
   createdAt: '2026-06-21T10:00:00Z',
   updatedAt: '2026-06-21T10:00:00Z',
   version: 1,
@@ -127,15 +145,22 @@ test('merchant can use the confirmation next-action panel', async ({ page }) => 
   await loginAs(page, 'admin@example.com');
   await page.goto('/app/confirmations');
 
-  await expect(page.getByRole('heading', { name: 'Confirmations' })).toBeVisible();
-  await expect(page.getByText('Record next attempt')).toBeVisible();
-  await expect(page.getByText('Select an order from the queue.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Confirmation Ops' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Call workspace' })).toBeVisible();
+  await expect(page.getByText('Avg confidence')).toBeVisible();
+  await expect(page.getByText('73/100').first()).toBeVisible();
+  await expect(page.getByText('Avg risk')).toBeVisible();
+  await expect(page.getByText('No order selected.')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Needs attention')).toBeVisible();
 
   await page.getByText('Sara Customer').click();
-  await expect(page.getByRole('heading', { name: 'Next confirmation action' })).toBeVisible();
+  const callWorkspace = page.getByRole('complementary');
+  await expect(page.getByText('Selected order')).toBeVisible();
+  await expect(callWorkspace.getByText('Review confirmation signals before progressing')).toBeVisible();
+  await expect(callWorkspace.getByText('Address has delivery basics')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Call customer' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'WhatsApp' })).toBeVisible();
-  await expect(page.getByText('Current decision')).toBeVisible();
+  await expect(page.getByText('Selected outcome')).toBeVisible();
   await expect(page.getByText('Product snapshot')).toHaveCount(0);
 
   await page.getByLabel('Outcome').selectOption('CONFIRMED');

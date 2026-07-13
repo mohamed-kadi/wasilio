@@ -23,7 +23,9 @@ import {
   recordConfirmationAttempt,
   resolveConfirmationCallback,
 } from '../api/client';
-import { hasOrderLines, orderLineSummary, OrderLineSnapshots } from '../components/OrderLineSnapshots';
+import { IntelligenceBadge, IntelligenceScoreKpi, IntelligenceSignals, IntelligenceSummary } from '../components/OrderIntelligence';
+import { OrderLineSnapshots } from '../components/OrderLineSnapshots';
+import { hasOrderLines, orderLineSummary } from '../lib/orderLines';
 import type {
   ConfirmationAttempt,
   ConfirmationCallback,
@@ -112,6 +114,10 @@ function customerName(order: Order) {
 
 function shortOrderId(orderId: string) {
   return `${orderId.slice(0, 8)}...`;
+}
+
+function formatScoreKpi(value: number | null) {
+  return value === null ? 'Pending' : `${value}/100`;
 }
 
 export default function Confirmations() {
@@ -227,7 +233,19 @@ export default function Confirmations() {
   const highlightedOrder = createdOrderId ? orders.find((order) => order.id === createdOrderId) : undefined;
   const visibleNotStarted = orders.filter((order) => order.status === 'CREATED').length;
   const visibleInFollowUp = orders.filter((order) => order.status === 'CONFIRMATION_REQUESTED').length;
-  const selectedOrderLabel = selectedOrder ? customerName(selectedOrder) : 'None selected';
+  const scoredOrders = orders.filter((order) => order.intelligence);
+  const averageConfidence = scoredOrders.length
+    ? Math.round(
+        scoredOrders.reduce((total, order) => total + (order.intelligence?.confirmationConfidenceScore ?? 0), 0) /
+          scoredOrders.length,
+      )
+    : null;
+  const averageRisk = scoredOrders.length
+    ? Math.round(scoredOrders.reduce((total, order) => total + (order.intelligence?.fraudRiskScore ?? 0), 0) / scoredOrders.length)
+    : null;
+  const visibleHighRisk = orders.filter((order) => order.intelligence?.level === 'HIGH_RISK').length;
+  const visibleNeedsAttention = orders.filter((order) => order.intelligence?.level === 'NEEDS_ATTENTION').length;
+  const visibleHighConfidence = orders.filter((order) => order.intelligence?.level === 'HIGH_CONFIDENCE').length;
 
   useEffect(() => {
     if (!highlightedOrder || appliedCreatedOrderId.current === highlightedOrder.id) {
@@ -289,22 +307,25 @@ export default function Confirmations() {
         <SummaryMetric
           label="Open queue"
           value={String(totalElements)}
-          detail={isFetching && !isLoading ? 'Refreshing queue' : 'Awaiting customer decision'}
+          detail={isFetching && !isLoading ? 'Refreshing queue' : `${visibleNotStarted} not started / ${visibleInFollowUp} follow-up`}
         />
         <SummaryMetric
-          label="Not started"
-          value={String(visibleNotStarted)}
-          detail="Visible on this page"
+          label="Avg confidence"
+          value={formatScoreKpi(averageConfidence)}
+          detail={`${scoredOrders.length} scored visible orders`}
+          tone={averageConfidence !== null && averageConfidence >= 75 ? 'good' : 'info'}
         />
         <SummaryMetric
-          label="In follow-up"
-          value={String(visibleInFollowUp)}
-          detail="Visible on this page"
+          label="Avg risk"
+          value={formatScoreKpi(averageRisk)}
+          detail="Fraud risk across visible orders"
+          tone={averageRisk === null ? 'info' : averageRisk >= 65 ? 'danger' : averageRisk >= 36 ? 'warning' : 'good'}
         />
         <SummaryMetric
-          label="Selected"
-          value={selectedOrderLabel}
-          detail={selectedOrder ? shortOrderId(selectedOrder.id) : 'Choose a queue row'}
+          label="High risk"
+          value={String(visibleHighRisk)}
+          detail={`${visibleNeedsAttention} need attention / ${visibleHighConfidence} high confidence`}
+          tone={visibleHighRisk > 0 ? 'danger' : 'neutral'}
         />
       </section>
 
@@ -397,8 +418,9 @@ export default function Confirmations() {
             </select>
             <button
               type="button"
+              aria-expanded={callbacksExpanded}
               onClick={() => setCallbacksExpanded((expanded) => !expanded)}
-              className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              className="inline-flex min-w-[10rem] items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
             >
               <ListChecks size={16} />
               {callbacksExpanded ? 'Hide callbacks' : 'Review callbacks'}
@@ -548,11 +570,12 @@ export default function Confirmations() {
               </div>
               <button
                 type="button"
+                aria-expanded={advancedFiltersOpen}
                 onClick={() => setAdvancedFiltersOpen((open) => !open)}
-                className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+                className="inline-flex min-w-[12rem] items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
               >
                 <SlidersHorizontal size={16} />
-                {advancedFiltersOpen ? 'Hide advanced filters' : 'Advanced filters'}
+                Advanced filters
               </button>
             </div>
 
@@ -657,11 +680,12 @@ export default function Confirmations() {
 
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[860px] text-left border-collapse">
+              <table className="w-full min-w-[1120px] text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase">
                     <th className="p-4 font-medium">Order</th>
                     <th className="p-4 font-medium">Customer</th>
+                    <th className="p-4 font-medium">Score</th>
                     <th className="p-4 font-medium">Products</th>
                     <th className="p-4 font-medium">Amount</th>
                     <th className="p-4 font-medium">Status</th>
@@ -693,6 +717,17 @@ export default function Confirmations() {
                           <p className="text-gray-500">{order.customer.phone}</p>
                         </td>
                         <td className="p-4">
+                          <div className="min-w-44">
+                            <IntelligenceBadge intelligence={order.intelligence} showScores={false} />
+                            <div className="mt-2">
+                              <IntelligenceScoreKpi intelligence={order.intelligence} compact showHeader={false} />
+                            </div>
+                          </div>
+                          {order.intelligence?.signals[0] && (
+                            <p className="mt-2 max-w-44 truncate text-xs text-gray-500">{order.intelligence.signals[0].label}</p>
+                          )}
+                        </td>
+                        <td className="p-4">
                           {productSummary ? (
                             <span className="text-sm font-medium text-gray-800">{productSummary}</span>
                           ) : (
@@ -714,7 +749,7 @@ export default function Confirmations() {
                   })}
                   {!isLoading && orders.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-gray-500">
+                      <td colSpan={8} className="p-8 text-center text-gray-500">
                         <div className="mx-auto max-w-sm">
                           <p className="text-sm font-medium text-gray-900">No orders waiting for confirmation.</p>
                           <p className="mt-1 text-sm text-gray-500">
@@ -741,7 +776,7 @@ export default function Confirmations() {
                   )}
                   {isLoading && (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-gray-500">
+                      <td colSpan={8} className="p-8 text-center text-gray-500">
                         <p className="text-sm font-medium text-gray-900">Loading confirmation queue</p>
                         <p className="mt-1 text-sm text-gray-500">
                           Fetching orders that still need a customer decision.
@@ -810,6 +845,21 @@ export default function Confirmations() {
                 <p className="mt-2 text-sm text-gray-500">
                   {selectedOrder.address.city}, {selectedOrder.address.country}
                 </p>
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase text-gray-500">Intelligence</p>
+                      <IntelligenceSummary intelligence={selectedOrder.intelligence} className="mt-1 text-sm text-gray-600" />
+                    </div>
+                    <IntelligenceBadge intelligence={selectedOrder.intelligence} showScores={false} />
+                  </div>
+                  <div className="mt-4">
+                    <IntelligenceScoreKpi intelligence={selectedOrder.intelligence} compact showHeader={false} />
+                  </div>
+                  <div className="mt-4">
+                    <IntelligenceSignals intelligence={selectedOrder.intelligence} limit={2} />
+                  </div>
+                </div>
                 {hasOrderLines(selectedOrder.orderLines) && (
                   <div className="mt-4 border-t border-gray-100 pt-4">
                     <div className="flex items-center justify-between gap-2">
@@ -1013,15 +1063,25 @@ function SummaryMetric({
   label,
   value,
   detail,
+  tone = 'neutral',
 }: {
   label: string;
   value: string;
   detail: string;
+  tone?: 'neutral' | 'good' | 'info' | 'warning' | 'danger';
 }) {
+  const toneClasses = {
+    neutral: 'border-gray-200 bg-white text-gray-900',
+    good: 'border-emerald-200 bg-emerald-50 text-emerald-950',
+    info: 'border-blue-200 bg-blue-50 text-blue-950',
+    warning: 'border-amber-200 bg-amber-50 text-amber-950',
+    danger: 'border-red-200 bg-red-50 text-red-950',
+  }[tone];
+
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+    <div className={`rounded-lg border px-4 py-3 ${toneClasses}`}>
       <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
-      <p className="mt-1 truncate text-lg font-semibold text-gray-900">{value}</p>
+      <p className="mt-1 truncate text-lg font-semibold">{value}</p>
       <p className="mt-1 truncate text-xs text-gray-500">{detail}</p>
     </div>
   );

@@ -123,7 +123,7 @@ test('merchant can read courier workflow stages across queues', async ({ page })
   await page.goto('/app/couriers/assignment');
   await expect(page.getByRole('heading', { name: 'Courier assignment' })).toBeVisible();
   await expect(page.getByText('Assign a courier to move the order into pickup.')).toBeVisible();
-  await expect(page.getByText('Select courier and assign for pickup')).toBeVisible();
+  await expect(page.getByText('Move to pickup queue')).toBeVisible();
   await page.getByRole('combobox').filter({ hasText: 'Select courier' }).selectOption(courier.courierId);
   await page.getByRole('button', { name: 'Assign' }).click();
   await expect(page.getByText('Order assigned and moved to pickup')).toBeVisible();
@@ -146,15 +146,18 @@ test('merchant can read courier workflow stages across queues', async ({ page })
   await expect(page.getByText('Picked up order ready for delivery outcome')).toBeVisible();
   await expect(page.getByRole('table').getByText('From pickup', { exact: true })).toBeVisible();
   await expect(page.getByText('Choose delivered or document the failure reason.')).toBeVisible();
-  await expect(page.getByText('Record delivery result')).toBeVisible();
-  await expect(page.getByRole('combobox').filter({ hasText: 'Customer refused' })).toHaveCount(1);
-  await page.getByRole('button', { name: 'Delivered' }).click();
+  await page.getByRole('button', { name: 'Advanced filters' }).click();
+  await expect(page.getByLabel('Delivery stage')).toHaveValue('OUT_FOR_DELIVERY');
+  await expect(page.getByLabel('Rows per page')).toBeVisible();
+  await expect(page.getByText('Awaiting delivery result')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Record failed delivery' })).toBeVisible();
+  await page.getByRole('button', { name: 'Record delivered' }).click();
   expect(deliveredOrders).toHaveLength(0);
-  await expect(page.getByText('Are you sure this delivery should be marked delivered?')).toBeVisible();
+  await expect(page.getByText('Record delivered?')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByText('Are you sure this delivery should be marked delivered?')).toBeHidden();
-  await page.getByRole('button', { name: 'Delivered' }).click();
-  await page.getByRole('button', { name: 'Yes, mark delivered' }).click();
+  await expect(page.getByText('Record delivered?')).toBeHidden();
+  await page.getByRole('button', { name: 'Record delivered' }).click();
+  await page.getByRole('button', { name: 'Record delivered' }).last().click();
   await expect.poll(() => deliveredOrders.length).toBe(1);
 
   expect(assignments).toHaveLength(1);

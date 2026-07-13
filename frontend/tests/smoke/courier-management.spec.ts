@@ -131,17 +131,20 @@ test('merchant can manage courier availability and performance visibility', asyn
   await expect(page.getByText('Courier profile')).toBeVisible();
 
   await page.goto('/app/couriers/performance');
-  await expect(page.getByText('Assignment attempts, delivery outcomes')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Today Since local midnight' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Last 7 days Rolling 7-day window' })).toBeVisible();
+  await expect(page.getByText('Compare assignment, pickup, delivery')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Today' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Last 7 days' })).toBeVisible();
   await expect(page.getByText('Assignment attempts', { exact: true })).toBeVisible();
   await expect(page.getByText('Failed deliveries', { exact: true })).toBeVisible();
-  await expect(page.getByText('Click a courier failed count to inspect')).toBeVisible();
+  await expect(page.getByText('Available for recovery review')).toBeVisible();
   await expect(page.getByRole('columnheader', { name: 'Success rate' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Recovery review' })).toBeVisible();
   await expect(page.getByText('Active - can receive assignments')).toBeVisible();
-  await page.getByRole('button', { name: /1 View failures/ }).click();
-  await expect(page.getByText('Failed delivery records')).toBeVisible();
-  await expect(page.getByText('Amine Courier - Last 7 days - 1 records')).toBeVisible();
+  await expect(page.getByText('Delivered: 2')).toBeVisible();
+  await expect(page.getByText('Failed: 1')).toBeVisible();
+  await page.getByRole('button', { name: 'Review failures' }).click();
+  await expect(page.getByText('Failed deliveries for review')).toBeVisible();
+  await expect(page.getByText('Amine Courier - Last 7 days - 1 record')).toBeVisible();
   await expect(page.getByText('Failed Customer')).toBeVisible();
   await expect(page.getByText('Customer did not answer at delivery')).toBeVisible();
 });

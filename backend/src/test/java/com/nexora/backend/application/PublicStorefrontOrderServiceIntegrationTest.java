@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.domain.model.InboundOrder;
 import com.nexora.backend.domain.model.InboundOrderStatus;
 import com.nexora.backend.domain.model.Order;
+import com.nexora.backend.domain.model.OrderIntelligenceSnapshot;
 import com.nexora.backend.domain.model.OrderLineSnapshot;
 import com.nexora.backend.domain.model.OrderSource;
 import com.nexora.backend.domain.model.Product;
@@ -13,6 +14,9 @@ import com.nexora.backend.domain.model.PublicStorefront;
 import com.nexora.backend.domain.model.PublicStorefrontStatus;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.repository.InboundOrderRepository;
+import com.nexora.backend.domain.repository.OrderIntelligenceAuditEventRepository;
+import com.nexora.backend.domain.repository.OrderIntelligenceSignalRepository;
+import com.nexora.backend.domain.repository.OrderIntelligenceSnapshotRepository;
 import com.nexora.backend.domain.repository.OrderRepository;
 import com.nexora.backend.domain.repository.ProductRepository;
 import com.nexora.backend.domain.repository.PublicStorefrontRepository;
@@ -55,6 +59,15 @@ class PublicStorefrontOrderServiceIntegrationTest {
     private OrderRepository orderRepository;
 
     @Autowired
+    private OrderIntelligenceSnapshotRepository orderIntelligenceSnapshotRepository;
+
+    @Autowired
+    private OrderIntelligenceSignalRepository orderIntelligenceSignalRepository;
+
+    @Autowired
+    private OrderIntelligenceAuditEventRepository orderIntelligenceAuditEventRepository;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     @Autowired
@@ -79,6 +92,9 @@ class PublicStorefrontOrderServiceIntegrationTest {
             entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM order_intelligence_audit_events").executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM order_intelligence_signals").executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM order_intelligence_snapshots").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM inbound_orders").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();
@@ -137,6 +153,15 @@ class PublicStorefrontOrderServiceIntegrationTest {
         assertEquals("0612345678", order.getCustomer().getPhone());
         assertEquals("Casablanca", order.getAddress().getCity());
         assertEquals("MA", order.getAddress().getCountry());
+
+        OrderIntelligenceSnapshot snapshot = orderIntelligenceSnapshotRepository
+                .findByTenantIdAndOrderId(tenantId, order.getId())
+                .orElseThrow();
+        assertEquals(73, snapshot.getConfirmationConfidenceScore());
+        assertEquals(34, snapshot.getFraudRiskScore());
+        assertEquals("NEEDS_ATTENTION", snapshot.getLevel().name());
+        assertFalse(orderIntelligenceSignalRepository.findByTenantIdAndOrderIdOrderBySortRankAsc(tenantId, order.getId()).isEmpty());
+        assertEquals(1, orderIntelligenceAuditEventRepository.countByTenantIdAndOrderId(tenantId, order.getId()));
     }
 
     @Test

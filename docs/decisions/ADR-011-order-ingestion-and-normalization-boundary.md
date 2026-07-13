@@ -25,7 +25,7 @@ Order Lifecycle remains the authority for final state transitions after ingestio
 
 The foundation is implemented with `inbound_orders`, `OrderIngestionService`, `OrderSource`, `InboundOrderStatus`, and lightweight `OrderSourceMetadata` on `OrderCreated` events and the `orders` projection. Manual order creation flows through this boundary with `MANUAL` as the default source.
 
-Storefront capture, CSV import, platform adapters, marketing attribution, and customer intelligence remain future work.
+Public storefront capture now uses this boundary with `WASILIO_STOREFRONT`, server-side product snapshots, idempotency checks, and raw intake payload traceability. CSV import, platform adapters, broader marketing attribution analytics, and customer intelligence remain future work.
 
 ## Alternatives Considered
 

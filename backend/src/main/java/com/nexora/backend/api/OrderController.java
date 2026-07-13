@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.application.CourierService;
 import com.nexora.backend.application.OrderIngestionService;
+import com.nexora.backend.application.OrderIntelligenceScoringService;
 import com.nexora.backend.application.OrderLifecycleService;
 import com.nexora.backend.application.OrderTimelineService;
 import com.nexora.backend.application.ProductService;
@@ -59,6 +60,7 @@ public class OrderController {
     private final EventStore eventStore;
     private final ObjectMapper objectMapper;
     private final OrderTimelineService orderTimelineService;
+    private final OrderIntelligenceScoringService orderIntelligenceScoringService;
 
     private UUID getCurrentTenantId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -368,9 +370,15 @@ public class OrderController {
 
     @GetMapping("/{orderId}")
     public ResponseEntity<OrderResponse> getOrder(@PathVariable UUID orderId) {
-        Order order = orderRepository.findByIdAndTenantId(orderId, getCurrentTenantId())
+        UUID tenantId = getCurrentTenantId();
+        Order order = orderRepository.findByIdAndTenantId(orderId, tenantId)
                 .orElseThrow(() -> new IllegalArgumentException("Order not found"));
-        return ResponseEntity.ok(OrderResponse.from(order));
+        return ResponseEntity.ok(OrderResponse.from(
+                order,
+                OrderIntelligenceResponse.from(
+                        orderIntelligenceScoringService.getOrCalculateWithHistory(tenantId, orderId, 10)
+                )
+        ));
     }
 
     @GetMapping("/{orderId}/events")

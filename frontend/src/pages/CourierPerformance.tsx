@@ -1,7 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, BarChart3 } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  Truck,
+  XCircle,
+} from 'lucide-react';
 import { fetchCourierPerformance, fetchDeliveryFailures, getErrorMessage } from '../api/client';
 import type { CourierPerformance as CourierPerformanceMetric, DeliveryFailureDrilldownItem } from '../api/client';
 
@@ -29,6 +39,20 @@ export default function CourierPerformance() {
     queryKey: ['courier-performance', range],
     queryFn: () => fetchCourierPerformance(range),
   });
+
+  const rankedMetrics = useMemo(() => (
+    [...metrics].sort((left, right) => {
+      const rightCompleted = completedOrdersFor(right);
+      const leftCompleted = completedOrdersFor(left);
+      if (rightCompleted !== leftCompleted) {
+        return rightCompleted - leftCompleted;
+      }
+      if (right.deliverySuccessRate !== left.deliverySuccessRate) {
+        return right.deliverySuccessRate - left.deliverySuccessRate;
+      }
+      return left.courierName.localeCompare(right.courierName);
+    })
+  ), [metrics]);
 
   const selectedMetric = selectedCourierId
     ? metrics.find((metric) => metric.courierId === selectedCourierId)
@@ -81,7 +105,7 @@ export default function CourierPerformance() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Courier performance</h2>
           <p className="text-sm text-gray-500">
-            Assignment attempts, delivery outcomes, and failed-delivery drilldowns
+            Compare assignment, pickup, delivery, and failed-delivery recovery signals
             {isFetching && !isLoading ? ' - Refreshing' : ''}
           </p>
           <p className="mt-2 text-xs font-medium text-gray-500">
@@ -89,34 +113,81 @@ export default function CourierPerformance() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {datePresets.map((preset) => {
-            const isActive = datePreset === preset.value;
-            return (
-              <button
-                key={preset.value}
-                type="button"
-                aria-pressed={isActive}
-                onClick={() => choosePreset(preset.value)}
-                className={`rounded-md border px-3 py-2 text-left text-sm ${
-                  isActive
-                    ? 'border-blue-500 bg-blue-50 text-blue-900'
-                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                <span className="block font-semibold">{preset.label}</span>
-                <span className="block text-xs text-gray-500">{preset.detail}</span>
-              </button>
-            );
-          })}
+          <Link
+            to="/app/delivery-follow-ups"
+            className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Delivery follow-ups
+          </Link>
         </div>
       </div>
 
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900">Report range</h3>
+            <p className="text-sm text-gray-500">Use the same range for summary metrics and failed-delivery drilldowns.</p>
+          </div>
+          <div className="inline-flex rounded-md border border-gray-200 bg-gray-50 p-1">
+            {datePresets.map((preset) => {
+              const isActive = datePreset === preset.value;
+              return (
+                <button
+                  key={preset.value}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => choosePreset(preset.value)}
+                  className={`rounded px-3 py-1.5 text-sm font-medium ${
+                    isActive
+                      ? 'bg-white text-blue-700 shadow-sm'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title={preset.detail}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <PerformanceMetric title="Active couriers" value={activeCouriers} detail="Can receive work" tone="blue" />
-        <PerformanceMetric title="Assignment attempts" value={assignmentAttempts} detail={rangeLabel(datePreset)} tone="amber" />
-        <PerformanceMetric title="Delivered" value={deliveredOrders} detail="Successful outcomes" tone="green" />
-        <PerformanceMetric title="Failed deliveries" value={failedOrders} detail="Click a courier failed count to inspect" tone={failedOrders > 0 ? 'red' : 'green'} />
-        <PerformanceMetric title="Success rate" value={`${overallSuccessRate}%`} detail={`${failedOrders} failed deliveries`} tone={overallSuccessRate >= 80 ? 'green' : 'red'} />
+        <PerformanceMetric
+          title="Active couriers"
+          value={activeCouriers}
+          detail="Can receive work"
+          icon={<Truck size={18} />}
+          tone="blue"
+        />
+        <PerformanceMetric
+          title="Assignment attempts"
+          value={assignmentAttempts}
+          detail={rangeLabel(datePreset)}
+          icon={<RotateCcw size={18} />}
+          tone="amber"
+        />
+        <PerformanceMetric
+          title="Delivered"
+          value={deliveredOrders}
+          detail="Successful outcomes"
+          icon={<CheckCircle2 size={18} />}
+          tone="green"
+        />
+        <PerformanceMetric
+          title="Failed deliveries"
+          value={failedOrders}
+          detail="Available for recovery review"
+          icon={<XCircle size={18} />}
+          tone={failedOrders > 0 ? 'red' : 'green'}
+        />
+        <PerformanceMetric
+          title="Success rate"
+          value={`${overallSuccessRate}%`}
+          detail={`${failedOrders} failed deliveries`}
+          icon={<BarChart3 size={18} />}
+          tone={overallSuccessRate >= 80 || completedOrders === 0 ? 'green' : 'red'}
+        />
       </section>
 
       {error && (
@@ -125,83 +196,124 @@ export default function CourierPerformance() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <table className="w-full min-w-[760px] text-left text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-              <th className="p-4 font-medium">Courier</th>
-              <th className="p-4 font-medium">Assignments</th>
-              <th className="p-4 font-medium">Pickups</th>
-              <th className="p-4 font-medium">Delivered</th>
-              <th className="p-4 font-medium">Failed</th>
-              <th className="p-4 font-medium">Success rate</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {metrics.map((metric) => (
-              <tr key={metric.courierId} className="hover:bg-gray-50">
-                <td className="p-4">
-                  <p className="font-medium text-gray-900">{metric.courierName}</p>
-                  <p className="text-xs text-gray-500">{metric.active ? 'Active - can receive assignments' : 'Inactive - no new assignments'}</p>
-                </td>
-                <td className="p-4 font-medium">{metric.assignedOrdersCount}</td>
-                <td className="p-4 font-medium">{metric.pickedUpOrdersCount}</td>
-                <td className="p-4 font-medium text-green-700">{metric.deliveredOrdersCount}</td>
-                <td className="p-4">
-                  <button
-                    type="button"
-                    onClick={() => openFailures(metric)}
-                    disabled={metric.failedOrdersCount === 0}
-                    className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 font-semibold text-red-800 hover:bg-red-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-400"
-                  >
-                    {metric.failedOrdersCount}
-                    <span className="text-xs font-medium">View failures</span>
-                  </button>
-                </td>
-                <td className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-2 w-28 rounded-full bg-gray-100">
-                      <div
-                        className="h-2 rounded-full bg-green-600"
-                        style={{ width: `${Math.round(metric.deliverySuccessRate * 100)}%` }}
-                      />
-                    </div>
-                    <span className="font-medium">{Math.round(metric.deliverySuccessRate * 100)}%</span>
-                  </div>
-                </td>
+      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 px-5 py-4">
+          <h3 className="font-semibold text-gray-900">Courier comparison</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Sorted by completed delivery outcomes, then delivery success rate.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[940px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
+                <th className="p-4 font-medium">Courier</th>
+                <th className="p-4 font-medium">Workload</th>
+                <th className="p-4 font-medium">Delivery result</th>
+                <th className="p-4 font-medium">Success rate</th>
+                <th className="p-4 font-medium">Recovery review</th>
               </tr>
-            ))}
-            {!isLoading && metrics.length === 0 && (
-              <tr>
-                <td colSpan={6} className="p-8 text-center text-gray-500">
-                  No courier metrics are available for this period.
-                </td>
-              </tr>
-            )}
-            {isLoading && (
-              <tr>
-                <td colSpan={6} className="p-8 text-center text-gray-500">
-                  <span className="inline-flex items-center gap-2">
-                    <BarChart3 size={16} />
-                    Loading courier metrics...
-                  </span>
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rankedMetrics.map((metric) => {
+                const selected = selectedCourierId === metric.courierId;
+                const completed = completedOrdersFor(metric);
+                const successPercent = successPercentFor(metric);
+
+                return (
+                  <tr key={metric.courierId} className={`${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-gray-100 text-sm font-semibold text-gray-700">
+                          {initials(metric.courierName)}
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{metric.courierName}</p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {metric.active ? 'Active - can receive assignments' : 'Inactive - no new assignments'}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="grid grid-cols-2 gap-2">
+                        <MiniStat label="Assigned" value={metric.assignedOrdersCount} />
+                        <MiniStat label="Picked up" value={metric.pickedUpOrdersCount} />
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex flex-wrap gap-2">
+                        <OutcomePill tone="green" label="Delivered" value={metric.deliveredOrdersCount} />
+                        <OutcomePill tone={metric.failedOrdersCount > 0 ? 'red' : 'gray'} label="Failed" value={metric.failedOrdersCount} />
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">
+                        {completed} completed delivery outcome{completed === 1 ? '' : 's'}
+                      </p>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 w-32 rounded-full bg-gray-100">
+                          <div
+                            className={`h-2 rounded-full ${successBarClass(metric)}`}
+                            style={{ width: `${completed > 0 ? successPercent : 0}%` }}
+                          />
+                        </div>
+                        <span className="font-semibold text-gray-900">{completed > 0 ? `${successPercent}%` : '-'}</span>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">{successRateLabel(metric)}</p>
+                    </td>
+                    <td className="p-4">
+                      <button
+                        type="button"
+                        onClick={() => openFailures(metric)}
+                        disabled={metric.failedOrdersCount === 0}
+                        className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
+                          metric.failedOrdersCount > 0
+                            ? selected
+                              ? 'border-blue-300 bg-blue-600 text-white hover:bg-blue-700'
+                              : 'border-red-200 bg-red-50 text-red-800 hover:bg-red-100'
+                            : 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
+                        }`}
+                      >
+                        <AlertTriangle size={16} />
+                        {metric.failedOrdersCount > 0 ? 'Review failures' : 'No failures'}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {!isLoading && rankedMetrics.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-gray-500">
+                    No courier metrics are available for this period.
+                  </td>
+                </tr>
+              )}
+              {isLoading && (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-gray-500">
+                    <span className="inline-flex items-center gap-2">
+                      <BarChart3 size={16} />
+                      Loading courier metrics...
+                    </span>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {selectedMetric && (
-        <section className="rounded-lg border border-red-200 bg-white">
-          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-red-100 px-5 py-4">
+        <section className="rounded-lg border border-gray-200 bg-white">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
             <div>
-              <div className="flex items-center gap-2 text-red-800">
-                <AlertTriangle size={18} />
-                <h3 className="font-semibold text-gray-900">Failed delivery records</h3>
+              <div className="flex items-center gap-2">
+                <AlertTriangle size={18} className="text-red-700" />
+                <h3 className="font-semibold text-gray-900">Failed deliveries for review</h3>
               </div>
               <p className="mt-1 text-sm text-gray-500">
-                {selectedMetric.courierName} - {rangeLabel(datePreset)} - {failuresPage?.totalElements ?? selectedMetric.failedOrdersCount} records
+                {selectedMetric.courierName} - {rangeLabel(datePreset)} - {failuresPage?.totalElements ?? selectedMetric.failedOrdersCount} record{(failuresPage?.totalElements ?? selectedMetric.failedOrdersCount) === 1 ? '' : 's'}
                 {fetchingFailures && !loadingFailures ? ' - Refreshing' : ''}
               </p>
             </div>
@@ -210,7 +322,7 @@ export default function CourierPerformance() {
               onClick={() => setSelectedCourierId(null)}
               className="rounded-md border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Close drilldown
+              Close review
             </button>
           </div>
 
@@ -238,28 +350,15 @@ export default function CourierPerformance() {
             </div>
           )}
 
-          <div className="flex items-center justify-between border-t border-gray-100 px-5 py-4">
-            <p className="text-sm text-gray-500">
-              Page {failureTotalPages === 0 ? 0 : failurePage + 1} of {failureTotalPages}
-            </p>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setFailurePage((currentPage) => Math.max(0, currentPage - 1))}
-                disabled={!canPageFailuresBack}
-                className="rounded-md border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={() => setFailurePage((currentPage) => currentPage + 1)}
-                disabled={!canPageFailuresForward}
-                className="rounded-md border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
+          <div className="border-t border-gray-100 px-5 py-4">
+            <PaginationControls
+              page={failurePage}
+              totalPages={failureTotalPages}
+              canGoBack={canPageFailuresBack}
+              canGoForward={canPageFailuresForward}
+              onPrevious={() => setFailurePage((currentPage) => Math.max(0, currentPage - 1))}
+              onNext={() => setFailurePage((currentPage) => currentPage + 1)}
+            />
           </div>
         </section>
       )}
@@ -271,22 +370,38 @@ function FailureRecord({ item }: { item: DeliveryFailureDrilldownItem }) {
   const { failure, order } = item;
   return (
     <article className="grid gap-4 px-5 py-4 md:grid-cols-[minmax(0,1fr)_auto]">
-      <div>
+      <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-800">
             {formatFailureReason(failure.reason)}
           </span>
-          <span className="text-xs font-medium uppercase text-gray-500">{new Date(failure.createdAt).toLocaleString()}</span>
+          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
+            Failed {formatDateTime(failure.createdAt)}
+          </span>
         </div>
         <h4 className="mt-3 font-semibold text-gray-900">
-          {order ? `${order.customerFirstName} ${order.customerLastName}` : `Order ${failure.orderId.slice(0, 8)}`}
+          {order ? `${order.customerFirstName} ${order.customerLastName}`.trim() : `Order ${shortOrderId(failure.orderId)}`}
         </h4>
+        <Link
+          to={`/app/orders/${failure.orderId}`}
+          className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
+        >
+          Order {shortOrderId(failure.orderId)}
+          <ArrowRight size={14} />
+        </Link>
         {order && (
-          <p className="mt-1 text-sm text-gray-600">
-            {order.customerPhone} - {formatMoney(order.amount)} - Current status: {order.status.replace(/_/g, ' ')}
-          </p>
+          <div className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+            <MiniDetail label="Customer phone" value={order.customerPhone} />
+            <MiniDetail label="Order value" value={formatMoney(order.amount)} />
+            <MiniDetail label="Order status" value={formatOrderStatus(order.status)} />
+          </div>
         )}
-        {failure.note && <p className="mt-2 text-sm text-gray-700">{failure.note}</p>}
+        {failure.note && (
+          <div className="mt-3 rounded-md bg-gray-50 px-3 py-3">
+            <p className="text-xs font-semibold uppercase text-gray-500">Courier note</p>
+            <p className="mt-1 text-sm text-gray-700">{failure.note}</p>
+          </div>
+        )}
       </div>
       <Link
         to={`/app/orders/${failure.orderId}`}
@@ -327,8 +442,54 @@ function rangeLabel(preset: DatePreset) {
   return 'Last 30 days';
 }
 
+function completedOrdersFor(metric: CourierPerformanceMetric) {
+  return metric.deliveredOrdersCount + metric.failedOrdersCount;
+}
+
+function successPercentFor(metric: CourierPerformanceMetric) {
+  const clampedRate = Math.max(0, Math.min(1, metric.deliverySuccessRate));
+  return Math.round(clampedRate * 100);
+}
+
+function successRateLabel(metric: CourierPerformanceMetric) {
+  const completed = completedOrdersFor(metric);
+  if (completed === 0) {
+    return 'No completed outcomes';
+  }
+  if (metric.failedOrdersCount === 0) {
+    return 'No failed deliveries';
+  }
+  return `${metric.failedOrdersCount} failed deliver${metric.failedOrdersCount === 1 ? 'y' : 'ies'}`;
+}
+
+function successBarClass(metric: CourierPerformanceMetric) {
+  if (completedOrdersFor(metric) === 0) {
+    return 'bg-gray-300';
+  }
+  return successPercentFor(metric) >= 80 ? 'bg-emerald-600' : 'bg-amber-500';
+}
+
 function formatFailureReason(reason: string) {
-  return reason.replace(/_/g, ' ').toLowerCase();
+  return titleize(reason);
+}
+
+function formatOrderStatus(status: string) {
+  const labels: Record<string, string> = {
+    CREATED: 'New order',
+    CONFIRMATION_REQUESTED: 'Needs confirmation',
+    CONFIRMED: 'Confirmed',
+    REJECTED: 'Rejected',
+    ASSIGNED_TO_COURIER: 'Assigned to courier',
+    PICKED_UP: 'With courier',
+    DELIVERED: 'Delivered',
+    FAILED: 'Delivery failed',
+  };
+  return labels[status] ?? titleize(status);
+}
+
+function titleize(value: string) {
+  const normalized = value.replace(/_/g, ' ').toLowerCase();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
 }
 
 function formatMoney(value: number) {
@@ -347,15 +508,114 @@ function formatDateTime(value: string) {
   });
 }
 
+function shortOrderId(orderId: string) {
+  return orderId.length > 8 ? `${orderId.slice(0, 8)}...` : orderId;
+}
+
+function initials(name: string) {
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('') || 'C';
+}
+
+function MiniStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md bg-gray-50 px-3 py-2">
+      <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
+      <p className="mt-1 text-base font-semibold text-gray-900">{value}</p>
+    </div>
+  );
+}
+
+function MiniDetail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
+      <p className="mt-1 font-medium text-gray-900">{value}</p>
+    </div>
+  );
+}
+
+function OutcomePill({
+  tone,
+  label,
+  value,
+}: {
+  tone: 'green' | 'red' | 'gray';
+  label: string;
+  value: number;
+}) {
+  const tones = {
+    green: 'bg-green-50 text-green-800 ring-green-200',
+    red: 'bg-red-50 text-red-800 ring-red-200',
+    gray: 'bg-gray-50 text-gray-700 ring-gray-200',
+  };
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ${tones[tone]}`}>
+      {label}: {value}
+    </span>
+  );
+}
+
+function PaginationControls({
+  page,
+  totalPages,
+  canGoBack,
+  canGoForward,
+  onPrevious,
+  onNext,
+}: {
+  page: number;
+  totalPages: number;
+  canGoBack: boolean;
+  canGoForward: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <p className="text-sm text-gray-500">Page {totalPages === 0 ? 0 : page + 1} of {totalPages}</p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={!canGoBack}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+          aria-label="Previous page"
+          title="Previous page"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={!canGoForward}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 disabled:opacity-50"
+          aria-label="Next page"
+          title="Next page"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function PerformanceMetric({
   title,
   value,
   detail,
+  icon,
   tone,
 }: {
   title: string;
   value: number | string;
   detail: string;
+  icon: ReactNode;
   tone: 'blue' | 'amber' | 'green' | 'red';
 }) {
   const tones = {
@@ -366,10 +626,15 @@ function PerformanceMetric({
   };
 
   return (
-    <div className={`rounded-lg border p-4 ${tones[tone]}`}>
-      <p className="text-xs font-semibold uppercase">{title}</p>
-      <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
-      <p className="mt-1 text-sm">{detail}</p>
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase text-gray-500">{title}</p>
+          <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
+        </div>
+        <div className={`rounded-md border p-2 ${tones[tone]}`}>{icon}</div>
+      </div>
+      <p className="mt-2 text-sm text-gray-600">{detail}</p>
     </div>
   );
 }

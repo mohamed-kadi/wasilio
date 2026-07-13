@@ -24,7 +24,15 @@ import {
   retryFailedDelivery,
 } from '../api/client';
 import type { DeliveryFailureRecovery, Order, OrderStatus } from '../api/client';
-import { hasOrderLines, OrderLineSnapshots } from '../components/OrderLineSnapshots';
+import {
+  IntelligenceBadge,
+  IntelligenceHistory,
+  IntelligenceScoreKpi,
+  IntelligenceSignals,
+  IntelligenceSummary,
+} from '../components/OrderIntelligence';
+import { OrderLineSnapshots } from '../components/OrderLineSnapshots';
+import { hasOrderLines } from '../lib/orderLines';
 
 type LifecycleCommand =
   | { action: 'request-confirmation' }
@@ -406,6 +414,8 @@ export default function OrderDetails() {
   const canMoveBackToAssignment = latestFailureRecovery?.decision === 'RETRY_DELIVERY';
   const latestRecoveryClosed = latestFailureRecovery?.decision === 'CLOSE_UNRECOVERABLE';
   const closeDecisionMissingNote = recoveryDecision === 'CLOSE_UNRECOVERABLE' && !recoveryNote.trim();
+  const duplicateFollowUpBlocked = recoveryDecision === 'REFUND_OR_CUSTOMER_FOLLOW_UP' && openFollowUpTasks.length > 0;
+  const recoverySubmitDisabled = recoveryMutation.isPending || duplicateFollowUpBlocked;
   const recoveryNextAction = openFollowUpTasks.length > 0
     ? 'Resolve customer follow-up'
     : canMoveBackToAssignment
@@ -495,6 +505,44 @@ export default function OrderDetails() {
           <SummaryTile label="Amount" value={amountLabel} detail="Cash on delivery" />
           <SummaryTile label="Source" value={formatOrderSource(order.source)} detail={order.externalOrderId ?? 'No external reference'} />
           <SummaryTile label="Courier" value={selectedCourierName ?? 'Not assigned'} detail={order.courierId ? 'Assigned courier' : 'Pending assignment'} />
+        </div>
+      </section>
+
+      <section className="rounded-lg border border-gray-200 bg-white p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-semibold uppercase text-gray-500">Intelligence</h3>
+            <IntelligenceSummary intelligence={order.intelligence} className="mt-1 text-sm text-gray-600" />
+          </div>
+          <IntelligenceBadge intelligence={order.intelligence} showScores={false} />
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <div>
+            <IntelligenceScoreKpi intelligence={order.intelligence} showHeader={false} />
+            <div className="mt-5 grid gap-4 border-t border-gray-100 pt-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-semibold uppercase text-gray-500">Signals</p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">{order.intelligence?.signals.length ?? 0}</p>
+                <p className="mt-1 text-xs text-gray-500">Current score reasons</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase text-gray-500">Score use</p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">Operations KPI</p>
+                <p className="mt-1 text-xs text-gray-500">No automatic lifecycle action</p>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase text-gray-500">Score reasons</p>
+            <div className="mt-3">
+              <IntelligenceSignals intelligence={order.intelligence} />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 border-t border-gray-100 pt-5">
+          <IntelligenceHistory intelligence={order.intelligence} />
         </div>
       </section>
 
@@ -732,14 +780,14 @@ export default function OrderDetails() {
       </div>
 
       {order.status === 'FAILED' && (
-        <section className="space-y-5 rounded-lg border border-red-200 bg-red-50 p-5 text-red-900">
-          <div className="flex flex-wrap items-start justify-between gap-4">
+        <section className="overflow-hidden rounded-lg border border-red-200 bg-white">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-red-100 bg-red-50/80 px-5 py-4 text-red-950">
             <div>
               <div className="flex items-center gap-2">
                 <AlertCircle size={18} />
-                <p className="text-sm font-semibold">Recovery Workspace</p>
+                <h3 className="text-base font-semibold">Failed delivery recovery</h3>
               </div>
-              <p className="mt-2 text-sm">
+              <p className="mt-1 text-sm text-red-800">
                 Failure reason: <span className="font-semibold">{formattedFailureReason ?? 'Not recorded'}</span>
               </p>
             </div>
@@ -747,20 +795,20 @@ export default function OrderDetails() {
               <Link
                 to="/app/orders"
                 state={{ statuses: ['FAILED'], recoveryFocus: true }}
-                className="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-medium text-red-800 ring-1 ring-red-200 hover:bg-red-100"
+                className="inline-flex min-h-10 items-center rounded-md border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-100"
               >
                 Failed deliveries
               </Link>
               <Link
                 to="/app/couriers/performance"
-                className="inline-flex items-center rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800"
+                className="inline-flex min-h-10 items-center rounded-md border border-red-700 bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800"
               >
                 Courier performance
               </Link>
             </div>
           </div>
 
-          <div className="grid gap-3 border-t border-red-200 pt-5 md:grid-cols-3">
+          <div className="grid gap-3 border-b border-gray-100 px-5 py-4 md:grid-cols-3">
             <RecoveryMetric
               title="Latest decision"
               value={latestFailureRecovery ? formatRecoveryDecision(latestFailureRecovery.decision) : 'None recorded'}
@@ -772,136 +820,174 @@ export default function OrderDetails() {
               detail={openFollowUpTasks[0] ? `Due: ${formatFollowUpDate(openFollowUpTasks[0].dueAt)}` : 'No customer task waiting'}
             />
             <RecoveryMetric
-              title="Current action"
+              title="Next action"
               value={recoveryNextAction}
               detail="Use the matching recovery control below"
             />
           </div>
 
-          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-            <form
-              className="space-y-4 rounded-md border border-red-200 bg-white p-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (closeDecisionMissingNote) {
-                  setRecoveryFormError('Add a closure note before closing this failed recovery.');
-                  return;
-                }
-                setRecoveryFormError(null);
-                recoveryMutation.mutate();
-              }}
-            >
-              <div>
-                <p className="text-xs font-semibold uppercase text-gray-500">Record decision</p>
-                <h4 className="mt-1 text-sm font-semibold text-gray-900">Set the recovery path</h4>
-              </div>
-              <div>
-                <label htmlFor="recovery-decision" className="text-sm font-semibold">
-                  Recovery decision
-                </label>
-                <select
-                  id="recovery-decision"
-                  value={recoveryDecision}
-                  onChange={(event) => {
-                    setRecoveryDecision(event.target.value as DeliveryFailureRecoveryDecision);
-                    setRecoveryFormError(null);
-                  }}
-                  className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
-                >
-                  {Object.entries(recoveryDecisionLabels).map(([decision, label]) => (
-                    <option key={decision} value={decision}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-xs text-red-800">{recoveryDecisionDescriptions[recoveryDecision]}</p>
-              </div>
-
-              <div>
-                <label htmlFor="recovery-note" className="text-sm font-semibold">
-                  Recovery note
-                </label>
-                <textarea
-                  id="recovery-note"
-                  value={recoveryNote}
-                  onChange={(event) => {
-                    setRecoveryNote(event.target.value);
-                    if (event.target.value.trim()) {
+          <div className="grid items-start gap-5 px-5 py-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+            <div className="space-y-4">
+              <form
+                className="space-y-4 rounded-md border border-gray-200 bg-white p-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (closeDecisionMissingNote) {
+                    setRecoveryFormError('Add a closure note before closing this failed recovery.');
+                    return;
+                  }
+                  if (duplicateFollowUpBlocked) {
+                    setRecoveryFormError('Resolve the open follow-up before creating another customer follow-up.');
+                    return;
+                  }
+                  setRecoveryFormError(null);
+                  recoveryMutation.mutate();
+                }}
+              >
+                <div>
+                  <p className="text-xs font-semibold uppercase text-gray-500">Recovery action</p>
+                  <h4 className="mt-1 text-sm font-semibold text-gray-900">Record recovery decision</h4>
+                </div>
+                <div>
+                  <label htmlFor="recovery-decision" className="text-sm font-semibold text-gray-900">
+                    Recovery decision
+                  </label>
+                  <select
+                    id="recovery-decision"
+                    value={recoveryDecision}
+                    onChange={(event) => {
+                      setRecoveryDecision(event.target.value as DeliveryFailureRecoveryDecision);
                       setRecoveryFormError(null);
-                    }
-                  }}
-                  maxLength={1000}
-                  rows={3}
-                  className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
-                  placeholder={recoveryDecision === 'CLOSE_UNRECOVERABLE'
-                    ? 'Required: why this failed order is being closed'
-                    : 'Customer asked for retry tomorrow, refund requested, or closure reason'}
-                />
-                {closeDecisionMissingNote && (
-                  <p className="mt-1 text-xs font-medium text-red-800">
-                    A closure note is required so the team can audit why this recovery was closed.
-                  </p>
+                    }}
+                    className="mt-1 min-h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                  >
+                    {Object.entries(recoveryDecisionLabels).map(([decision, label]) => (
+                      <option key={decision} value={decision}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-600">{recoveryDecisionDescriptions[recoveryDecision]}</p>
+                </div>
+
+                <div>
+                  <label htmlFor="recovery-note" className="text-sm font-semibold text-gray-900">
+                    Recovery note
+                  </label>
+                  <textarea
+                    id="recovery-note"
+                    value={recoveryNote}
+                    onChange={(event) => {
+                      setRecoveryNote(event.target.value);
+                      if (event.target.value.trim()) {
+                        setRecoveryFormError(null);
+                      }
+                    }}
+                    maxLength={1000}
+                    rows={3}
+                    className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                    placeholder={recoveryDecision === 'CLOSE_UNRECOVERABLE'
+                      ? 'Required: why this failed order is being closed'
+                      : 'Customer asked for retry tomorrow, refund requested, or closure reason'}
+                  />
+                  {closeDecisionMissingNote && (
+                    <p className="mt-1 text-xs font-medium text-red-700">
+                      A closure note is required so the team can audit why this recovery was closed.
+                    </p>
+                  )}
+                </div>
+
+                {recoveryDecision === 'REFUND_OR_CUSTOMER_FOLLOW_UP' && (
+                  <div>
+                    <label htmlFor="follow-up-due-date" className="text-sm font-semibold text-gray-900">
+                      Follow-up due date
+                    </label>
+                    <input
+                      id="follow-up-due-date"
+                      type="date"
+                      value={followUpDueDate}
+                      onChange={(event) => setFollowUpDueDate(event.target.value)}
+                      className="mt-1 min-h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                    />
+                    <p className="mt-1 text-xs text-gray-600">Assigns an open follow-up task to the current user.</p>
+                    {duplicateFollowUpBlocked && (
+                      <p className="mt-1 text-xs font-medium text-amber-700">
+                        Resolve the open follow-up before creating another customer follow-up.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {recoveryMutation.error && (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {getErrorMessage(recoveryMutation.error)}
+                  </div>
+                )}
+                {recoveryFormError && (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {recoveryFormError}
+                  </div>
+                )}
+                {resolveFollowUpMutation.error && (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {getErrorMessage(resolveFollowUpMutation.error)}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={recoverySubmitDisabled}
+                  className="min-h-10 rounded-md border border-red-700 bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
+                >
+                  {recoveryMutation.isPending
+                    ? 'Recording...'
+                    : duplicateFollowUpBlocked
+                      ? 'Resolve open follow-up first'
+                      : recoverySubmitLabel(recoveryDecision)}
+                </button>
+              </form>
+
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm font-semibold text-gray-900">Return to assignment</p>
+                <p className="mt-1 text-sm text-gray-600">
+                  Available after the latest recovery decision is Retry delivery.
+                </p>
+                {retryDeliveryMutation.error && (
+                  <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    {getErrorMessage(retryDeliveryMutation.error)}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={!canMoveBackToAssignment || retryDeliveryMutation.isPending}
+                  onClick={() => retryDeliveryMutation.mutate()}
+                  className="mt-3 min-h-10 w-full rounded-md border border-red-700 bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:border-gray-300 disabled:bg-gray-200 disabled:text-gray-500 disabled:opacity-100"
+                >
+                  {retryDeliveryMutation.isPending ? 'Moving...' : 'Move back to assignment queue'}
+                </button>
+                {!canMoveBackToAssignment && (
+                  <p className="mt-2 text-xs text-gray-500">Record Retry delivery as the latest decision first.</p>
                 )}
               </div>
-
-              {recoveryDecision === 'REFUND_OR_CUSTOMER_FOLLOW_UP' && (
-                <div>
-                  <label htmlFor="follow-up-due-date" className="text-sm font-semibold">
-                    Follow-up due date
-                  </label>
-                  <input
-                    id="follow-up-due-date"
-                    type="date"
-                    value={followUpDueDate}
-                    onChange={(event) => setFollowUpDueDate(event.target.value)}
-                    className="mt-1 w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
-                  />
-                  <p className="mt-1 text-xs text-red-800">Assigns an open follow-up task to the current user.</p>
-                </div>
-              )}
-
-              {recoveryMutation.error && (
-                <div className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-red-700">
-                  {getErrorMessage(recoveryMutation.error)}
-                </div>
-              )}
-              {recoveryFormError && (
-                <div className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-red-700">
-                  {recoveryFormError}
-                </div>
-              )}
-              {resolveFollowUpMutation.error && (
-                <div className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-red-700">
-                  {getErrorMessage(resolveFollowUpMutation.error)}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={recoveryMutation.isPending}
-                className="rounded-md bg-red-700 px-4 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:opacity-50"
-              >
-                {recoveryMutation.isPending ? 'Recording...' : recoverySubmitLabel(recoveryDecision)}
-              </button>
-            </form>
+            </div>
 
             <div className="space-y-4">
-              <div className="rounded-md border border-red-200 bg-white p-4">
-                <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
-                  <p className="text-xs font-semibold uppercase text-gray-500">Current recovery action</p>
-                  <p className="mt-1 text-sm font-semibold text-gray-900">{recoveryNextAction}</p>
-                  <p className="mt-1 text-xs text-gray-600">
-                    {openFollowUpTasks.length > 0
-                      ? 'Resolve the customer task when the refund, replacement, or customer contact is complete.'
-                      : canMoveBackToAssignment
-                        ? 'The latest decision is Retry delivery, so this order can return to assignment.'
-                        : latestRecoveryClosed
-                          ? 'This failed order recovery is closed. Record another decision only if new information arrives.'
-                          : 'Record a decision to unlock the next recovery action.'}
-                  </p>
-                </div>
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
+                <p className="text-xs font-semibold uppercase text-gray-500">Current recovery status</p>
+                <p className="mt-1 text-sm font-semibold text-gray-900">{recoveryNextAction}</p>
+                <p className="mt-1 text-xs text-gray-600">
+                  {openFollowUpTasks.length > 0
+                    ? 'Resolve the customer task when the refund, replacement, or customer contact is complete.'
+                    : canMoveBackToAssignment
+                      ? 'The latest decision is Retry delivery, so this order can return to assignment.'
+                      : latestRecoveryClosed
+                        ? 'This failed order recovery is closed. Record another decision only if new information arrives.'
+                        : 'Record a decision to unlock the next recovery action.'}
+                </p>
+              </div>
 
-                <h4 className="mt-4 text-sm font-semibold text-gray-900">Recovery decisions</h4>
+              <div className="rounded-md border border-gray-200 bg-white p-4">
+                <h4 className="text-sm font-semibold text-gray-900">Recovery decision history</h4>
                 {loadingFailureRecoveries && <p className="mt-3 text-sm text-gray-500">Loading recovery decisions...</p>}
                 {failureRecoveriesError && (
                   <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -912,21 +998,24 @@ export default function OrderDetails() {
                   <p className="mt-3 text-sm text-gray-500">No recovery decision recorded yet.</p>
                 )}
                 {failureRecoveries.length > 0 && (
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-3 divide-y divide-gray-100">
                     {failureRecoveries.map((recovery) => (
-                      <div key={recovery.recoveryId} className="border-t border-gray-100 pt-3 first:border-t-0 first:pt-0">
-                        <p className="text-sm font-semibold text-gray-900">{formatRecoveryDecision(recovery.decision)}</p>
-                        {recovery.note && <p className="mt-1 text-sm text-gray-600">{recovery.note}</p>}
-                        <p className="mt-1 text-xs text-gray-500">
-                          By {recovery.createdBy} on {new Date(recovery.createdAt).toLocaleString()}
-                        </p>
-                      </div>
+                      <article key={recovery.recoveryId} className="py-3 first:pt-0 last:pb-0">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <p className="text-sm font-semibold text-gray-900">{formatRecoveryDecision(recovery.decision)}</p>
+                          <span className="text-xs text-gray-500">{new Date(recovery.createdAt).toLocaleString()}</span>
+                        </div>
+                        {recovery.note && (
+                          <p className="mt-2 rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-700">{recovery.note}</p>
+                        )}
+                        <p className="mt-2 text-xs text-gray-500">Recorded by {recovery.createdBy}</p>
+                      </article>
                     ))}
                   </div>
                 )}
               </div>
 
-              <div className="rounded-md border border-red-200 bg-white p-4">
+              <div className="rounded-md border border-gray-200 bg-white p-4">
                 <h4 className="text-sm font-semibold text-gray-900">Customer follow-ups</h4>
                 {loadingFollowUpTasks && <p className="mt-3 text-sm text-gray-500">Loading follow-up tasks...</p>}
                 {followUpTasksError && (
@@ -938,12 +1027,12 @@ export default function OrderDetails() {
                   <p className="mt-3 text-sm text-gray-500">No customer follow-up task is open for this failure.</p>
                 )}
                 {followUpTasks.length > 0 && (
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-3 divide-y divide-gray-100">
                     {followUpTasks.map((task: DeliveryFollowUpTask) => {
                       const isResolvingTask = resolveFollowUpMutation.isPending
                         && resolveFollowUpMutation.variables?.taskId === task.taskId;
                       return (
-                        <div key={task.taskId} className="border-t border-gray-100 pt-3 first:border-t-0 first:pt-0">
+                        <article key={task.taskId} className="py-3 first:pt-0 last:pb-0">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="text-sm font-semibold text-gray-900">
                               {task.status === 'OPEN' ? 'Open follow-up' : 'Resolved follow-up'}
@@ -953,18 +1042,20 @@ export default function OrderDetails() {
                                 ? 'bg-amber-100 text-amber-800'
                                 : 'bg-emerald-100 text-emerald-800'
                             }`}>
-                              {task.status}
+                              {task.status === 'OPEN' ? 'Waiting' : 'Resolved'}
                             </span>
                           </div>
-                          {task.note && <p className="mt-1 text-sm text-gray-600">{task.note}</p>}
-                          <p className="mt-1 text-xs text-gray-500">Owner: {task.assignedTo}</p>
-                          <p className="mt-1 text-xs text-gray-500">Due: {formatFollowUpDate(task.dueAt)}</p>
-                          {task.resolvedAt && (
-                            <p className="mt-1 text-xs text-gray-500">
-                              Resolved by {task.resolvedBy ?? 'unknown'} on {new Date(task.resolvedAt).toLocaleString()}
-                            </p>
-                          )}
-                          {task.resolutionNote && <p className="mt-1 text-xs text-gray-600">{task.resolutionNote}</p>}
+                          {task.note && <p className="mt-2 text-sm text-gray-700">{task.note}</p>}
+                          <div className="mt-2 grid gap-1 text-xs text-gray-500 sm:grid-cols-2">
+                            <p>Owner: {task.assignedTo}</p>
+                            <p>Due: {formatFollowUpDate(task.dueAt)}</p>
+                            {task.resolvedAt && (
+                              <p className="sm:col-span-2">
+                                Resolved by {task.resolvedBy ?? 'unknown'} on {new Date(task.resolvedAt).toLocaleString()}
+                              </p>
+                            )}
+                          </div>
+                          {task.resolutionNote && <p className="mt-2 text-xs text-gray-600">{task.resolutionNote}</p>}
                           {task.status === 'OPEN' && (
                             <div className="mt-3 space-y-2">
                               <textarea
@@ -977,7 +1068,7 @@ export default function OrderDetails() {
                                 rows={2}
                                 aria-label={`Resolution note for follow-up ${task.taskId.slice(0, 8)}`}
                                 placeholder="Optional resolution note"
-                                className="w-full rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
+                                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-red-400"
                               />
                               <button
                                 type="button"
@@ -986,39 +1077,16 @@ export default function OrderDetails() {
                                   taskId: task.taskId,
                                   note: followUpResolutionNotes[task.taskId] ?? '',
                                 })}
-                                className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                                className="min-h-10 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-50"
                               >
                                 {isResolvingTask ? 'Resolving...' : 'Resolve follow-up'}
                               </button>
                             </div>
                           )}
-                        </div>
+                        </article>
                       );
                     })}
                   </div>
-                )}
-              </div>
-
-              <div className="rounded-md border border-red-200 bg-white p-4">
-                <p className="text-sm font-semibold text-gray-900">Retry execution</p>
-                <p className="mt-1 text-sm text-gray-600">
-                  Move this order back to the assignment queue only after the latest decision is Retry delivery.
-                </p>
-                {retryDeliveryMutation.error && (
-                  <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-                    {getErrorMessage(retryDeliveryMutation.error)}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  disabled={!canMoveBackToAssignment || retryDeliveryMutation.isPending}
-                  onClick={() => retryDeliveryMutation.mutate()}
-                  className="mt-3 w-full rounded-md bg-red-700 px-3 py-2 text-sm font-medium text-white hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {retryDeliveryMutation.isPending ? 'Moving...' : 'Move back to assignment queue'}
-                </button>
-                {!canMoveBackToAssignment && (
-                  <p className="mt-2 text-xs text-gray-500">Record Retry delivery as the latest decision first.</p>
                 )}
               </div>
             </div>
@@ -1148,7 +1216,7 @@ function RecoveryMetric({
   detail: string;
 }) {
   return (
-    <div className="rounded-md border border-red-200 bg-white p-4">
+    <div className="rounded-md border border-gray-200 bg-gray-50 p-4">
       <p className="text-xs font-semibold uppercase text-gray-500">{title}</p>
       <p className="mt-2 text-base font-semibold text-gray-900">{value}</p>
       <p className="mt-1 text-xs text-gray-600">{detail}</p>

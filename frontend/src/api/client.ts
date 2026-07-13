@@ -78,6 +78,133 @@ export type InboundOrderStatus = 'RECEIVED' | 'NORMALIZED' | 'REJECTED';
 
 export type ProductStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
 
+export type OrderIntelligenceLevel = 'HIGH_CONFIDENCE' | 'NEEDS_ATTENTION' | 'HIGH_RISK';
+
+export type OrderIntelligenceSignalSeverity = 'POSITIVE' | 'INFO' | 'WARNING' | 'CRITICAL';
+
+export type OrderIntelligenceSignalSource = 'ORDER' | 'CONFIRMATION' | 'CALLBACK' | 'DELIVERY' | 'HISTORY';
+
+export interface OrderIntelligenceSignal {
+  key: string;
+  label: string;
+  detail?: string;
+  confidenceDelta: number;
+  riskDelta: number;
+  severity: OrderIntelligenceSignalSeverity;
+  source: OrderIntelligenceSignalSource;
+}
+
+export interface OrderIntelligenceAuditEvent {
+  sequenceNumber: number;
+  previousConfirmationConfidenceScore?: number | null;
+  previousFraudRiskScore?: number | null;
+  previousLevel?: OrderIntelligenceLevel | null;
+  confirmationConfidenceScore: number;
+  fraudRiskScore: number;
+  level: OrderIntelligenceLevel;
+  confidenceDelta: number;
+  riskDelta: number;
+  changeLabel: string;
+  summary: string;
+  reasonKey?: string | null;
+  reasonLabel?: string | null;
+  reasonDetail?: string | null;
+  reasonSeverity?: OrderIntelligenceSignalSeverity | null;
+  reasonSource?: OrderIntelligenceSignalSource | null;
+  calibrationVersion: string;
+  calculatedAt: string;
+}
+
+export interface OrderIntelligence {
+  confirmationConfidenceScore: number;
+  fraudRiskScore: number;
+  level: OrderIntelligenceLevel;
+  summary: string;
+  calculatedAt: string;
+  signals: OrderIntelligenceSignal[];
+  history?: OrderIntelligenceAuditEvent[];
+}
+
+export interface IntelligenceMovementSummary {
+  improvedCount: number;
+  riskIncreasedCount: number;
+  levelChangedCount: number;
+}
+
+export interface IntelligenceTopSignal {
+  key: string;
+  label: string;
+  detail?: string | null;
+  severity: OrderIntelligenceSignalSeverity;
+  source: OrderIntelligenceSignalSource;
+  count: number;
+  totalConfidenceDelta: number;
+  totalRiskDelta: number;
+}
+
+export interface IntelligenceMovement {
+  orderId: string;
+  sequenceNumber: number;
+  previousConfirmationConfidenceScore?: number | null;
+  previousFraudRiskScore?: number | null;
+  previousLevel?: OrderIntelligenceLevel | null;
+  confirmationConfidenceScore: number;
+  fraudRiskScore: number;
+  level: OrderIntelligenceLevel;
+  confidenceDelta: number;
+  riskDelta: number;
+  changeLabel: string;
+  summary: string;
+  reasonKey?: string | null;
+  reasonLabel?: string | null;
+  reasonSeverity?: OrderIntelligenceSignalSeverity | null;
+  reasonSource?: OrderIntelligenceSignalSource | null;
+  calibrationVersion: string;
+  calculatedAt: string;
+}
+
+export interface IntelligenceWatchlistOrder {
+  orderId: string;
+  customerName: string;
+  customerPhone: string;
+  amount: number;
+  confirmationConfidenceScore: number;
+  fraudRiskScore: number;
+  level: OrderIntelligenceLevel;
+  summary: string;
+  calculatedAt: string;
+}
+
+export interface IntelligenceCalibration {
+  version: string;
+  baseConfirmationConfidence: number;
+  baseFraudRisk: number;
+  highConfidenceMinimumConfidence: number;
+  highConfidenceMaximumRisk: number;
+  highRiskMinimumRisk: number;
+  confirmedMinimumConfidence: number;
+  confirmedMaximumRisk: number;
+  deliveredMinimumConfidence: number;
+  deliveredMaximumRisk: number;
+  minimumPhoneDigits: number;
+  maximumPhoneDigits: number;
+}
+
+export interface IntelligenceReport {
+  generatedAt: string;
+  scoredOrders: number;
+  averageConfirmationConfidence: number;
+  averageFraudRisk: number;
+  highConfidenceCount: number;
+  needsAttentionCount: number;
+  highRiskCount: number;
+  movementSummary: IntelligenceMovementSummary;
+  topSignals: IntelligenceTopSignal[];
+  recentMovements: IntelligenceMovement[];
+  highRiskOrders: IntelligenceWatchlistOrder[];
+  calibration: IntelligenceCalibration;
+}
+
 export interface Order {
   id: string;
   tenantId: string;
@@ -94,6 +221,7 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   version: number;
+  intelligence?: OrderIntelligence;
 }
 
 export interface OrderLineSnapshot {
@@ -1199,6 +1327,10 @@ export async function fetchConfirmationCallbacks(
 
 export async function fetchOrder(id: string): Promise<Order> {
   return apiRequest<Order>(`/orders/${id}`);
+}
+
+export async function fetchIntelligenceReport(): Promise<IntelligenceReport> {
+  return apiRequest<IntelligenceReport>('/intelligence/report');
 }
 
 export async function fetchOrderEvents(id: string): Promise<DomainEvent[]> {

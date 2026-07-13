@@ -152,6 +152,154 @@ class ConfirmationWorkflowIntegrationTest {
     }
 
     @Test
+    void queueListing_includesInitialIntelligenceScoreWithoutChangingOrderPayloads() throws Exception {
+        String orderId = createOrder(jwtToken, "Score", "Buyer", "0612345678");
+
+        mockMvc.perform(get("/api/confirmations/queue")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(orderId))
+                .andExpect(jsonPath("$.content[0].intelligence.confirmationConfidenceScore").value(73))
+                .andExpect(jsonPath("$.content[0].intelligence.fraudRiskScore").value(34))
+                .andExpect(jsonPath("$.content[0].intelligence.level").value("NEEDS_ATTENTION"))
+                .andExpect(jsonPath("$.content[0].intelligence.signals.length()").value(3))
+                .andExpect(jsonPath("$.content[0].intelligence.signals[0].label").value("Address has delivery basics"));
+    }
+
+    @Test
+    void orderDetailTracksIntelligenceAuditHistory() throws Exception {
+        String orderId = createOrder(jwtToken, "Audit", "Buyer", "0612345678");
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.intelligence.history.length()").value(1))
+                .andExpect(jsonPath("$.intelligence.history[0].sequenceNumber").value(1))
+                .andExpect(jsonPath("$.intelligence.history[0].changeLabel").value("Initial score"))
+                .andExpect(jsonPath("$.intelligence.history[0].confirmationConfidenceScore").value(73))
+                .andExpect(jsonPath("$.intelligence.history[0].fraudRiskScore").value(34))
+                .andExpect(jsonPath("$.intelligence.history[0].calibrationVersion").value("v1"));
+
+        mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.NO_ANSWER, "No answer on first call"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.intelligence.history.length()").value(2))
+                .andExpect(jsonPath("$.intelligence.history[0].sequenceNumber").value(2))
+                .andExpect(jsonPath("$.intelligence.history[0].changeLabel").value("Risk increased"))
+                .andExpect(jsonPath("$.intelligence.history[0].previousConfirmationConfidenceScore").value(73))
+                .andExpect(jsonPath("$.intelligence.history[0].previousFraudRiskScore").value(34))
+                .andExpect(jsonPath("$.intelligence.history[0].confirmationConfidenceScore").value(63))
+                .andExpect(jsonPath("$.intelligence.history[0].fraudRiskScore").value(44))
+                .andExpect(jsonPath("$.intelligence.history[0].confidenceDelta").value(-10))
+                .andExpect(jsonPath("$.intelligence.history[0].riskDelta").value(10))
+                .andExpect(jsonPath("$.intelligence.history[0].reasonLabel").value("First no-answer attempt"))
+                .andExpect(jsonPath("$.intelligence.history[1].sequenceNumber").value(1))
+                .andExpect(jsonPath("$.intelligence.history[1].changeLabel").value("Initial score"));
+    }
+
+    @Test
+    void repeatedNoAnswerAttemptsRaiseHighRiskIntelligenceScore() throws Exception {
+        String orderId = createOrder(jwtToken, "Risk", "Buyer", "0612345678");
+
+        mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.NO_ANSWER, "No answer on first call"))
+                .andExpect(status().isCreated());
+        mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.NO_ANSWER, "No answer again"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CREATED"))
+                .andExpect(jsonPath("$.intelligence.confirmationConfidenceScore").value(38))
+                .andExpect(jsonPath("$.intelligence.fraudRiskScore").value(69))
+                .andExpect(jsonPath("$.intelligence.level").value("HIGH_RISK"))
+                .andExpect(jsonPath("$.intelligence.summary").value("High risk: Second no-answer attempt"))
+                .andExpect(jsonPath("$.intelligence.signals[0].label").value("Second no-answer attempt"))
+                .andExpect(jsonPath("$.intelligence.signals[?(@.key=='repeated_unresolved_outcome')].label")
+                        .value("Repeated unresolved behavior"));
+    }
+
+    @Test
+    void wrongNumberAttemptIsHighRiskAndExplainable() throws Exception {
+        String orderId = createOrder(jwtToken, "Wrong", "Number", "0612345678");
+
+        mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.WRONG_NUMBER, "Phone belongs to someone else"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CREATED"))
+                .andExpect(jsonPath("$.intelligence.confirmationConfidenceScore").value(13))
+                .andExpect(jsonPath("$.intelligence.fraudRiskScore").value(94))
+                .andExpect(jsonPath("$.intelligence.level").value("HIGH_RISK"))
+                .andExpect(jsonPath("$.intelligence.summary").value("High risk: Wrong number"))
+                .andExpect(jsonPath("$.intelligence.signals[0].key").value("wrong_number"));
+    }
+
+    @Test
+    void intelligenceReportSummarizesScoreHealthAndMovements() throws Exception {
+        String orderId = createOrder(jwtToken, "Report", "Buyer", "0612345678");
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.intelligence.confirmationConfidenceScore").value(73));
+
+        mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.NO_ANSWER, "No answer on first call"))
+                .andExpect(status().isCreated());
+        mockMvc.perform(recordAttempt(jwtToken, orderId, ConfirmationOutcome.NO_ANSWER, "No answer again"))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/intelligence/report")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.scoredOrders").value(1))
+                .andExpect(jsonPath("$.averageConfirmationConfidence").value(38))
+                .andExpect(jsonPath("$.averageFraudRisk").value(69))
+                .andExpect(jsonPath("$.highRiskCount").value(1))
+                .andExpect(jsonPath("$.needsAttentionCount").value(0))
+                .andExpect(jsonPath("$.movementSummary.riskIncreasedCount").value(2))
+                .andExpect(jsonPath("$.movementSummary.levelChangedCount").value(1))
+                .andExpect(jsonPath("$.topSignals[0].key").value("second_no_answer"))
+                .andExpect(jsonPath("$.recentMovements[?(@.changeLabel=='Moved to High risk')].orderId").value(orderId))
+                .andExpect(jsonPath("$.highRiskOrders[0].orderId").value(orderId))
+                .andExpect(jsonPath("$.highRiskOrders[0].customerName").value("Report Buyer"))
+                .andExpect(jsonPath("$.calibration.version").value("v1"))
+                .andExpect(jsonPath("$.calibration.highRiskMinimumRisk").value(65));
+    }
+
+    @Test
+    void deliveredPhoneHistoryRaisesNewOrderToHighConfidence() throws Exception {
+        String courierId = createCourier(jwtToken, "History Courier");
+        String deliveredOrderId = createOrder(jwtToken, "Loyal", "Buyer", "0612345678");
+
+        requestConfirmation(jwtToken, deliveredOrderId);
+        confirmOrder(jwtToken, deliveredOrderId);
+        assignCourier(jwtToken, deliveredOrderId, courierId);
+        pickUp(jwtToken, deliveredOrderId, courierId);
+        mockMvc.perform(post("/api/orders/" + deliveredOrderId + "/deliver")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+
+        String newOrderId = createOrder(jwtToken, "Loyal", "Buyer", "0612345678");
+
+        mockMvc.perform(get("/api/orders/" + newOrderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CREATED"))
+                .andExpect(jsonPath("$.intelligence.confirmationConfidenceScore").value(93))
+                .andExpect(jsonPath("$.intelligence.fraudRiskScore").value(19))
+                .andExpect(jsonPath("$.intelligence.level").value("HIGH_CONFIDENCE"))
+                .andExpect(jsonPath("$.intelligence.summary").value("Strong confirmation signals"))
+                .andExpect(jsonPath("$.intelligence.signals[0].key").value("phone_delivered_before"));
+    }
+
+    @Test
     void confirmedAttempt_emitsOrderConfirmedEventAndUpdatesOrder() throws Exception {
         String orderId = createOrder(jwtToken, "Confirmed", "User", "0612345678");
 
@@ -166,7 +314,10 @@ class ConfirmationWorkflowIntegrationTest {
         mockMvc.perform(get("/api/orders/" + orderId)
                 .header("Authorization", bearer(jwtToken)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.intelligence.level").value("HIGH_CONFIDENCE"))
+                .andExpect(jsonPath("$.intelligence.confirmationConfidenceScore").value(100))
+                .andExpect(jsonPath("$.intelligence.fraudRiskScore").value(0));
 
         mockMvc.perform(get("/api/orders/" + orderId + "/events")
                 .header("Authorization", bearer(jwtToken)))
@@ -450,6 +601,9 @@ class ConfirmationWorkflowIntegrationTest {
     }
 
     private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM order_intelligence_audit_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM order_intelligence_signals").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM order_intelligence_snapshots").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM delivery_follow_up_tasks").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM delivery_failure_recoveries").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();

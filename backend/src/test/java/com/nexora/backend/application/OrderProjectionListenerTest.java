@@ -12,16 +12,19 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class OrderProjectionListenerTest {
 
     private OrderProjectionService orderProjectionService;
+    private OrderIntelligenceScoringService orderIntelligenceScoringService;
     private OrderProjectionListener listener;
 
     @BeforeEach
     void setUp() {
         orderProjectionService = mock(OrderProjectionService.class);
-        listener = new OrderProjectionListener(orderProjectionService);
+        orderIntelligenceScoringService = mock(OrderIntelligenceScoringService.class);
+        listener = new OrderProjectionListener(orderProjectionService, orderIntelligenceScoringService);
     }
 
     @Test
@@ -31,6 +34,7 @@ class OrderProjectionListenerTest {
         listener.on(event);
 
         verify(orderProjectionService).project(event);
+        verify(orderIntelligenceScoringService).recalculateAfterProjection(event.getTenantId(), event.getAggregateId());
     }
 
     @Test
@@ -41,6 +45,7 @@ class OrderProjectionListenerTest {
                 .project(event);
 
         assertDoesNotThrow(() -> listener.on(event));
+        verifyNoInteractions(orderIntelligenceScoringService);
     }
 
     private DomainEvent event() {

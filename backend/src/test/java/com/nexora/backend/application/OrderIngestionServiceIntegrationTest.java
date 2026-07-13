@@ -9,15 +9,21 @@ import com.nexora.backend.domain.model.Customer;
 import com.nexora.backend.domain.model.InboundOrder;
 import com.nexora.backend.domain.model.InboundOrderStatus;
 import com.nexora.backend.domain.model.Order;
+import com.nexora.backend.domain.model.OrderIntelligenceAuditEvent;
+import com.nexora.backend.domain.model.OrderIntelligenceSnapshot;
 import com.nexora.backend.domain.model.OrderSource;
 import com.nexora.backend.domain.model.OrderStatus;
 import com.nexora.backend.domain.repository.InboundOrderRepository;
+import com.nexora.backend.domain.repository.OrderIntelligenceAuditEventRepository;
+import com.nexora.backend.domain.repository.OrderIntelligenceSignalRepository;
+import com.nexora.backend.domain.repository.OrderIntelligenceSnapshotRepository;
 import com.nexora.backend.domain.repository.OrderRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -26,6 +32,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -42,6 +49,15 @@ class OrderIngestionServiceIntegrationTest {
 
     @Autowired
     private OrderRepository orderRepository;
+
+    @Autowired
+    private OrderIntelligenceSnapshotRepository orderIntelligenceSnapshotRepository;
+
+    @Autowired
+    private OrderIntelligenceSignalRepository orderIntelligenceSignalRepository;
+
+    @Autowired
+    private OrderIntelligenceAuditEventRepository orderIntelligenceAuditEventRepository;
 
     @Autowired
     private DomainEventRepository domainEventRepository;
@@ -66,6 +82,9 @@ class OrderIngestionServiceIntegrationTest {
             entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM order_intelligence_audit_events").executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM order_intelligence_signals").executeUpdate();
+            entityManager.createNativeQuery("DELETE FROM order_intelligence_snapshots").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM inbound_orders").executeUpdate();
             entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();
@@ -99,6 +118,26 @@ class OrderIngestionServiceIntegrationTest {
         assertEquals(OrderSource.MANUAL, order.getSource());
         assertEquals(result.inboundOrderId(), order.getInboundOrderId());
         assertNull(order.getExternalOrderId());
+
+        OrderIntelligenceSnapshot snapshot = orderIntelligenceSnapshotRepository
+                .findByTenantIdAndOrderId(tenantId, result.orderId())
+                .orElseThrow();
+        assertEquals(73, snapshot.getConfirmationConfidenceScore());
+        assertEquals(34, snapshot.getFraudRiskScore());
+        assertEquals("NEEDS_ATTENTION", snapshot.getLevel().name());
+        assertFalse(orderIntelligenceSignalRepository
+                .findByTenantIdAndOrderIdOrderBySortRankAsc(tenantId, result.orderId())
+                .isEmpty());
+
+        List<OrderIntelligenceAuditEvent> history = orderIntelligenceAuditEventRepository
+                .findByTenantIdAndOrderIdOrderBySequenceNumberDescCalculatedAtDesc(
+                        tenantId,
+                        result.orderId(),
+                        PageRequest.of(0, 5)
+                );
+        assertEquals(1, history.size());
+        assertEquals(1, history.get(0).getSequenceNumber());
+        assertEquals("Initial score", history.get(0).getChangeLabel());
     }
 
     @Test
@@ -164,6 +203,9 @@ class OrderIngestionServiceIntegrationTest {
         assertEquals(1, inboundOrderRepository.count());
         assertEquals(0, orderRepository.count());
         assertEquals(0, domainEventRepository.count());
+        assertEquals(0, orderIntelligenceSnapshotRepository.count());
+        assertEquals(0, orderIntelligenceSignalRepository.count());
+        assertEquals(0, orderIntelligenceAuditEventRepository.count());
 
         InboundOrder inboundOrder = inboundOrderRepository.findById(result.inboundOrderId()).orElseThrow();
         assertEquals(InboundOrderStatus.REJECTED, inboundOrder.getStatus());

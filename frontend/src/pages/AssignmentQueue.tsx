@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, PackageCheck, SlidersHorizontal, Truck } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { assignCourier, fetchAssignmentQueue, fetchCouriers, getErrorMessage } from '../api/client';
-import { orderLineSummary } from '../components/OrderLineSnapshots';
+import { orderLineSummary } from '../lib/orderLines';
 import type { Order } from '../api/client';
 
 interface AssignmentLocationState {
@@ -399,11 +399,12 @@ function QueueLayout({
           </div>
           <button
             type="button"
+            aria-expanded={advancedFiltersOpen}
             onClick={() => setAdvancedFiltersOpen((open) => !open)}
-            className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+            className="inline-flex min-w-[12rem] items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
           >
             <SlidersHorizontal size={16} />
-            {advancedFiltersOpen ? 'Hide advanced filters' : 'Advanced filters'}
+            Advanced filters
           </button>
         </div>
 

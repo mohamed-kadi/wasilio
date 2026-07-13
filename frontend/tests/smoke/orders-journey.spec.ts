@@ -19,6 +19,66 @@ const order = {
     country: 'Morocco',
   },
   amount: 349,
+  intelligence: {
+    confirmationConfidenceScore: 100,
+    fraudRiskScore: 0,
+    level: 'HIGH_CONFIDENCE',
+    summary: 'Strong confirmation signals',
+    calculatedAt: '2026-06-21T10:05:00Z',
+    signals: [
+      {
+        key: 'order_confirmed',
+        label: 'Order confirmed',
+        detail: 'Customer accepted the order during confirmation.',
+        confidenceDelta: 35,
+        riskDelta: -35,
+        severity: 'POSITIVE',
+        source: 'CONFIRMATION',
+      },
+    ],
+    history: [
+      {
+        sequenceNumber: 2,
+        previousConfirmationConfidenceScore: 73,
+        previousFraudRiskScore: 34,
+        previousLevel: 'NEEDS_ATTENTION',
+        confirmationConfidenceScore: 100,
+        fraudRiskScore: 0,
+        level: 'HIGH_CONFIDENCE',
+        confidenceDelta: 27,
+        riskDelta: -34,
+        changeLabel: 'Moved to High confidence',
+        summary: 'Strong confirmation signals',
+        reasonKey: 'order_confirmed',
+        reasonLabel: 'Order confirmed',
+        reasonDetail: 'Customer accepted the order during confirmation.',
+        reasonSeverity: 'POSITIVE',
+        reasonSource: 'CONFIRMATION',
+        calibrationVersion: 'v1',
+        calculatedAt: '2026-06-21T10:05:00Z',
+      },
+      {
+        sequenceNumber: 1,
+        previousConfirmationConfidenceScore: null,
+        previousFraudRiskScore: null,
+        previousLevel: null,
+        confirmationConfidenceScore: 73,
+        fraudRiskScore: 34,
+        level: 'NEEDS_ATTENTION',
+        confidenceDelta: 0,
+        riskDelta: 0,
+        changeLabel: 'Initial score',
+        summary: 'Review confirmation signals before progressing',
+        reasonKey: 'complete_address',
+        reasonLabel: 'Address has delivery basics',
+        reasonDetail: 'Street, city, and country are present.',
+        reasonSeverity: 'POSITIVE',
+        reasonSource: 'ORDER',
+        calibrationVersion: 'v1',
+        calculatedAt: '2026-06-21T10:00:00Z',
+      },
+    ],
+  },
   createdAt: '2026-06-21T10:00:00Z',
   updatedAt: '2026-06-21T10:00:00Z',
   version: 1,
@@ -148,18 +208,22 @@ test('merchant can understand order journey stage and next action', async ({ pag
 
   await page.goto('/app/orders');
 
-  await expect(page.locator('p').filter({ hasText: /^Needs confirmation$/ })).toBeVisible();
-  await expect(page.getByText('Courier workflow')).toBeVisible();
-  await expect(page.getByText('Closed orders')).toBeVisible();
-  await expect(page.getByText('Assign courier')).toBeVisible();
-  await expect(page.getByText('Assign stage')).toBeVisible();
+  await expect(page.locator('p').filter({ hasText: /^Needs attention$/ })).toBeVisible();
+  await expect(page.locator('p').filter({ hasText: /^In progress$/ })).toBeVisible();
+  await expect(page.locator('p').filter({ hasText: /^Completed \/ closed$/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Assign Courier' })).toBeVisible();
+  await expect(page.getByRole('table').getByText('Ready for delivery').first()).toBeVisible();
 
   await page.goto('/app/orders/11111111-1111-1111-1111-111111111111');
   await expect(page).toHaveURL(/\/app\/orders\/11111111-1111-1111-1111-111111111111$/);
   await expect(page.getByText('Current COD stage', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Confirmed' })).toBeVisible();
   await expect(page.getByText('The customer accepted the order')).toBeVisible();
-  await expect(page.getByText('Available actions')).toBeVisible();
+  await expect(page.getByText('Workflow action')).toBeVisible();
+  await expect(page.getByText('Score history')).toBeVisible();
+  await expect(page.getByText('Moved to High confidence')).toBeVisible();
+  await expect(page.getByText('+27')).toBeVisible();
+  await expect(page.getByText('-34')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Assign Courier' })).toBeDisabled();
   await expect(page.getByText('Total Amount')).toBeVisible();
   await expect(page.getByText('Product snapshot')).toHaveCount(0);
@@ -521,21 +585,34 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   });
 
   await page.goto('/app/orders');
+  const advancedFiltersToggle = page.getByRole('button', { name: 'Advanced filters' });
+  const closedFiltersBox = await advancedFiltersToggle.boundingBox();
+  expect(closedFiltersBox).not.toBeNull();
+  await advancedFiltersToggle.click();
+  const openFiltersBox = await advancedFiltersToggle.boundingBox();
+  expect(openFiltersBox).not.toBeNull();
+  expect(Math.round(openFiltersBox?.x ?? 0)).toBe(Math.round(closedFiltersBox?.x ?? 0));
+  expect(Math.round(openFiltersBox?.width ?? 0)).toBe(Math.round(closedFiltersBox?.width ?? 0));
+  await advancedFiltersToggle.click();
+
   await page.getByRole('button', { name: 'Review failed deliveries' }).click();
 
   await expect(page.getByText('Failed delivery recovery')).toBeVisible();
   await expect(page.getByRole('button', { name: /Needs decision \(1\)/ })).toBeVisible();
-  await expect(page.getByText('Reason: Customer refused')).toBeVisible();
-  await expect(page.getByText('No recovery decision recorded')).toBeVisible();
-  await expect(page.getByText('Record recovery decision')).toBeVisible();
-  await page.getByRole('link', { name: 'Record decision' }).click();
+  await expect(page.getByRole('columnheader', { name: 'Failure reason' })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Recovery status' })).toBeVisible();
+  await expect(page.getByText('Customer refused')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Needs decision', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Continue Recovery' }).click();
 
   await expect(page).toHaveURL(/\/app\/orders\/11111111-1111-1111-1111-111111111111$/);
-  await expect(page.getByRole('heading', { name: 'Failed delivery' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Failed delivery', exact: true })).toBeVisible();
   await expect(page.getByText('Failure reason: Customer refused')).toBeVisible();
-  await expect(page.getByText('choose retry, customer follow-up')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Back to failed deliveries' })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Review courier performance' })).toBeVisible();
+  await expect(page.getByText('Failed delivery work is handled in the recovery workspace below.')).toBeVisible();
+  await expect(page.getByText('No recovery decision recorded')).toBeVisible();
+  await expect(page.getByText('Record recovery decision').first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Failed deliveries' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Courier performance' })).toBeVisible();
   await expect(page.getByText('Latest decision', { exact: true }).first()).toBeVisible();
   await expect(page.getByText('Next action', { exact: true }).first()).toBeVisible();
 
@@ -546,8 +623,10 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
 
   await expect(page.getByText('Refund / customer follow-up').last()).toBeVisible();
   await expect(page.getByText('Customer wants a refund before another attempt').first()).toBeVisible();
-  await expect(page.getByText('Customer follow-up tasks')).toBeVisible();
+  await expect(page.getByText('Customer follow-ups')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Resolve follow-up' })).toBeVisible();
+  await expect(page.getByText('Resolve the open follow-up before creating another customer follow-up.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Resolve open follow-up first' })).toBeDisabled();
   await page.getByPlaceholder('Optional resolution note').fill('Refund request sent to merchant');
   await page.getByRole('button', { name: 'Resolve follow-up' }).click();
   await expect(page.getByText('Resolved follow-up')).toBeVisible();
@@ -563,6 +642,11 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   await expect(page.getByText('Close as unreachable / unrecoverable').last()).toBeVisible();
   await expect(page.getByText('Recovery closed').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Move back to assignment queue' })).toBeDisabled();
+  await page.getByRole('link', { name: 'Failed deliveries' }).click();
+  await expect(page.getByRole('link', { name: 'View Details' })).toBeVisible();
+  await expect(page.getByText('Customer unreachable after repeated attempts')).not.toBeVisible();
+  await expect(page.getByRole('table').getByText('Closed', { exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'View Details' }).click();
 
   await page.getByLabel('Recovery decision').selectOption('RETRY_DELIVERY');
   await page.getByLabel('Recovery note').fill('Customer confirmed retry for tomorrow');

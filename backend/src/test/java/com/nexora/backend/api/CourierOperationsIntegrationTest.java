@@ -567,6 +567,29 @@ class CourierOperationsIntegrationTest {
                 .andExpect(jsonPath("$[0].openFollowUp.status").value("OPEN"))
                 .andExpect(jsonPath("$[0].latestFollowUp.taskId").value(taskId));
 
+        mockMvc.perform(post("/api/courier-operations/orders/" + orderId + "/failure-recoveries")
+                .header("Authorization", bearer(jwtToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new CourierOperationsController.DeliveryFailureRecoveryRequest(
+                        DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP,
+                        "Second open follow-up should be rejected",
+                        dueAt.plus(1, ChronoUnit.DAYS)
+                ))))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Resolve the open follow-up before creating another customer follow-up."));
+
+        mockMvc.perform(get("/api/courier-operations/orders/" + orderId + "/failure-recoveries")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+
+        mockMvc.perform(get("/api/courier-operations/orders/" + orderId + "/follow-ups")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].taskId").value(taskId))
+                .andExpect(jsonPath("$[0].status").value("OPEN"));
+
         mockMvc.perform(get("/api/courier-operations/orders/recovery-summaries")
                 .param("orderId", orderId)
                 .header("Authorization", bearer(otherTenantJwtToken)))
@@ -947,6 +970,8 @@ class CourierOperationsIntegrationTest {
         entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM order_intelligence_signals").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM order_intelligence_snapshots").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM inbound_orders").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();

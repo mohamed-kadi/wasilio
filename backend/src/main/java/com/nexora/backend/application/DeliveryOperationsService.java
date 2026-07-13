@@ -14,6 +14,7 @@ import com.nexora.backend.domain.repository.DeliveryFailureRecoveryRepository;
 import com.nexora.backend.domain.repository.DeliveryFollowUpTaskRepository;
 import com.nexora.backend.domain.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -33,7 +34,10 @@ public class DeliveryOperationsService {
     private final DeliveryFailureRepository deliveryFailureRepository;
     private final DeliveryFailureRecoveryRepository deliveryFailureRecoveryRepository;
     private final DeliveryFollowUpTaskRepository deliveryFollowUpTaskRepository;
+    private final OrderIntelligenceScoringService orderIntelligenceScoringService;
     private final Clock clock;
+    private static final String OPEN_FOLLOW_UP_CONFLICT_MESSAGE =
+            "Resolve the open follow-up before creating another customer follow-up.";
 
     public record DeliveryFailureRecoveryResult(
             DeliveryFailureRecovery recovery,
@@ -53,7 +57,7 @@ public class DeliveryOperationsService {
 
         orderLifecycleService.markFailed(tenantId, orderId, reason.name());
 
-        return deliveryFailureRepository.save(DeliveryFailure.builder()
+        DeliveryFailure failure = deliveryFailureRepository.save(DeliveryFailure.builder()
                 .failureId(UUID.randomUUID())
                 .tenantId(tenantId)
                 .orderId(orderId)
@@ -62,6 +66,8 @@ public class DeliveryOperationsService {
                 .note(normalize(note))
                 .createdAt(Instant.now(clock))
                 .build());
+        orderIntelligenceScoringService.recalculate(tenantId, orderId);
+        return failure;
     }
 
     @Transactional(readOnly = true)
@@ -133,6 +139,9 @@ public class DeliveryOperationsService {
         if (decision == DeliveryFailureRecoveryDecision.CLOSE_UNRECOVERABLE && normalizedNote == null) {
             throw new IllegalArgumentException("closure note is required");
         }
+        if (decision == DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP) {
+            ensureNoOpenFollowUp(tenantId, orderId);
+        }
 
         DeliveryFailureRecovery recovery = deliveryFailureRecoveryRepository.save(DeliveryFailureRecovery.builder()
                 .recoveryId(UUID.randomUUID())
@@ -146,17 +155,21 @@ public class DeliveryOperationsService {
 
         DeliveryFollowUpTask followUpTask = null;
         if (decision == DeliveryFailureRecoveryDecision.REFUND_OR_CUSTOMER_FOLLOW_UP) {
-            followUpTask = deliveryFollowUpTaskRepository.save(DeliveryFollowUpTask.builder()
-                    .taskId(UUID.randomUUID())
-                    .tenantId(tenantId)
-                    .orderId(orderId)
-                    .recoveryId(recovery.getRecoveryId())
-                    .status(DeliveryFollowUpStatus.OPEN)
-                    .note(normalizedNote)
-                    .dueAt(followUpDueAt)
-                    .assignedTo(actor)
-                    .createdAt(now)
-                    .build());
+            try {
+                followUpTask = deliveryFollowUpTaskRepository.saveAndFlush(DeliveryFollowUpTask.builder()
+                        .taskId(UUID.randomUUID())
+                        .tenantId(tenantId)
+                        .orderId(orderId)
+                        .recoveryId(recovery.getRecoveryId())
+                        .status(DeliveryFollowUpStatus.OPEN)
+                        .note(normalizedNote)
+                        .dueAt(followUpDueAt)
+                        .assignedTo(actor)
+                        .createdAt(now)
+                        .build());
+            } catch (DataIntegrityViolationException ex) {
+                throw openFollowUpConflict(ex);
+            }
         } else {
             resolveOpenFollowUps(
                     tenantId,
@@ -168,6 +181,23 @@ public class DeliveryOperationsService {
         }
 
         return new DeliveryFailureRecoveryResult(recovery, followUpTask);
+    }
+
+    private void ensureNoOpenFollowUp(UUID tenantId, UUID orderId) {
+        if (deliveryFollowUpTaskRepository.existsByTenantIdAndOrderIdAndStatus(
+                tenantId,
+                orderId,
+                DeliveryFollowUpStatus.OPEN
+        )) {
+            throw openFollowUpConflict(null);
+        }
+    }
+
+    private ResourceConflictException openFollowUpConflict(Throwable cause) {
+        if (cause == null) {
+            return new ResourceConflictException(OPEN_FOLLOW_UP_CONFLICT_MESSAGE);
+        }
+        return new ResourceConflictException(OPEN_FOLLOW_UP_CONFLICT_MESSAGE, cause);
     }
 
     @Transactional

@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, BarChart3, CheckCircle2, CreditCard, Inbox, LayoutDashboard, LogOut, MessageSquare, Package, PackageCheck, PhoneCall, PlusCircle, RefreshCw, ShoppingCart, Store, Truck, Users } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCircle2, CreditCard, Inbox, LayoutDashboard, LogOut, MessageSquare, Package, PackageCheck, PhoneCall, PlusCircle, RefreshCw, ShieldCheck, ShoppingCart, Store, Truck, Users } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import OrdersList from './pages/OrdersList';
 import InboundOrders from './pages/InboundOrders';
@@ -23,6 +23,7 @@ import PickupQueue from './pages/PickupQueue';
 import DeliveryQueue from './pages/DeliveryQueue';
 import DeliveryFollowUps from './pages/DeliveryFollowUps';
 import CourierPerformance from './pages/CourierPerformance';
+import IntelligenceReport from './pages/IntelligenceReport';
 import AdminBilling from './pages/AdminBilling';
 import { useAuthStore } from './store/authStore';
 import BrandLogo from './components/BrandLogo';
@@ -87,6 +88,10 @@ function Sidebar() {
               <Link to="/app/confirmations" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
                 <PhoneCall size={20} />
                 <span>Confirmation</span>
+              </Link>
+              <Link to="/app/intelligence" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
+                <ShieldCheck size={20} />
+                <span>Intelligence</span>
               </Link>
               <Link to="/app/couriers" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
                 <Users size={20} />
@@ -264,6 +269,7 @@ function ProtectedApp() {
             <Route path="storefront-settings" element={<Navigate to="/app/storefront/settings" replace />} />
             <Route path="inbound-orders" element={<InboundOrders />} />
             <Route path="confirmations" element={<Confirmations />} />
+            <Route path="intelligence" element={<IntelligenceReport />} />
             <Route path="couriers" element={<Couriers />} />
             <Route path="couriers/assignment" element={<AssignmentQueue />} />
             <Route path="couriers/pickup" element={<PickupQueue />} />

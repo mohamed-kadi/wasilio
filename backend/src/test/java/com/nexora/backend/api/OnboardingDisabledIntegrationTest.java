@@ -62,6 +62,8 @@ class OnboardingDisabledIntegrationTest {
         entityManager.createNativeQuery("DELETE FROM delivery_failures").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM confirmation_attempts").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM projection_processed_events").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM order_intelligence_signals").executeUpdate();
+        entityManager.createNativeQuery("DELETE FROM order_intelligence_snapshots").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM orders").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM inbound_orders").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM domain_events").executeUpdate();

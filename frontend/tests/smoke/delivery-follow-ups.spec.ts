@@ -106,12 +106,14 @@ test('merchant can work open delivery follow-ups by due date', async ({ page }) 
   await loginAs(page, 'admin@example.com');
   await page.goto('/app/delivery-follow-ups');
 
-  await expect(page.getByRole('heading', { name: 'Customer follow-ups' })).toBeVisible();
-  await expect(page.getByText('Open follow-up queue')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Delivery follow-ups' })).toBeVisible();
+  await expect(page.getByText('Recovery follow-up queue')).toBeVisible();
+  await expect(page.getByText('Status: Open follow-ups')).toBeVisible();
+  await page.getByRole('button', { name: 'Advanced filters' }).click();
   await expect(page.getByRole('button', { name: /All open \(3\)/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Due now \(1\)/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /Scheduled \(1\)/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: /No due date \(1\)/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Scheduled later \(1\)/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Needs priority \(1\)/ })).toBeVisible();
   await expect(page.locator('article')).toHaveCount(3);
   await expect(page.locator('article').first()).toContainText('Overdue');
   await expect(page.locator('article').first()).toContainText('Earlier Customer');
@@ -123,18 +125,18 @@ test('merchant can work open delivery follow-ups by due date', async ({ page }) 
   await expect(page.locator('article')).toHaveCount(1);
   await expect(page.locator('article')).toContainText('Earlier Customer');
 
-  await page.getByRole('button', { name: /Scheduled \(1\)/ }).click();
+  await page.getByRole('button', { name: /Scheduled later \(1\)/ }).click();
   await expect(page.locator('article')).toHaveCount(1);
   await expect(page.locator('article')).toContainText('Later Customer');
 
-  await page.getByRole('button', { name: /No due date \(1\)/ }).click();
+  await page.getByRole('button', { name: /Needs priority \(1\)/ }).click();
   await expect(page.locator('article')).toHaveCount(1);
   await expect(page.locator('article')).toContainText('Manual Customer');
 
   await page.getByRole('button', { name: /All open \(3\)/ }).click();
   await expect(page.locator('article')).toHaveCount(3);
-  await page.locator('article').first().getByPlaceholder('Optional note, e.g. refund sent or customer reached').fill('Refund confirmed with customer');
-  await page.locator('article').first().getByRole('button', { name: 'Resolve follow-up' }).click();
+  await page.locator('article').first().getByPlaceholder('Optional note, e.g. customer reached or refund sent').fill('Refund confirmed with customer');
+  await page.locator('article').first().getByRole('button', { name: 'Mark follow-up done' }).click();
 
   await expect.poll(() => resolveRequests.length).toBe(1);
   expect(resolveRequests[0]).toEqual({ note: 'Refund confirmed with customer' });
