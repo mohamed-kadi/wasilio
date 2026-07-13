@@ -334,6 +334,47 @@ export interface ProductMediaUpload {
   createdAt: string;
 }
 
+export interface PublicSupportChannel {
+  type?: string;
+  value?: string;
+}
+
+export interface PublicProduct {
+  productId: string;
+  productSlug: string;
+  productName: string;
+  description?: string;
+  imageUrl?: string;
+}
+
+export interface PublicOffer {
+  price: number;
+  currency: string;
+  availability: string;
+  orderable: boolean;
+}
+
+export interface PublicSeo {
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
+export interface PublicProductReadinessItem {
+  key: string;
+  label: string;
+  complete: boolean;
+  required: boolean;
+  detail?: string;
+}
+
+export interface PublicProductReadiness {
+  orderable: boolean;
+  requiredComplete: number;
+  requiredTotal: number;
+  items: PublicProductReadinessItem[];
+}
+
 export type StorefrontProductProfileStatus = 'DRAFT' | 'PUBLISHED';
 
 export interface StorefrontProfileFeature {
@@ -378,6 +419,19 @@ export interface StorefrontProductProfilePayload {
   seoDescription?: string;
   seoImageUrl?: string;
   status?: StorefrontProductProfileStatus;
+}
+
+export interface PublicStorefrontProductPage {
+  storeSlug: string;
+  storePublicName: string;
+  defaultCountryCode: string;
+  defaultCurrency: string;
+  supportChannel?: PublicSupportChannel | null;
+  product: PublicProduct;
+  offer: PublicOffer;
+  seo: PublicSeo;
+  readiness: PublicProductReadiness;
+  landingProfile?: Omit<StorefrontProductProfile, 'productId' | 'status'> | null;
 }
 
 export type StorefrontStatus = 'ACTIVE' | 'DISABLED';
@@ -1146,6 +1200,16 @@ export async function uploadProductMedia(
 export async function fetchProductStorefrontProfile(productId: string): Promise<StorefrontProductProfile | null> {
   const profile = await apiRequest<StorefrontProductProfile | undefined>(`/products/${productId}/storefront-profile`);
   return profile ?? null;
+}
+
+export async function fetchPublicStorefrontProductPage(
+  storeSlug: string,
+  productSlug: string,
+): Promise<PublicStorefrontProductPage> {
+  return apiRequest<PublicStorefrontProductPage>(
+    `/public/storefront/${storeSlug}/products/${productSlug}`,
+    { auth: false },
+  );
 }
 
 export async function upsertProductStorefrontProfile(

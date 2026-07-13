@@ -95,11 +95,16 @@ test('merchant uploads primary product media from product editor', async ({ page
   });
 
   await expect(page.getByPlaceholder('Image URL')).toHaveValue(uploadedImageUrl);
+  const editorPreview = page.getByTestId('product-editor-image-preview');
+  await expect(editorPreview).toHaveCSS('width', '112px');
+  await expect(editorPreview).toHaveCSS('height', '112px');
+  await expect(editorPreview.locator('img')).toHaveCSS('object-fit', 'contain');
   await expect(page.getByText('JPEG, PNG, or WebP up to 5 MB.')).toBeVisible();
 
   await page.getByRole('button', { name: /close product editor/i }).click();
   const thumbnail = page.getByTestId('product-thumbnail').first();
   await expect(thumbnail.locator('img')).toHaveAttribute('src', uploadedImageUrl);
+  await expect(thumbnail.locator('img')).toHaveCSS('object-fit', 'contain');
   await expect(thumbnail).toHaveCSS('width', '56px');
   await expect(thumbnail).toHaveCSS('height', '56px');
 });
@@ -180,11 +185,56 @@ test('merchant uploads storefront gallery and SEO media into profile fields', as
       }),
     });
   });
+  await page.route('**/api/public/storefront/demo-store/products/argan-oil', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        storeSlug: 'demo-store',
+        storePublicName: 'Demo Store',
+        defaultCountryCode: 'MA',
+        defaultCurrency: 'MAD',
+        supportChannel: null,
+        product: {
+          productId: product.id,
+          productSlug: product.slug,
+          productName: product.name,
+          description: product.description,
+          imageUrl: 'https://media.example.test/media/tenant/products/argan-oil/product-image.webp',
+        },
+        offer: {
+          price: product.priceAmount,
+          currency: product.currency,
+          availability: 'IN_STOCK',
+          orderable: true,
+        },
+        seo: {
+          title: product.name,
+          description: product.description,
+          image: 'https://media.example.test/media/tenant/products/argan-oil/product-image.webp',
+        },
+        readiness: {
+          orderable: true,
+          requiredComplete: 3,
+          requiredTotal: 7,
+          items: [
+            { key: 'catalog_active', label: 'Catalog product active', complete: true, required: true },
+            { key: 'product_description', label: 'Product description', complete: true, required: true },
+            { key: 'primary_image', label: 'Primary product image', complete: true, required: true },
+            { key: 'landing_profile_published', label: 'Landing profile published', complete: false, required: true },
+          ],
+        },
+        landingProfile: null,
+      }),
+    });
+  });
 
   await loginAs(page, 'merchant@example.com');
   await page.goto('/app/storefront/publishing');
 
   await expect(page.getByRole('heading', { name: 'Product Publishing' })).toBeVisible();
+  await expect(page.getByText('Public API readiness')).toBeVisible();
+  await expect(page.getByText('3/7 required items complete')).toBeVisible();
   await page.getByRole('button', { name: /edit landing content/i }).click();
   await expect(page.getByRole('heading', { name: product.name })).toBeVisible();
 

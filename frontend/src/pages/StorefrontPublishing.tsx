@@ -18,6 +18,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import {
+  fetchPublicStorefrontProductPage,
   fetchProductStorefrontProfile,
   fetchProducts,
   fetchStorefrontSettings,
@@ -25,11 +26,13 @@ import {
   upsertProductStorefrontProfile,
   type Product,
   type ProductStatus,
+  type PublicProductReadiness,
   type PublicStorefrontSettings,
   type StorefrontProductProfile,
   type StorefrontProductProfilePayload,
   type StorefrontProductProfileStatus,
 } from '../api/client';
+import ProductImageFrame from '../components/ProductImageFrame';
 import StorefrontProfileEditor from '../components/StorefrontProfileEditor';
 import {
   landingEngineProductUrl,
@@ -244,11 +247,20 @@ function PublishingProductRow({
   const queryClient = useQueryClient();
   const {
     data: profile,
-    error,
+    error: profileError,
     isLoading,
   } = useQuery({
     queryKey: ['product-storefront-profile', product.id],
     queryFn: () => fetchProductStorefrontProfile(product.id),
+  });
+  const publicReadinessEnabled = Boolean(
+    settings?.storeSlug && settings.status === 'ACTIVE' && product.status === 'ACTIVE',
+  );
+  const publicReadinessQuery = useQuery({
+    queryKey: ['public-storefront-product-page', settings?.storeSlug, product.slug],
+    queryFn: () => fetchPublicStorefrontProductPage(settings?.storeSlug ?? '', product.slug),
+    enabled: publicReadinessEnabled,
+    retry: false,
   });
 
   const profileToggleMutation = useMutation({
@@ -282,21 +294,32 @@ function PublishingProductRow({
   return (
     <tr className={isSelected ? 'bg-blue-50/70' : 'hover:bg-gray-50'}>
       <td className="p-4 align-top">
-        <p className="font-medium text-gray-900">{product.name}</p>
-        <p className="mt-1 font-mono text-xs text-gray-500">{product.slug}</p>
+        <div className="flex items-start gap-3">
+          <ProductImageFrame imageUrl={product.imageUrl} alt={product.name} />
+          <div className="min-w-0">
+            <p className="font-medium text-gray-900">{product.name}</p>
+            <p className="mt-1 break-all font-mono text-xs text-gray-500">{product.slug}</p>
+          </div>
+        </div>
       </td>
       <td className="p-4 align-top">
         <CatalogStatusBadge status={product.status} />
       </td>
       <td className="p-4 align-top">
         {isLoading ? <SmallMuted>Loading</SmallMuted> : <ProfileStatusBadge profile={profile ?? null} />}
-        {error && <p className="mt-2 text-xs text-red-700">{getErrorMessage(error)}</p>}
+        {profileError && <p className="mt-2 text-xs text-red-700">{getErrorMessage(profileError)}</p>}
       </td>
       <td className="p-4 align-top">
         <ReadinessBadge status={readiness.status} />
         <p className="mt-2 text-xs font-medium text-gray-700">
           {readiness.requiredComplete}/{readiness.requiredTotal} required items complete
         </p>
+        <PublicReadinessSummary
+          enabled={publicReadinessEnabled}
+          isLoading={publicReadinessQuery.isLoading}
+          readiness={publicReadinessQuery.data?.readiness}
+          error={publicReadinessQuery.error}
+        />
         <p className="mt-2 max-w-44 text-xs text-gray-500">{publicState.detail}</p>
       </td>
       <td className="p-4 align-top font-medium text-gray-900">{formatMoney(product.priceAmount, product.currency)}</td>
@@ -430,6 +453,45 @@ function ReadinessBadge({ status }: { status: ReadinessStatus }) {
   );
 }
 
+function PublicReadinessSummary({
+  enabled,
+  isLoading,
+  readiness,
+  error,
+}: {
+  enabled: boolean;
+  isLoading: boolean;
+  readiness?: PublicProductReadiness;
+  error: unknown;
+}) {
+  if (!enabled) {
+    return null;
+  }
+
+  if (isLoading) {
+    return <p className="mt-2 text-xs text-gray-500">Checking public API readiness</p>;
+  }
+
+  if (readiness) {
+    const requiredMissing = readiness.items.filter((item) => item.required && !item.complete).length;
+    const complete = requiredMissing === 0 && readiness.orderable;
+    return (
+      <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-2">
+        <p className="text-xs font-semibold uppercase text-gray-500">Public API readiness</p>
+        <p className={`mt-1 text-xs font-medium ${complete ? 'text-emerald-700' : 'text-amber-800'}`}>
+          {readiness.requiredComplete}/{readiness.requiredTotal} required items complete
+        </p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return <p className="mt-2 text-xs text-amber-700">Public API readiness unavailable</p>;
+  }
+
+  return null;
+}
+
 function MissingItemsList({ readiness }: { readiness: ProductReadiness }) {
   const requiredMissing = readiness.requiredItems.filter((item) => !item.complete);
   const recommendedMissing = readiness.recommendedItems.filter((item) => !item.complete);
@@ -546,7 +608,7 @@ function evaluateReadiness(
       complete: hasText(product.description),
     },
     {
-      label: 'Add a product image',
+      label: 'Add primary product image',
       complete: hasText(product.imageUrl),
     },
     {
@@ -589,8 +651,12 @@ function evaluateReadiness(
       complete: hasText(profile?.seoDescription),
     },
     {
-      label: 'Add gallery image URLs',
+      label: 'Add gallery media',
       complete: Boolean(profile?.galleryImageUrls.length),
+    },
+    {
+      label: 'Add SEO image',
+      complete: hasText(profile?.seoImageUrl),
     },
   ];
 

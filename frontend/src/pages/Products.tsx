@@ -8,7 +8,6 @@ import {
   Edit3,
   ExternalLink,
   Globe2,
-  ImageIcon,
   Package,
   PackagePlus,
   Search,
@@ -29,6 +28,7 @@ import {
   type ProductStatus,
   type StorefrontProductProfile,
 } from '../api/client';
+import ProductImageFrame from '../components/ProductImageFrame';
 import { landingEngineProductUrl } from '../lib/storefrontUrls';
 
 const STATUS_OPTIONS: Array<{ value: ProductStatus; label: string }> = [
@@ -54,6 +54,8 @@ interface ProductReadiness {
   catalogReady: boolean;
   storefrontReady: boolean;
   published: boolean;
+  requiredComplete: number;
+  requiredTotal: number;
 }
 
 const EMPTY_FORM: ProductFormState = {
@@ -434,7 +436,7 @@ function ProductRow({
     <tr className="hover:bg-gray-50">
       <td className="p-4 align-top">
         <div className="flex items-start gap-3">
-          <ProductImage product={product} />
+          <ProductImageFrame imageUrl={product.imageUrl} alt={product.name} />
           <div>
             <p className="font-medium text-gray-900">{product.name}</p>
             <p className="mt-1 font-mono text-xs text-gray-500">{product.slug}</p>
@@ -447,10 +449,15 @@ function ProductRow({
         <StatusBadge status={product.status} />
       </td>
       <td className="p-4 align-top">
-        <div className="flex flex-wrap gap-2">
-          <ReadinessPill label="Catalog" ready={readiness.catalogReady} />
-          <ReadinessPill label="Storefront" ready={readiness.storefrontReady} />
-          <ReadinessPill label="Published" ready={readiness.published} />
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-700">
+            {readiness.requiredComplete}/{readiness.requiredTotal} required items
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <ReadinessPill label="Catalog" ready={readiness.catalogReady} />
+            <ReadinessPill label="Storefront" ready={readiness.storefrontReady} />
+            <ReadinessPill label="Published" ready={readiness.published} />
+          </div>
         </div>
       </td>
       <td className="p-4 align-top">
@@ -681,20 +688,13 @@ function ProductEditorPanel({
               </label>
               <div className="md:col-span-2">
                 <span className="mb-1 block text-sm font-medium text-gray-700">Primary Product Image</span>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-[96px_1fr]">
-                  <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50">
-                    {form.imageUrl ? (
-                      <img
-                        src={form.imageUrl}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                        className="block h-full w-full object-cover"
-                      />
-                    ) : (
-                      <ImageIcon size={24} className="text-gray-400" />
-                    )}
-                  </div>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[112px_1fr]">
+                  <ProductImageFrame
+                    imageUrl={form.imageUrl}
+                    alt={form.name || 'Product image'}
+                    size="lg"
+                    testId="product-editor-image-preview"
+                  />
                   <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
                       <label
@@ -788,30 +788,6 @@ function ProductEditorPanel({
   );
 }
 
-function ProductImage({ product }: { product: Product }) {
-  const frameClassName = 'flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-gray-50';
-
-  if (product.imageUrl) {
-    return (
-      <span className={`${frameClassName} border-gray-200`} data-testid="product-thumbnail">
-        <img
-          src={product.imageUrl}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="block h-full w-full object-cover"
-        />
-      </span>
-    );
-  }
-
-  return (
-    <div className={`${frameClassName} border-dashed border-gray-300 text-gray-400`} data-testid="product-thumbnail">
-      <ImageIcon size={22} />
-    </div>
-  );
-}
-
 function EmptyProductsState({ hasProducts, onNewProduct }: { hasProducts: boolean; onNewProduct: () => void }) {
   return (
     <div className="px-4 py-14 text-center">
@@ -867,18 +843,38 @@ function formFromProduct(product: Product): ProductFormState {
 }
 
 function evaluateProductReadiness(product: Product, profile: StorefrontProductProfile | null): ProductReadiness {
-  const catalogReady = product.status === 'ACTIVE' && hasText(product.description) && hasText(product.imageUrl);
+  const active = product.status === 'ACTIVE';
+  const hasDescription = hasText(product.description);
+  const hasPrimaryImage = hasText(product.imageUrl);
+  const hasProfile = Boolean(profile);
+  const hasHeadline = hasText(profile?.headline);
+  const hasBenefits = Boolean(profile?.benefits.length);
+  const hasFeatures = Boolean(profile?.features.length);
+  const requiredItems = [
+    active,
+    hasDescription,
+    hasPrimaryImage,
+    hasProfile,
+    hasHeadline,
+    hasBenefits,
+    hasFeatures,
+  ];
+  const requiredComplete = requiredItems.filter(Boolean).length;
+  const requiredTotal = requiredItems.length;
+  const catalogReady = active && hasDescription && hasPrimaryImage;
   const storefrontReady = catalogReady
-    && Boolean(profile)
-    && hasText(profile?.headline)
-    && Boolean(profile?.benefits.length)
-    && Boolean(profile?.features.length);
+    && hasProfile
+    && hasHeadline
+    && hasBenefits
+    && hasFeatures;
   const published = storefrontReady && profile?.status === 'PUBLISHED';
 
   return {
     catalogReady,
     storefrontReady,
     published,
+    requiredComplete,
+    requiredTotal,
   };
 }
 
