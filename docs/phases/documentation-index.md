@@ -27,6 +27,7 @@ This index is the starting point for future engineers and AI agents.
 - `docs/product/courier-workflow.md`: internal courier resources, assignment, pickup, delivery, and performance.
 - `docs/product/intelligence-scoring.md`: Phase 19 confirmation confidence and fraud risk scoring model.
 - `docs/product/landing-engine-order-intake.md`: stable public order-intent contract for landing-engine handoff into Wasilio.
+- `docs/product/media-upload.md`: Phase 20 product media upload contract and storage boundary.
 
 ## Decisions
 

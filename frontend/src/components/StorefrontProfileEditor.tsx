@@ -1,16 +1,20 @@
-import { type FormEvent } from 'react';
+import { type FormEvent, type RefObject, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Save } from 'lucide-react';
+import { Save, Upload } from 'lucide-react';
 import {
   fetchProductStorefrontProfile,
   getErrorMessage,
   upsertProductStorefrontProfile,
+  uploadProductMedia,
   type Product,
+  type ProductMediaPurpose,
   type StorefrontProductProfilePayload,
 } from '../api/client';
 
 export default function StorefrontProfileEditor({ product }: { product: Product }) {
   const queryClient = useQueryClient();
+  const galleryImageUrlsRef = useRef<HTMLTextAreaElement | null>(null);
+  const seoImageUrlRef = useRef<HTMLInputElement | null>(null);
 
   const {
     data: profile,
@@ -26,6 +30,18 @@ export default function StorefrontProfileEditor({ product }: { product: Product 
     mutationFn: (payload: StorefrontProductProfilePayload) => upsertProductStorefrontProfile(product.id, payload),
     onSuccess: (savedProfile) => {
       queryClient.setQueryData(['product-storefront-profile', product.id], savedProfile);
+    },
+  });
+
+  const mediaUploadMutation = useMutation({
+    mutationFn: ({ file, purpose }: { file: File; purpose: ProductMediaPurpose }) => uploadProductMedia(product.id, file, purpose),
+    onSuccess: (media, variables) => {
+      if (variables.purpose === 'GALLERY_IMAGE') {
+        appendTextAreaLine(galleryImageUrlsRef.current, media.publicUrl);
+      }
+      if (variables.purpose === 'SEO_IMAGE') {
+        setInputValue(seoImageUrlRef.current, media.publicUrl);
+      }
     },
   });
 
@@ -61,9 +77,9 @@ export default function StorefrontProfileEditor({ product }: { product: Product 
         </label>
       </div>
 
-      {(error || saveMutation.error) && (
+      {(error || saveMutation.error || mediaUploadMutation.error) && (
         <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {getErrorMessage(error ?? saveMutation.error)}
+          {getErrorMessage(error ?? saveMutation.error ?? mediaUploadMutation.error)}
         </div>
       )}
 
@@ -101,12 +117,16 @@ export default function StorefrontProfileEditor({ product }: { product: Product 
           help="One short benefit per line."
           disabled={isLoading}
         />
-        <TextAreaField
+        <MediaTextAreaField
           label="Gallery image URLs"
           name="galleryImageUrls"
           defaultValue={profile?.galleryImageUrls.join('\n') ?? ''}
           help="One public image URL per line."
           disabled={isLoading}
+          fieldRef={galleryImageUrlsRef}
+          uploadLabel={mediaUploadMutation.isPending ? 'Uploading' : 'Add gallery image'}
+          uploadDisabled={isLoading || mediaUploadMutation.isPending}
+          onUpload={(file) => mediaUploadMutation.mutate({ file, purpose: 'GALLERY_IMAGE' })}
         />
         <TextAreaField
           label="Features"
@@ -140,16 +160,24 @@ export default function StorefrontProfileEditor({ product }: { product: Product 
               disabled={isLoading}
             />
           </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium uppercase text-gray-500">SEO image URL</span>
+          <div className="block">
+            <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+              <span className="block text-xs font-medium uppercase text-gray-500">SEO image URL</span>
+              <FileUploadButton
+                label={mediaUploadMutation.isPending ? 'Uploading' : 'Upload SEO image'}
+                disabled={isLoading || mediaUploadMutation.isPending}
+                onUpload={(file) => mediaUploadMutation.mutate({ file, purpose: 'SEO_IMAGE' })}
+              />
+            </div>
             <input
+              ref={seoImageUrlRef}
               name="seoImageUrl"
               defaultValue={profile?.seoImageUrl ?? ''}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               maxLength={1000}
               disabled={isLoading}
             />
-          </label>
+          </div>
           <label className="block">
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500">SEO description</span>
             <textarea
@@ -182,6 +210,42 @@ export default function StorefrontProfileEditor({ product }: { product: Product 
   );
 }
 
+function FileUploadButton({
+  label,
+  disabled,
+  onUpload,
+}: {
+  label: string;
+  disabled: boolean;
+  onUpload: (file: File) => void;
+}) {
+  return (
+    <label
+      className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-medium ${
+        disabled
+          ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
+          : 'cursor-pointer border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+      }`}
+    >
+      <Upload size={14} />
+      {label}
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="sr-only"
+        disabled={disabled}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = '';
+          if (file) {
+            onUpload(file);
+          }
+        }}
+      />
+    </label>
+  );
+}
+
 function TextAreaField({
   label,
   name,
@@ -206,6 +270,45 @@ function TextAreaField({
       />
       <span className="mt-1 block text-xs text-gray-500">{help}</span>
     </label>
+  );
+}
+
+function MediaTextAreaField({
+  label,
+  name,
+  defaultValue,
+  help,
+  disabled,
+  fieldRef,
+  uploadLabel,
+  uploadDisabled,
+  onUpload,
+}: {
+  label: string;
+  name: string;
+  defaultValue: string;
+  help: string;
+  disabled: boolean;
+  fieldRef: RefObject<HTMLTextAreaElement | null>;
+  uploadLabel: string;
+  uploadDisabled: boolean;
+  onUpload: (file: File) => void;
+}) {
+  return (
+    <div>
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <span className="block text-xs font-medium uppercase text-gray-500">{label}</span>
+        <FileUploadButton label={uploadLabel} disabled={uploadDisabled} onUpload={onUpload} />
+      </div>
+      <textarea
+        ref={fieldRef}
+        name={name}
+        defaultValue={defaultValue}
+        className="min-h-32 w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        disabled={disabled}
+      />
+      <span className="mt-1 block text-xs text-gray-500">{help}</span>
+    </div>
   );
 }
 
@@ -267,4 +370,19 @@ function pairLinesFromObjects<TFirst extends string, TSecond extends string>(
 function optionalValue(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function appendTextAreaLine(textarea: HTMLTextAreaElement | null, value: string) {
+  if (!textarea) {
+    return;
+  }
+  const currentValue = textarea.value.trim();
+  textarea.value = currentValue ? `${currentValue}\n${value}` : value;
+}
+
+function setInputValue(input: HTMLInputElement | null, value: string) {
+  if (!input) {
+    return;
+  }
+  input.value = value;
 }

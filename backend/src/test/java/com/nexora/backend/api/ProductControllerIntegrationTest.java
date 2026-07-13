@@ -18,15 +18,18 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -229,6 +232,69 @@ class ProductControllerIntegrationTest {
     }
 
     @Test
+    void productOwnerCanUploadPrimaryProductImage() throws Exception {
+        String productId = createProduct(jwtToken, productRequest("Media Product", "media-product", null, "100.00", "MAD", null, null, ProductStatus.ACTIVE));
+
+        MvcResult uploadResult = mockMvc.perform(multipart("/api/products/" + productId + "/media")
+                .file(pngUpload("product.png"))
+                .param("purpose", "PRODUCT_IMAGE")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mediaId").isNotEmpty())
+                .andExpect(jsonPath("$.productId").value(productId))
+                .andExpect(jsonPath("$.purpose").value("PRODUCT_IMAGE"))
+                .andExpect(jsonPath("$.originalFilename").value("product.png"))
+                .andExpect(jsonPath("$.contentType").value("image/png"))
+                .andExpect(jsonPath("$.sizeBytes").value(pngBytes().length))
+                .andExpect(jsonPath("$.publicUrl").value(org.hamcrest.Matchers.startsWith("https://media.example.test/media/")))
+                .andReturn();
+
+        String publicUrl = objectMapper.readTree(uploadResult.getResponse().getContentAsString())
+                .get("publicUrl")
+                .asText();
+
+        mockMvc.perform(get("/api/products/" + productId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageUrl").value(publicUrl));
+    }
+
+    @Test
+    void mediaUploadIsTenantScopedToProductOwner() throws Exception {
+        String productId = createProduct(jwtToken, productRequest("Private Media Product", "private-media-product", null, "100.00", "MAD", null, null, ProductStatus.ACTIVE));
+
+        mockMvc.perform(multipart("/api/products/" + productId + "/media")
+                .file(pngUpload("other.png"))
+                .header("Authorization", bearer(otherTenantJwtToken)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void mediaUploadRejectsUnsupportedOrSpoofedImages() throws Exception {
+        String productId = createProduct(jwtToken, productRequest("Invalid Media Product", "invalid-media-product", null, "100.00", "MAD", null, null, ProductStatus.ACTIVE));
+
+        mockMvc.perform(multipart("/api/products/" + productId + "/media")
+                .file(new MockMultipartFile(
+                        "file",
+                        "notes.txt",
+                        MediaType.TEXT_PLAIN_VALUE,
+                        "not an image".getBytes(StandardCharsets.UTF_8)
+                ))
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isBadRequest());
+
+        mockMvc.perform(multipart("/api/products/" + productId + "/media")
+                .file(new MockMultipartFile(
+                        "file",
+                        "spoofed.png",
+                        MediaType.IMAGE_PNG_VALUE,
+                        "not an image".getBytes(StandardCharsets.UTF_8)
+                ))
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void slugUniquenessIsTenantScoped() throws Exception {
         createProduct(jwtToken, productRequest("First Product", "shared-slug", null, "100.00", "MAD", null, null, ProductStatus.DRAFT));
 
@@ -325,6 +391,7 @@ class ProductControllerIntegrationTest {
     }
 
     private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM media_assets").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM storefront_product_profiles").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM public_storefronts").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM products").executeUpdate();
@@ -395,5 +462,31 @@ class ProductControllerIntegrationTest {
 
     private String bearer(String token) {
         return "Bearer " + token;
+    }
+
+    private MockMultipartFile pngUpload(String filename) {
+        return new MockMultipartFile(
+                "file",
+                filename,
+                MediaType.IMAGE_PNG_VALUE,
+                pngBytes()
+        );
+    }
+
+    private byte[] pngBytes() {
+        return new byte[] {
+                (byte) 0x89,
+                0x50,
+                0x4e,
+                0x47,
+                0x0d,
+                0x0a,
+                0x1a,
+                0x0a,
+                0x00,
+                0x00,
+                0x00,
+                0x0d
+        };
     }
 }

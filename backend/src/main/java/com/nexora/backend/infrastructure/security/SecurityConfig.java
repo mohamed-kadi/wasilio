@@ -54,6 +54,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable) // NOSONAR
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/api/onboarding/**", "/api/public/storefront/**", "/actuator/health", "/actuator/health/**", "/error").permitAll()
+                .requestMatchers("/media/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/marketing/leads").permitAll()
                 .anyRequest().authenticated()
             )

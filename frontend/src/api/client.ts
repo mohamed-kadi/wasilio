@@ -321,6 +321,19 @@ export interface ProductPayload {
   status?: ProductStatus;
 }
 
+export type ProductMediaPurpose = 'PRODUCT_IMAGE' | 'GALLERY_IMAGE' | 'SEO_IMAGE';
+
+export interface ProductMediaUpload {
+  mediaId: string;
+  productId: string;
+  purpose: ProductMediaPurpose;
+  originalFilename: string;
+  contentType: string;
+  sizeBytes: number;
+  publicUrl: string;
+  createdAt: string;
+}
+
 export type StorefrontProductProfileStatus = 'DRAFT' | 'PUBLISHED';
 
 export interface StorefrontProfileFeature {
@@ -1115,6 +1128,21 @@ export async function archiveProduct(productId: string): Promise<Product> {
   });
 }
 
+export async function uploadProductMedia(
+  productId: string,
+  file: File,
+  purpose: ProductMediaPurpose = 'PRODUCT_IMAGE',
+): Promise<ProductMediaUpload> {
+  const formData = new FormData();
+  formData.set('file', file);
+  formData.set('purpose', purpose);
+
+  return apiRequest<ProductMediaUpload>(`/products/${productId}/media`, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
 export async function fetchProductStorefrontProfile(productId: string): Promise<StorefrontProductProfile | null> {
   const profile = await apiRequest<StorefrontProductProfile | undefined>(`/products/${productId}/storefront-profile`);
   return profile ?? null;
@@ -1503,8 +1531,9 @@ export function getErrorMessage(error: unknown): string {
 async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { auth = true, headers: optionHeaders, ...requestOptions } = options;
   const headers = new Headers(optionHeaders);
+  const isFormDataBody = typeof FormData !== 'undefined' && requestOptions.body instanceof FormData;
 
-  if (requestOptions.body && !headers.has('Content-Type')) {
+  if (requestOptions.body && !headers.has('Content-Type') && !isFormDataBody) {
     headers.set('Content-Type', 'application/json');
   }
 

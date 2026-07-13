@@ -37,6 +37,10 @@ spring:
           starttls:
             enable: ${SMTP_STARTTLS_ENABLE:false}
             required: ${SMTP_STARTTLS_REQUIRED:${SMTP_STARTTLS_ENABLE:false}}
+  servlet:
+    multipart:
+      max-file-size: ${APP_MEDIA_MAX_FILE_SIZE:5MB}
+      max-request-size: ${APP_MEDIA_MAX_REQUEST_SIZE:6MB}
 
 jwt:
   secret: ${JWT_SECRET}
@@ -92,6 +96,12 @@ app:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
   projections:
     rebuild-orders-on-startup: ${APP_PROJECTIONS_REBUILD_ORDERS_ON_STARTUP:false}
+  media:
+    storage-dir: ${APP_MEDIA_STORAGE_DIR:storage/media}
+    public-base-path: ${APP_MEDIA_PUBLIC_BASE_PATH:/media}
+    public-base-url: ${APP_MEDIA_PUBLIC_BASE_URL:http://localhost:8080}
+    max-file-size-bytes: ${APP_MEDIA_MAX_FILE_SIZE_BYTES:5242880}
+    cache-max-age: ${APP_MEDIA_CACHE_MAX_AGE:PT720H}
 
 logging:
   pattern:

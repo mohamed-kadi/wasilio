@@ -1,8 +1,10 @@
 package com.nexora.backend.api;
 
 import com.nexora.backend.application.ProductService;
+import com.nexora.backend.application.ProductMediaService;
 import com.nexora.backend.application.StorefrontProductProfileResponse;
 import com.nexora.backend.application.StorefrontProductProfileService;
+import com.nexora.backend.domain.model.MediaAssetPurpose;
 import com.nexora.backend.domain.model.Product;
 import com.nexora.backend.domain.model.ProductStatus;
 import com.nexora.backend.domain.model.StorefrontProductProfileStatus;
@@ -19,6 +21,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -32,8 +35,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -44,6 +49,7 @@ import java.util.UUID;
 public class ProductController {
 
     private final ProductService productService;
+    private final ProductMediaService productMediaService;
     private final StorefrontProductProfileService storefrontProductProfileService;
 
     public record ProductRequest(
@@ -84,6 +90,30 @@ public class ProductController {
                     products.getSize(),
                     products.getTotalElements(),
                     products.getTotalPages()
+            );
+        }
+    }
+
+    public record ProductMediaUploadResponse(
+            UUID mediaId,
+            UUID productId,
+            MediaAssetPurpose purpose,
+            String originalFilename,
+            String contentType,
+            long sizeBytes,
+            String publicUrl,
+            Instant createdAt
+    ) {
+        static ProductMediaUploadResponse from(ProductMediaService.ProductMediaUploadResult result) {
+            return new ProductMediaUploadResponse(
+                    result.mediaId(),
+                    result.productId(),
+                    result.purpose(),
+                    result.originalFilename(),
+                    result.contentType(),
+                    result.sizeBytes(),
+                    result.publicUrl(),
+                    result.createdAt()
             );
         }
     }
@@ -154,6 +184,21 @@ public class ProductController {
         return ResponseEntity.ok(productService.archiveProduct(getCurrentTenantId(), productId));
     }
 
+    @PostMapping(value = "/{productId}/media", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ProductMediaUploadResponse> uploadProductMedia(
+            @PathVariable UUID productId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(defaultValue = "PRODUCT_IMAGE") MediaAssetPurpose purpose
+    ) {
+        return ResponseEntity.ok(ProductMediaUploadResponse.from(productMediaService.uploadProductMedia(
+                getCurrentTenantId(),
+                productId,
+                purpose,
+                file,
+                getCurrentUserEmail()
+        )));
+    }
+
     @GetMapping("/{productId}/storefront-profile")
     public ResponseEntity<StorefrontProductProfileResponse> getStorefrontProfile(@PathVariable UUID productId) {
         StorefrontProductProfileResponse response = storefrontProductProfileService.getProfile(
@@ -190,10 +235,18 @@ public class ProductController {
     }
 
     private UUID getCurrentTenantId() {
+        return UUID.fromString(getCurrentUserDetails().getTenantId());
+    }
+
+    private String getCurrentUserEmail() {
+        return getCurrentUserDetails().getUsername();
+    }
+
+    private CustomUserDetails getCurrentUserDetails() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof CustomUserDetails userDetails)) {
             throw new IllegalStateException("Authenticated user missing in security context");
         }
-        return UUID.fromString(userDetails.getTenantId());
+        return userDetails;
     }
 }

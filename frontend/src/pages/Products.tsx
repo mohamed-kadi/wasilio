@@ -12,6 +12,7 @@ import {
   Package,
   PackagePlus,
   Search,
+  Upload,
   X,
 } from 'lucide-react';
 import {
@@ -22,6 +23,7 @@ import {
   fetchStorefrontSettings,
   getErrorMessage,
   updateProduct,
+  uploadProductMedia,
   type Product,
   type ProductPayload,
   type ProductStatus,
@@ -151,6 +153,13 @@ export default function Products() {
       await queryClient.invalidateQueries({ queryKey: ['products'] });
     },
   });
+  const mediaUploadMutation = useMutation({
+    mutationFn: ({ productId, file }: { productId: string; file: File }) => uploadProductMedia(productId, file),
+    onSuccess: async (media) => {
+      setForm((current) => ({ ...current, imageUrl: media.publicUrl }));
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -164,6 +173,7 @@ export default function Products() {
   }
 
   function openNewProduct() {
+    mediaUploadMutation.reset();
     setEditingProduct(null);
     setForm({ ...EMPTY_FORM, currency: defaultCurrency });
     setSlugManuallyEdited(false);
@@ -172,6 +182,7 @@ export default function Products() {
   }
 
   function openEditProduct(product: Product) {
+    mediaUploadMutation.reset();
     setEditingProduct(product);
     setForm(formFromProduct(product));
     setSlugManuallyEdited(true);
@@ -180,6 +191,7 @@ export default function Products() {
   }
 
   function closeEditor() {
+    mediaUploadMutation.reset();
     setEditingProduct(null);
     setForm({ ...EMPTY_FORM, currency: defaultCurrency });
     setSlugManuallyEdited(false);
@@ -380,6 +392,8 @@ export default function Products() {
           currencyOverrideEnabled={currencyOverrideEnabled}
           isSubmitting={isSubmitting}
           archivePending={archiveMutation.isPending}
+          imageUploadPending={mediaUploadMutation.isPending}
+          imageUploadError={mediaUploadMutation.error}
           onClose={closeEditor}
           onSubmit={handleSubmit}
           onNameChange={updateName}
@@ -387,6 +401,7 @@ export default function Products() {
           onFormChange={setForm}
           onCurrencyOverrideChange={toggleCurrencyOverride}
           onArchive={() => editingProduct && archiveMutation.mutate(editingProduct.id)}
+          onImageUpload={(file) => editingProduct && mediaUploadMutation.mutate({ productId: editingProduct.id, file })}
         />
       )}
     </div>
@@ -509,6 +524,8 @@ function ProductEditorPanel({
   currencyOverrideEnabled,
   isSubmitting,
   archivePending,
+  imageUploadPending,
+  imageUploadError,
   onClose,
   onSubmit,
   onNameChange,
@@ -516,6 +533,7 @@ function ProductEditorPanel({
   onFormChange,
   onCurrencyOverrideChange,
   onArchive,
+  onImageUpload,
 }: {
   editingProduct: Product | null;
   form: ProductFormState;
@@ -524,6 +542,8 @@ function ProductEditorPanel({
   currencyOverrideEnabled: boolean;
   isSubmitting: boolean;
   archivePending: boolean;
+  imageUploadPending: boolean;
+  imageUploadError: unknown;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onNameChange: (name: string) => void;
@@ -531,8 +551,10 @@ function ProductEditorPanel({
   onFormChange: (nextForm: ProductFormState | ((current: ProductFormState) => ProductFormState)) => void;
   onCurrencyOverrideChange: (enabled: boolean) => void;
   onArchive: () => void;
+  onImageUpload: (file: File) => void;
 }) {
   const currencyLocked = hasStorefrontCurrency && !currencyOverrideEnabled;
+  const canUploadImage = Boolean(editingProduct);
 
   return (
     <div className="fixed inset-0 z-40">
@@ -561,6 +583,11 @@ function ProductEditorPanel({
 
         <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
+            {Boolean(imageUploadError) && (
+              <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {getErrorMessage(imageUploadError)}
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <label className="md:col-span-2">
                 <span className="mb-1 block text-sm font-medium text-gray-700">Name</span>
@@ -652,17 +679,62 @@ function ProductEditorPanel({
                 />
                 <span className="mt-1 block text-xs text-gray-500">Leave empty to generate automatically.</span>
               </label>
-              <label className="md:col-span-2">
+              <div className="md:col-span-2">
                 <span className="mb-1 block text-sm font-medium text-gray-700">Primary Product Image</span>
-                <input
-                  value={form.imageUrl}
-                  onChange={(event) => onFormChange((current) => ({ ...current, imageUrl: event.target.value }))}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  maxLength={1000}
-                  placeholder="Image URL"
-                />
-                <span className="mt-1 block text-xs text-gray-500">Image URL is temporary. Media Upload coming soon.</span>
-              </label>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-[96px_1fr]">
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50">
+                    {form.imageUrl ? (
+                      <img
+                        src={form.imageUrl}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                        className="block h-full w-full object-cover"
+                      />
+                    ) : (
+                      <ImageIcon size={24} className="text-gray-400" />
+                    )}
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap gap-2">
+                      <label
+                        className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
+                          canUploadImage && !imageUploadPending
+                            ? 'cursor-pointer border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                            : 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
+                        }`}
+                      >
+                        <Upload size={16} />
+                        {imageUploadPending ? 'Uploading' : 'Upload image'}
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          className="sr-only"
+                          disabled={!canUploadImage || imageUploadPending}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            event.target.value = '';
+                            if (file) {
+                              onImageUpload(file);
+                            }
+                          }}
+                        />
+                      </label>
+                      {!canUploadImage && (
+                        <span className="self-center text-xs text-gray-500">Save the product before uploading media.</span>
+                      )}
+                    </div>
+                    <input
+                      value={form.imageUrl}
+                      onChange={(event) => onFormChange((current) => ({ ...current, imageUrl: event.target.value }))}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      maxLength={1000}
+                      placeholder="Image URL"
+                    />
+                    <span className="block text-xs text-gray-500">JPEG, PNG, or WebP up to 5 MB.</span>
+                  </div>
+                </div>
+              </div>
               <label className="md:col-span-2">
                 <span className="mb-1 block text-sm font-medium text-gray-700">Description</span>
                 <textarea
@@ -717,18 +789,24 @@ function ProductEditorPanel({
 }
 
 function ProductImage({ product }: { product: Product }) {
+  const frameClassName = 'flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-gray-50';
+
   if (product.imageUrl) {
     return (
-      <img
-        src={product.imageUrl}
-        alt=""
-        className="h-14 w-14 rounded-md border border-gray-200 object-cover"
-      />
+      <span className={`${frameClassName} border-gray-200`} data-testid="product-thumbnail">
+        <img
+          src={product.imageUrl}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="block h-full w-full object-cover"
+        />
+      </span>
     );
   }
 
   return (
-    <div className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed border-gray-300 bg-gray-50 text-gray-400">
+    <div className={`${frameClassName} border-dashed border-gray-300 text-gray-400`} data-testid="product-thumbnail">
       <ImageIcon size={22} />
     </div>
   );
