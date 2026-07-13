@@ -1,4 +1,4 @@
-import { type FormEvent, type RefObject, useRef } from 'react';
+import { type FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Save, Upload } from 'lucide-react';
 import {
@@ -10,12 +10,9 @@ import {
   type ProductMediaPurpose,
   type StorefrontProductProfilePayload,
 } from '../api/client';
+import ProductImageFrame from './ProductImageFrame';
 
 export default function StorefrontProfileEditor({ product }: { product: Product }) {
-  const queryClient = useQueryClient();
-  const galleryImageUrlsRef = useRef<HTMLTextAreaElement | null>(null);
-  const seoImageUrlRef = useRef<HTMLInputElement | null>(null);
-
   const {
     data: profile,
     error,
@@ -25,6 +22,37 @@ export default function StorefrontProfileEditor({ product }: { product: Product 
     queryKey: ['product-storefront-profile', product.id],
     queryFn: () => fetchProductStorefrontProfile(product.id),
   });
+
+  const formKey = `${product.id}:${profile ? JSON.stringify(profile) : 'empty'}`;
+
+  return (
+    <StorefrontProfileEditorForm
+      key={formKey}
+      product={product}
+      profile={profile ?? null}
+      error={error}
+      isLoading={isLoading}
+      isFetching={isFetching}
+    />
+  );
+}
+
+function StorefrontProfileEditorForm({
+  product,
+  profile,
+  error,
+  isLoading,
+  isFetching,
+}: {
+  product: Product;
+  profile: Awaited<ReturnType<typeof fetchProductStorefrontProfile>>;
+  error: unknown;
+  isLoading: boolean;
+  isFetching: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [galleryImageUrlsText, setGalleryImageUrlsText] = useState(profile?.galleryImageUrls.join('\n') ?? '');
+  const [seoImageUrl, setSeoImageUrl] = useState(profile?.seoImageUrl ?? '');
 
   const saveMutation = useMutation({
     mutationFn: (payload: StorefrontProductProfilePayload) => upsertProductStorefrontProfile(product.id, payload),
@@ -37,10 +65,13 @@ export default function StorefrontProfileEditor({ product }: { product: Product 
     mutationFn: ({ file, purpose }: { file: File; purpose: ProductMediaPurpose }) => uploadProductMedia(product.id, file, purpose),
     onSuccess: (media, variables) => {
       if (variables.purpose === 'GALLERY_IMAGE') {
-        appendTextAreaLine(galleryImageUrlsRef.current, media.publicUrl);
+        setGalleryImageUrlsText((current) => {
+          const normalized = current.trim();
+          return normalized ? `${normalized}\n${media.publicUrl}` : media.publicUrl;
+        });
       }
       if (variables.purpose === 'SEO_IMAGE') {
-        setInputValue(seoImageUrlRef.current, media.publicUrl);
+        setSeoImageUrl(media.publicUrl);
       }
     },
   });
@@ -50,10 +81,11 @@ export default function StorefrontProfileEditor({ product }: { product: Product 
     saveMutation.mutate(profilePayloadFromFormData(new FormData(event.currentTarget)));
   }
 
-  const formKey = `${product.id}:${profile ? JSON.stringify(profile) : 'empty'}`;
+  const galleryPreviewUrls = useMemo(() => linesFromText(galleryImageUrlsText), [galleryImageUrlsText]);
+  const seoPreviewUrl = optionalValue(seoImageUrl);
 
   return (
-    <form key={formKey} onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-4">
+    <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-4">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold uppercase text-gray-500">Landing content</h3>
@@ -117,17 +149,20 @@ export default function StorefrontProfileEditor({ product }: { product: Product 
           help="One short benefit per line."
           disabled={isLoading}
         />
-        <MediaTextAreaField
-          label="Gallery image URLs"
-          name="galleryImageUrls"
-          defaultValue={profile?.galleryImageUrls.join('\n') ?? ''}
-          help="One public image URL per line."
-          disabled={isLoading}
-          fieldRef={galleryImageUrlsRef}
-          uploadLabel={mediaUploadMutation.isPending ? 'Uploading' : 'Add gallery image'}
-          uploadDisabled={isLoading || mediaUploadMutation.isPending}
-          onUpload={(file) => mediaUploadMutation.mutate({ file, purpose: 'GALLERY_IMAGE' })}
-        />
+        <div className="space-y-3">
+          <MediaTextAreaField
+            label="Gallery image URLs"
+            name="galleryImageUrls"
+            value={galleryImageUrlsText}
+            onChange={setGalleryImageUrlsText}
+            help="One public image URL per line."
+            disabled={isLoading}
+            uploadLabel={mediaUploadMutation.isPending ? 'Uploading' : 'Add gallery image'}
+            uploadDisabled={isLoading || mediaUploadMutation.isPending}
+            onUpload={(file) => mediaUploadMutation.mutate({ file, purpose: 'GALLERY_IMAGE' })}
+          />
+          <MediaPreviewStrip urls={galleryPreviewUrls} productName={product.name} />
+        </div>
         <TextAreaField
           label="Features"
           name="features"
@@ -170,13 +205,25 @@ export default function StorefrontProfileEditor({ product }: { product: Product 
               />
             </div>
             <input
-              ref={seoImageUrlRef}
               name="seoImageUrl"
-              defaultValue={profile?.seoImageUrl ?? ''}
+              value={seoImageUrl}
+              onChange={(event) => setSeoImageUrl(event.target.value)}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               maxLength={1000}
               disabled={isLoading}
             />
+            <div className="mt-2">
+              {seoPreviewUrl ? (
+                <ProductImageFrame
+                  imageUrl={seoPreviewUrl}
+                  alt={`${product.name} SEO media`}
+                  size="lg"
+                  testId="storefront-seo-media-preview"
+                />
+              ) : (
+                <p className="text-xs text-gray-500">No SEO image selected.</p>
+              )}
+            </div>
           </div>
           <label className="block">
             <span className="mb-1 block text-xs font-medium uppercase text-gray-500">SEO description</span>
@@ -276,20 +323,20 @@ function TextAreaField({
 function MediaTextAreaField({
   label,
   name,
-  defaultValue,
+  value,
+  onChange,
   help,
   disabled,
-  fieldRef,
   uploadLabel,
   uploadDisabled,
   onUpload,
 }: {
   label: string;
   name: string;
-  defaultValue: string;
+  value: string;
+  onChange: (value: string) => void;
   help: string;
   disabled: boolean;
-  fieldRef: RefObject<HTMLTextAreaElement | null>;
   uploadLabel: string;
   uploadDisabled: boolean;
   onUpload: (file: File) => void;
@@ -301,13 +348,35 @@ function MediaTextAreaField({
         <FileUploadButton label={uploadLabel} disabled={uploadDisabled} onUpload={onUpload} />
       </div>
       <textarea
-        ref={fieldRef}
         name={name}
-        defaultValue={defaultValue}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
         className="min-h-32 w-full rounded-md border border-gray-300 px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         disabled={disabled}
       />
       <span className="mt-1 block text-xs text-gray-500">{help}</span>
+    </div>
+  );
+}
+
+function MediaPreviewStrip({ urls, productName }: { urls: string[]; productName: string }) {
+  return (
+    <div>
+      <p className="mb-2 text-xs font-medium uppercase text-gray-500">Gallery media preview</p>
+      {urls.length ? (
+        <div className="flex flex-wrap gap-2">
+          {urls.map((url, index) => (
+            <ProductImageFrame
+              key={`${url}:${index}`}
+              imageUrl={url}
+              alt={`${productName} gallery media ${index + 1}`}
+              testId="storefront-gallery-media-preview"
+            />
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-gray-500">No gallery media selected.</p>
+      )}
     </div>
   );
 }
@@ -370,19 +439,4 @@ function pairLinesFromObjects<TFirst extends string, TSecond extends string>(
 function optionalValue(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
-}
-
-function appendTextAreaLine(textarea: HTMLTextAreaElement | null, value: string) {
-  if (!textarea) {
-    return;
-  }
-  const currentValue = textarea.value.trim();
-  textarea.value = currentValue ? `${currentValue}\n${value}` : value;
-}
-
-function setInputValue(input: HTMLInputElement | null, value: string) {
-  if (!input) {
-    return;
-  }
-  input.value = value;
 }

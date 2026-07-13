@@ -185,6 +185,13 @@ test('merchant uploads storefront gallery and SEO media into profile fields', as
       }),
     });
   });
+  await page.route('**/media/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    });
+  });
   await page.route('**/api/public/storefront/demo-store/products/argan-oil', async (route) => {
     await route.fulfill({
       status: 200,
@@ -245,6 +252,8 @@ test('merchant uploads storefront gallery and SEO media into profile fields', as
     buffer: Buffer.from('RIFF____WEBPVP8 '),
   });
   await expect(page.locator('textarea[name="galleryImageUrls"]')).toHaveValue(galleryUrl);
+  await expect(page.getByTestId('storefront-gallery-media-preview').locator('img')).toHaveAttribute('src', galleryUrl);
+  await expect(page.getByTestId('storefront-gallery-media-preview').locator('img')).toHaveCSS('object-fit', 'contain');
 
   await fileInputs.nth(1).setInputFiles({
     name: 'seo.webp',
@@ -252,6 +261,8 @@ test('merchant uploads storefront gallery and SEO media into profile fields', as
     buffer: Buffer.from('RIFF____WEBPVP8 '),
   });
   await expect(page.locator('input[name="seoImageUrl"]')).toHaveValue(seoUrl);
+  await expect(page.getByTestId('storefront-seo-media-preview').locator('img')).toHaveAttribute('src', seoUrl);
+  await expect(page.getByTestId('storefront-seo-media-preview').locator('img')).toHaveCSS('object-fit', 'contain');
 
   const saveRequest = page.waitForRequest((request) => (
     request.url().includes(`/api/products/${product.id}/storefront-profile`) && request.method() === 'PUT'

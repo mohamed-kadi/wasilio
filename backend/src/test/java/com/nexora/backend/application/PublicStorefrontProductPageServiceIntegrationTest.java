@@ -291,6 +291,34 @@ class PublicStorefrontProductPageServiceIntegrationTest {
         assertEquals("https://cdn.example.test/mini-fan.jpg", response.seo().image());
     }
 
+    @Test
+    void publicProductMediaContractReturnsGalleryAndSeoImageFallback() {
+        publicStorefrontRepository.saveAndFlush(storefront(tenantId, "coolair-morocco", "CoolAir Morocco"));
+        Product product = productRepository.saveAndFlush(product(
+                tenantId,
+                "coolair-mini",
+                "CoolAir Mini",
+                "Portable cooling fan for COD customers.",
+                ProductStatus.ACTIVE
+        ));
+        StorefrontProductProfile profile = profile(product.getId(), StorefrontProductProfileStatus.PUBLISHED);
+        profile.setSeoImageUrl(null);
+        storefrontProductProfileRepository.saveAndFlush(profile);
+
+        PublicStorefrontProductPageResponse response = productPageService.getProductPage(
+                "coolair-morocco",
+                "coolair-mini"
+        );
+
+        assertEquals("https://cdn.example.test/coolair-mini.jpg", response.product().imageUrl());
+        assertEquals("https://cdn.example.test/coolair-mini.jpg", response.seo().image());
+        assertNull(response.landingProfile().seoImageUrl());
+        assertEquals("https://cdn.example.test/gallery-1.jpg", response.landingProfile().galleryImageUrls().get(0));
+        assertReadinessItem(response, "primary_image", true);
+        assertReadinessItem(response, "gallery_media", true);
+        assertReadinessItem(response, "seo_image", true);
+    }
+
     private PublicStorefront storefront(UUID ownerTenantId, String storeSlug, String publicName) {
         Instant now = Instant.now();
         return PublicStorefront.builder()

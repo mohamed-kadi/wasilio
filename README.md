@@ -181,6 +181,7 @@ Current smoke coverage verifies:
 - French-first landing lead capture with campaign source.
 - Super-admin marketing lead follow-up update.
 - Two tabs in one browser can keep different signed-in users.
+- Product media upload, stable dashboard thumbnails, storefront media previews, and public product readiness.
 
 ## What The Main Screens Do
 

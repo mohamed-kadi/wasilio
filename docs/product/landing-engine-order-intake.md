@@ -19,6 +19,14 @@ The response includes:
 - published landing profile content when available
 - `readiness`, a Wasilio-owned review object for landing-engine QA
 
+Media fields are part of this public product page contract:
+
+- `product.imageUrl` is the primary Wasilio catalog image.
+- `landingProfile.galleryImageUrls` is the published gallery media list.
+- `seo.image` is the published SEO image when present, otherwise the primary product image.
+
+Landing-engine should render those URLs directly and keep object-fit/layout decisions in its presentation layer. Wasilio remains the owner of upload validation, storage, public URLs, profile publishing, and media readiness.
+
 `readiness` is informational. It does not block the public endpoint by itself and does not mutate product, order, confirmation, delivery, or recovery state.
 
 Readiness fields:
@@ -127,6 +135,21 @@ After a valid order is committed and projected, Wasilio creates the initial inte
 For storefront orders, Wasilio may use internally owned product/page context, such as product media and published landing content, as low-weight intelligence signals. Landing-engine still does not send scores or score reasons.
 
 The score remains informational. It does not automatically confirm, reject, assign, retry, refund, or close an order.
+
+## Media Boundary
+
+Landing-engine does not upload media into Wasilio in the current contract.
+
+The supported flow is:
+
+1. Merchant uploads primary, gallery, or SEO media inside Wasilio.
+2. Wasilio returns stable `publicUrl` values.
+3. Wasilio stores primary media on the product and gallery/SEO media on the published storefront profile.
+4. Landing-engine reads `GET /api/public/storefront/{storeSlug}/products/{productSlug}`.
+5. Landing-engine renders `product.imageUrl`, `landingProfile.galleryImageUrls`, and `seo.image`.
+6. Landing-engine submits order intent through `POST /api/public/storefront/{storeSlug}/orders`.
+
+Media readiness can be shown to operators or reviewers, but it must not become a client-owned rule for order acceptance, confirmation, courier assignment, recovery, refund review, or intelligence scoring.
 
 ## Failure Modes
 

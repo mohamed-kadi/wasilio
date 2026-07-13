@@ -2,6 +2,7 @@
 
 Phase 20A added the first Wasilio-owned media upload path for catalog products. Phase 20B connects that media path to storefront publishing and public preview rendering.
 Phase 20C exposes media readiness in public product responses and lets Wasilio intelligence use storefront media context as low-weight scoring evidence.
+Phase 20D/20E hardens merchant-facing image rendering, profile media previews, and the landing-engine handoff contract.
 
 ## Scope
 
@@ -52,3 +53,37 @@ This is intentionally local-first. A future object-storage implementation should
 Landing-engine should render the media URLs returned by Wasilio/public product APIs. It should not upload directly to Wasilio-owned storage unless it is acting as an authenticated merchant client or has a future explicit server-to-server media contract.
 
 Public product responses include a `readiness` object with checks such as `primary_image`, `gallery_media`, and `seo_image`. Landing-engine can use these checks for preview/review UX, but they are not lifecycle commands and they do not replace Wasilio's internal intelligence scoring.
+
+## Public Product Media Contract
+
+The stable read path for landing-engine product rendering is:
+
+`GET /api/public/storefront/{storeSlug}/products/{productSlug}`
+
+Media fields in that response:
+
+- `product.imageUrl`: primary catalog image. This is updated automatically when a merchant uploads media with `purpose=PRODUCT_IMAGE`.
+- `landingProfile.galleryImageUrls`: published storefront gallery media. These URLs are saved through the storefront profile after `GALLERY_IMAGE` uploads return `publicUrl`.
+- `seo.image`: SEO/social image. If a published profile has `seoImageUrl`, Wasilio returns that value. Otherwise it falls back to `product.imageUrl`.
+- `readiness.items`: includes `primary_image`, `gallery_media`, and `seo_image` checks so a review UI can show what is complete without guessing from raw fields.
+
+Landing-engine should treat these values as display URLs owned by Wasilio. It should not recalculate readiness, infer tenant state, or use media presence to change order lifecycle behavior.
+
+## Merchant UX Rules
+
+- Product table thumbnails and product editor previews must use fixed-size frames with `object-contain` so large uploaded images remain visible and do not distort dashboard density.
+- Storefront profile gallery and SEO fields remain URL-based payloads, but the editor should show compact previews from those URLs before save.
+- Missing media is a readiness concern, not a lifecycle blocker. Merchants can keep draft profile content hidden until they publish it.
+- Public readiness should be visible in Storefront Publishing when the store and product are active, because this is the closest in-app view to the landing-engine contract.
+
+## Phase 20E Verification Checklist
+
+For every media contract change, verify:
+
+- `PRODUCT_IMAGE` upload returns a `publicUrl` and updates the authenticated product `imageUrl`.
+- Product dashboard/editor previews shrink the image into stable frames.
+- `GALLERY_IMAGE` upload appends the returned URL into `galleryImageUrls` and shows a preview before save.
+- `SEO_IMAGE` upload writes the returned URL into `seoImageUrl` and shows a preview before save.
+- Saving the storefront profile sends the same gallery and SEO URLs back to Wasilio.
+- The public product endpoint returns `product.imageUrl`, `seo.image`, `landingProfile.galleryImageUrls`, and media readiness without tenant IDs or internal status fields.
+- Landing-engine consumes the public product endpoint and public order-intent endpoint only; it does not send fraud scores, confirmation scores, lifecycle commands, or direct media writes.
