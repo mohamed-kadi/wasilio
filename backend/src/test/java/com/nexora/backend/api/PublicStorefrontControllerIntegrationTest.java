@@ -284,6 +284,91 @@ class PublicStorefrontControllerIntegrationTest {
     }
 
     @Test
+    void landingEngineCanFetchProductAndSubmitOrderIntent() throws Exception {
+        UUID correlationId = UUID.randomUUID();
+        publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
+        Product product = productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));
+        storefrontProductProfileRepository.saveAndFlush(profile(product.getId(), StorefrontProductProfileStatus.PUBLISHED));
+
+        MvcResult productResult = mockMvc.perform(get(PUBLIC_PRODUCT_PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.product.productId").value(product.getId().toString()))
+                .andExpect(jsonPath("$.product.productSlug").value("coolair-mini"))
+                .andExpect(jsonPath("$.product.imageUrl").value("https://cdn.example.test/coolair-mini.jpg"))
+                .andExpect(jsonPath("$.landingProfile.galleryImageUrls[0]").value("https://cdn.example.test/gallery-1.jpg"))
+                .andExpect(jsonPath("$.seo.image").value("https://cdn.example.test/seo-coolair.jpg"))
+                .andExpect(jsonPath("$.readiness.items[?(@.key=='primary_image')].complete").value(true))
+                .andReturn();
+
+        JsonNode publicProduct = objectMapper.readTree(productResult.getResponse().getContentAsString());
+        ObjectNode orderPayload = objectMapper.createObjectNode();
+        orderPayload.put("idempotencyKey", "order-coolair-mini-phase-21");
+        ObjectNode selection = orderPayload.putObject("selection");
+        selection.put("quantity", 1);
+        ObjectNode selectedProduct = selection.putObject("product");
+        selectedProduct.put("productId", publicProduct.path("product").path("productId").asText());
+        selectedProduct.put("productSlug", publicProduct.path("product").path("productSlug").asText());
+        selectedProduct.putNull("variantId");
+        ObjectNode customer = orderPayload.putObject("customer");
+        customer.put("name", "Amina Buyer");
+        customer.put("phone", "0612345678");
+        ObjectNode delivery = orderPayload.putObject("delivery");
+        delivery.put("city", "Casablanca");
+        delivery.put("address", "12 Rue Atlas");
+        delivery.put("notes", "Call before delivery");
+        ObjectNode attribution = orderPayload.putObject("attribution");
+        attribution.put("source", "landing-engine");
+        attribution.put("campaign", "phase-21");
+        attribution.put("content", "control");
+        attribution.put("landingPageUrl", "http://localhost:3000/products/coolair-mini");
+
+        MvcResult orderResult = mockMvc.perform(post(PUBLIC_ORDER_PATH)
+                        .header(CorrelationIdContext.HEADER_NAME, correlationId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(orderPayload)))
+                .andExpect(status().isAccepted())
+                .andExpect(header().string(CorrelationIdContext.HEADER_NAME, correlationId.toString()))
+                .andExpect(jsonPath("$.receiptId").isNotEmpty())
+                .andExpect(jsonPath("$.status").value("accepted"))
+                .andExpect(jsonPath("$.message").value("Order received"))
+                .andExpect(jsonPath("$.orderId").doesNotExist())
+                .andExpect(jsonPath("$.source").doesNotExist())
+                .andExpect(jsonPath("$.intelligence").doesNotExist())
+                .andReturn();
+
+        JsonNode orderResponse = objectMapper.readTree(orderResult.getResponse().getContentAsString());
+        assertNoForbiddenFields(orderResponse, FORBIDDEN_ORDER_RESPONSE_FIELDS);
+
+        InboundOrder inboundOrder = inboundOrderRepository
+                .findById(UUID.fromString(orderResponse.path("receiptId").asText()))
+                .orElseThrow();
+        Order order = orderRepository.findByIdAndTenantId(inboundOrder.getNormalizedOrderId(), tenantId).orElseThrow();
+        JsonNode rawPayload = objectMapper.readTree(inboundOrder.getRawPayload());
+
+        assertEquals("WASILIO_STOREFRONT", inboundOrder.getSource().name());
+        assertEquals("WASILIO_STOREFRONT", order.getSource().name());
+        assertEquals(correlationId.toString(), rawPayload.path("correlationId").asText());
+        assertEquals("public-order-intent", rawPayload.path("type").asText());
+        assertEquals("coolair-morocco", rawPayload.path("payload").path("storeSlug").asText());
+        assertEquals(product.getId().toString(), rawPayload.path("payload").path("productId").asText());
+        assertEquals("coolair-mini", rawPayload.path("payload").path("productSlug").asText());
+        assertEquals("landing-engine", rawPayload.path("payload").path("attribution").path("source").asText());
+        assertEquals("phase-21", rawPayload.path("payload").path("attribution").path("campaign").asText());
+        assertEquals("control", rawPayload.path("payload").path("attribution").path("content").asText());
+        assertEquals("http://localhost:3000/products/coolair-mini", rawPayload.path("payload").path("attribution").path("landingPageUrl").asText());
+        assertEquals("CoolAir Mini", rawPayload.path("serverProductSnapshot").path("productName").asText());
+        assertEquals("SKU-coolair-mini", rawPayload.path("serverProductSnapshot").path("sku").asText());
+
+        OrderIntelligenceScoringService.OrderIntelligenceResult score =
+                orderIntelligenceScoringService.getOrCalculate(tenantId, order.getId());
+        assertEquals(76, score.snapshot().getConfirmationConfidenceScore());
+        assertEquals(32, score.snapshot().getFraudRiskScore());
+        assertEquals("HIGH_CONFIDENCE", score.snapshot().getLevel().name());
+        assertTrue(score.signals().stream().anyMatch(signal -> signal.getSignalKey().equals("storefront_product_image_present")));
+        assertTrue(score.signals().stream().anyMatch(signal -> signal.getSignalKey().equals("storefront_landing_content_ready")));
+    }
+
+    @Test
     void publicOrderIgnoresExternalScoreHintsAndUsesInternalIntelligence() throws Exception {
         publicStorefrontRepository.saveAndFlush(storefront("coolair-morocco", PublicStorefrontStatus.ACTIVE));
         productRepository.saveAndFlush(product("coolair-mini", "CoolAir Mini", ProductStatus.ACTIVE));

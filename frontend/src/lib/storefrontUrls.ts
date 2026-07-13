@@ -25,6 +25,11 @@ export function publicProductApiPattern(storeSlug?: string): string {
   return `${publicApiBaseUrlForDisplay()}/api/public/storefront/${safeStoreSlug}/products/<productSlug>`;
 }
 
+export function publicOrderApiPattern(storeSlug?: string): string {
+  const safeStoreSlug = storeSlug || '<storeSlug>';
+  return `${publicApiBaseUrlForDisplay()}/api/public/storefront/${safeStoreSlug}/orders`;
+}
+
 export function landingEngineProductUrl(productSlug: string): string {
   return `${landingEngineUrlForDisplay()}/products/${productSlug}`;
 }
@@ -36,7 +41,7 @@ export function landingEngineProductPattern(): string {
 export function landingEngineEnvSnippet(storeSlug?: string): string {
   return [
     'NEXT_PUBLIC_PRODUCT_PROVIDER=wasilio',
-    `NEXT_PUBLIC_WASILIO_PUBLIC_API_BASE_URL=${DEFAULT_PUBLIC_API_BASE_URL}`,
+    `NEXT_PUBLIC_WASILIO_PUBLIC_API_BASE_URL=${publicApiBaseUrlForDisplay()}`,
     `NEXT_PUBLIC_WASILIO_STORE_SLUG=${storeSlug || '<storeSlug>'}`,
   ].join('\n');
 }

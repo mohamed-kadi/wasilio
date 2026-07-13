@@ -12,6 +12,7 @@ import {
 import {
   landingEngineEnvSnippet,
   landingEngineProductPattern,
+  publicOrderApiPattern,
   publicProductApiPattern,
 } from '../lib/storefrontUrls';
 
@@ -109,6 +110,7 @@ function StorefrontSettingsEditor({
   const hasStorefront = Boolean(settings);
   const slugForDisplay = settings?.storeSlug ?? slugPreview(form.storeSlug);
   const publicProductUrl = publicProductApiPattern(slugForDisplay);
+  const publicOrderUrl = publicOrderApiPattern(slugForDisplay);
   const landingEnginePattern = landingEngineProductPattern();
   const envSnippet = useMemo(() => landingEngineEnvSnippet(slugForDisplay), [slugForDisplay]);
 
@@ -348,6 +350,7 @@ function StorefrontSettingsEditor({
                 Replace <span className="font-mono text-gray-900">&lt;productSlug&gt;</span> with an ACTIVE product slug.
               </p>
               <UrlRow label="Public product GET" value={publicProductUrl} />
+              <UrlRow label="Public order POST" value={publicOrderUrl} />
               <UrlRow label="Landing-engine pattern" value={landingEnginePattern} />
             </div>
           </div>

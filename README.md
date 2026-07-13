@@ -182,6 +182,7 @@ Current smoke coverage verifies:
 - Super-admin marketing lead follow-up update.
 - Two tabs in one browser can keep different signed-in users.
 - Product media upload, stable dashboard thumbnails, storefront media previews, and public product readiness.
+- Storefront developer setup URLs for landing-engine product reads and order submits.
 
 ## What The Main Screens Do
 
