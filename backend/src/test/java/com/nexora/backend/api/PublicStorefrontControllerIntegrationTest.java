@@ -66,6 +66,8 @@ class PublicStorefrontControllerIntegrationTest {
 
     private static final String PUBLIC_PRODUCT_PATH = "/api/public/storefront/coolair-morocco/products/coolair-mini";
     private static final String PUBLIC_ORDER_PATH = "/api/public/storefront/coolair-morocco/orders";
+    private static final String FIRST_STORE_PRODUCT_PATH = "/api/public/storefront/first-store/products/coolair-mini";
+    private static final String FIRST_STORE_ORDER_PATH = "/api/public/storefront/first-store/orders";
     private static final Set<String> FORBIDDEN_PUBLIC_FIELDS = Set.of(
             "tenantId",
             "merchantId",
@@ -358,6 +360,90 @@ class PublicStorefrontControllerIntegrationTest {
         assertEquals("http://localhost:3000/products/coolair-mini", rawPayload.path("payload").path("attribution").path("landingPageUrl").asText());
         assertEquals("CoolAir Mini", rawPayload.path("serverProductSnapshot").path("productName").asText());
         assertEquals("SKU-coolair-mini", rawPayload.path("serverProductSnapshot").path("sku").asText());
+
+        OrderIntelligenceScoringService.OrderIntelligenceResult score =
+                orderIntelligenceScoringService.getOrCalculate(tenantId, order.getId());
+        assertEquals(76, score.snapshot().getConfirmationConfidenceScore());
+        assertEquals(32, score.snapshot().getFraudRiskScore());
+        assertEquals("HIGH_CONFIDENCE", score.snapshot().getLevel().name());
+        assertTrue(score.signals().stream().anyMatch(signal -> signal.getSignalKey().equals("storefront_product_image_present")));
+        assertTrue(score.signals().stream().anyMatch(signal -> signal.getSignalKey().equals("storefront_landing_content_ready")));
+    }
+
+    @Test
+    void firstStoreRehearsalContractCanFetchProductAndSubmitLandingEngineOrderIntent() throws Exception {
+        UUID correlationId = UUID.randomUUID();
+        publicStorefrontRepository.saveAndFlush(firstStorefront());
+        Product product = productRepository.saveAndFlush(firstStoreProduct());
+        storefrontProductProfileRepository.saveAndFlush(firstStoreProfile(product.getId()));
+
+        MvcResult productResult = mockMvc.perform(get(FIRST_STORE_PRODUCT_PATH))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.storeSlug").value("first-store"))
+                .andExpect(jsonPath("$.storePublicName").value("First Store"))
+                .andExpect(jsonPath("$.product.productId").value(product.getId().toString()))
+                .andExpect(jsonPath("$.product.productSlug").value("coolair-mini"))
+                .andExpect(jsonPath("$.product.productName").value("First Store CoolAir Mini"))
+                .andExpect(jsonPath("$.product.imageUrl").value("http://localhost:8080/media/demo/first-store/coolair-mini-primary.svg"))
+                .andExpect(jsonPath("$.landingProfile.galleryImageUrls[0]").value("http://localhost:8080/media/demo/first-store/coolair-mini-gallery.svg"))
+                .andExpect(jsonPath("$.seo.image").value("http://localhost:8080/media/demo/first-store/coolair-mini-seo.svg"))
+                .andExpect(jsonPath("$.readiness.requiredComplete").value(7))
+                .andExpect(jsonPath("$.readiness.items[?(@.key=='landing_profile_published')].complete").value(true))
+                .andReturn();
+
+        JsonNode publicProduct = objectMapper.readTree(productResult.getResponse().getContentAsString());
+        ObjectNode orderPayload = objectMapper.createObjectNode();
+        orderPayload.put("idempotencyKey", "order-first-store-phase-22");
+        ObjectNode selection = orderPayload.putObject("selection");
+        selection.put("quantity", 1);
+        ObjectNode selectedProduct = selection.putObject("product");
+        selectedProduct.put("productId", publicProduct.path("product").path("productId").asText());
+        selectedProduct.put("productSlug", publicProduct.path("product").path("productSlug").asText());
+        ObjectNode customer = orderPayload.putObject("customer");
+        customer.put("name", "Amina Buyer");
+        customer.put("phone", "0612345678");
+        ObjectNode delivery = orderPayload.putObject("delivery");
+        delivery.put("city", "Casablanca");
+        delivery.put("address", "12 Rue Atlas");
+        delivery.put("notes", "Call before delivery");
+        ObjectNode attribution = orderPayload.putObject("attribution");
+        attribution.put("source", "landing-engine");
+        attribution.put("campaign", "phase-22-local-rehearsal");
+        attribution.put("content", "first-store");
+        attribution.put("landingPageUrl", "http://localhost:3000/products/coolair-mini");
+
+        MvcResult orderResult = mockMvc.perform(post(FIRST_STORE_ORDER_PATH)
+                        .header(CorrelationIdContext.HEADER_NAME, correlationId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(orderPayload)))
+                .andExpect(status().isAccepted())
+                .andExpect(header().string(CorrelationIdContext.HEADER_NAME, correlationId.toString()))
+                .andExpect(jsonPath("$.receiptId").isNotEmpty())
+                .andExpect(jsonPath("$.status").value("accepted"))
+                .andExpect(jsonPath("$.message").value("Order received"))
+                .andExpect(jsonPath("$.orderId").doesNotExist())
+                .andExpect(jsonPath("$.intelligence").doesNotExist())
+                .andReturn();
+
+        JsonNode orderResponse = objectMapper.readTree(orderResult.getResponse().getContentAsString());
+        assertNoForbiddenFields(orderResponse, FORBIDDEN_ORDER_RESPONSE_FIELDS);
+
+        InboundOrder inboundOrder = inboundOrderRepository
+                .findById(UUID.fromString(orderResponse.path("receiptId").asText()))
+                .orElseThrow();
+        Order order = orderRepository.findByIdAndTenantId(inboundOrder.getNormalizedOrderId(), tenantId).orElseThrow();
+        JsonNode rawPayload = objectMapper.readTree(inboundOrder.getRawPayload());
+
+        assertEquals("WASILIO_STOREFRONT", inboundOrder.getSource().name());
+        assertEquals("WASILIO_STOREFRONT", order.getSource().name());
+        assertEquals(correlationId.toString(), rawPayload.path("correlationId").asText());
+        assertEquals("first-store", rawPayload.path("payload").path("storeSlug").asText());
+        assertEquals(product.getId().toString(), rawPayload.path("payload").path("productId").asText());
+        assertEquals("coolair-mini", rawPayload.path("payload").path("productSlug").asText());
+        assertEquals("landing-engine", rawPayload.path("payload").path("attribution").path("source").asText());
+        assertEquals("phase-22-local-rehearsal", rawPayload.path("payload").path("attribution").path("campaign").asText());
+        assertEquals("First Store CoolAir Mini", rawPayload.path("serverProductSnapshot").path("productName").asText());
+        assertEquals("FIRST-COOLAIR-MINI", rawPayload.path("serverProductSnapshot").path("sku").asText());
 
         OrderIntelligenceScoringService.OrderIntelligenceResult score =
                 orderIntelligenceScoringService.getOrCalculate(tenantId, order.getId());
@@ -766,6 +852,24 @@ class PublicStorefrontControllerIntegrationTest {
                 .build();
     }
 
+    private PublicStorefront firstStorefront() {
+        Instant now = Instant.now();
+        return PublicStorefront.builder()
+                .id(UUID.fromString("00000000-0000-0000-0000-000000000101"))
+                .tenantId(tenantId)
+                .storeSlug("first-store")
+                .publicName("First Store")
+                .status(PublicStorefrontStatus.ACTIVE)
+                .supportChannelType("whatsapp")
+                .supportChannelValue("+212600000000")
+                .defaultCountryCode("MA")
+                .defaultCurrency("MAD")
+                .phonePattern("^(06|07)\\d{8}$")
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+    }
+
     private StorefrontProductProfile profile(UUID productId, StorefrontProductProfileStatus status) {
         Instant now = Instant.now();
         return StorefrontProductProfile.builder()
@@ -810,6 +914,55 @@ class PublicStorefrontControllerIntegrationTest {
                 .sku("SKU-" + slug)
                 .imageUrl("https://cdn.example.test/" + slug + ".jpg")
                 .status(status)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+    }
+
+    private Product firstStoreProduct() {
+        Instant now = Instant.now();
+        return Product.builder()
+                .id(UUID.fromString("00000000-0000-0000-0000-000000000102"))
+                .tenantId(tenantId)
+                .name("First Store CoolAir Mini")
+                .slug("coolair-mini")
+                .description("Compact rechargeable cooling fan for cash-on-delivery customers.")
+                .priceAmount(new BigDecimal("199.00"))
+                .currency("MAD")
+                .sku("FIRST-COOLAIR-MINI")
+                .imageUrl("http://localhost:8080/media/demo/first-store/coolair-mini-primary.svg")
+                .status(ProductStatus.ACTIVE)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+    }
+
+    private StorefrontProductProfile firstStoreProfile(UUID productId) {
+        Instant now = Instant.now();
+        return StorefrontProductProfile.builder()
+                .id(UUID.fromString("00000000-0000-0000-0000-000000000103"))
+                .tenantId(tenantId)
+                .productId(productId)
+                .headline("Cool air without installation")
+                .subheadline("A compact fan prepared for the landing-engine local order rehearsal.")
+                .benefits(List.of("Cash on delivery available", "Fast local delivery", "Call confirmation before dispatch"))
+                .features(List.of(
+                        new StorefrontProfileFeature("Rechargeable", "Runs for hours after charging."),
+                        new StorefrontProfileFeature("Compact size", "Fits on desks, counters, and bedside tables.")
+                ))
+                .faq(List.of(
+                        new StorefrontProfileFaqItem("Can I pay on delivery?", "Yes, cash on delivery is supported."),
+                        new StorefrontProfileFaqItem("Will someone confirm my order?", "Yes, Wasilio confirmation happens after the order is received.")
+                ))
+                .trustBadges(List.of(
+                        new StorefrontProfileTrustBadge("COD", "Pay when the package arrives."),
+                        new StorefrontProfileTrustBadge("Local support", "WhatsApp support is available for order questions.")
+                ))
+                .galleryImageUrls(List.of("http://localhost:8080/media/demo/first-store/coolair-mini-gallery.svg"))
+                .seoTitle("First Store CoolAir Mini")
+                .seoDescription("Order the CoolAir Mini locally and submit a Wasilio-powered COD order.")
+                .seoImageUrl("http://localhost:8080/media/demo/first-store/coolair-mini-seo.svg")
+                .status(StorefrontProductProfileStatus.PUBLISHED)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();

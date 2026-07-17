@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">First Store CoolAir Mini social preview</title>
+  <desc id="desc">A local SEO preview image for the CoolAir Mini product.</desc>
+  <rect width="1200" height="630" fill="#0f172a"/>
+  <rect x="64" y="64" width="1072" height="502" rx="36" fill="#f8fafc"/>
+  <circle cx="832" cy="314" r="158" fill="#e6f4f1" stroke="#157f73" stroke-width="14"/>
+  <circle cx="832" cy="314" r="52" fill="#ffffff" stroke="#157f73" stroke-width="10"/>
+  <path d="M832 156c54 32 86 78 94 138-60 4-112-18-156-64 14-32 34-56 62-74z" fill="#88cbc1"/>
+  <path d="M990 314c-32 54-78 86-138 94-4-60 18-112 64-156 32 14 56 34 74 62z" fill="#88cbc1"/>
+  <path d="M832 472c-54-32-86-78-94-138 60-4 112 18 156 64-14 32-34 56-62 74z" fill="#88cbc1"/>
+  <path d="M674 314c32-54 78-86 138-94 4 60-18 112-64 156-32-14-56-34-74-62z" fill="#88cbc1"/>
+  <text x="126" y="212" font-family="Arial, sans-serif" font-size="54" font-weight="700" fill="#0f172a">First Store</text>
+  <text x="126" y="284" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#157f73">CoolAir Mini</text>
+  <text x="126" y="352" font-family="Arial, sans-serif" font-size="28" fill="#475569">Wasilio public product and order rehearsal</text>
+  <text x="126" y="422" font-family="Arial, sans-serif" font-size="26" fill="#0f172a">Cash on delivery ready</text>
+</svg>

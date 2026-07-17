@@ -3,6 +3,7 @@
 Phase 20A added the first Wasilio-owned media upload path for catalog products. Phase 20B connects that media path to storefront publishing and public preview rendering.
 Phase 20C exposes media readiness in public product responses and lets Wasilio intelligence use storefront media context as low-weight scoring evidence.
 Phase 20D/20E hardens merchant-facing image rendering, profile media previews, and the landing-engine handoff contract.
+Phase 22 adds local-only demo media placeholders for the seeded landing-engine rehearsal; authenticated upload remains the real merchant media path.
 
 ## Scope
 
@@ -47,6 +48,8 @@ The default storage location is `storage/media`, configurable with `APP_MEDIA_ST
 `APP_MEDIA_PUBLIC_BASE_URL` controls whether uploaded media URLs are returned as absolute URLs. Local development defaults to `http://localhost:8080`, so a separate landing-engine preview can render Wasilio-hosted media. Production should set this to the externally reachable Wasilio API origin.
 
 This is intentionally local-first. A future object-storage implementation should keep the application contract stable and swap only the storage implementation/public URL generation.
+
+The Phase 22 rehearsal seed references SVG placeholders in `backend/storage/media/demo/first-store/` so landing-engine browser QA can render product, gallery, and SEO media locally. Local Docker compose mounts that demo directory read-only into the backend container. Those files are not uploaded media records and do not change upload validation, supported upload content types, or production media storage expectations.
 
 ## Landing Engine Boundary
 

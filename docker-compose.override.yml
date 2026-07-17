@@ -8,6 +8,8 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
 
   backend:
+    volumes:
+      - ./backend/storage/media/demo:/app/storage/media/demo:ro
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-nexora}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}

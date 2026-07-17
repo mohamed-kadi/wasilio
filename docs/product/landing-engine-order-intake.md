@@ -1,7 +1,7 @@
 # Landing Engine Contract
 
 Phase 19F defined the stable handoff from landing-engine into Wasilio Core. Phase 20C adds a public product readiness review contract so landing-engine can render and QA Wasilio product pages without owning Wasilio operations logic.
-Phase 21 documents and tests the local integration rehearsal in `docs/product/landing-engine-integration-rehearsal.md`.
+Phase 21 documents and tests the local integration rehearsal in `docs/product/landing-engine-integration-rehearsal.md`. Phase 22 adds seeded local `first-store` data for repeating that rehearsal across Wasilio and landing-engine.
 
 Landing-engine is an order-intent client. Wasilio remains the source of truth for order lifecycle, confirmation, courier operations, recovery, and intelligence scoring.
 

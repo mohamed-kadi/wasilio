@@ -13,6 +13,15 @@ frontend/node_modules/
 .env
 *.local
 
+# Local runtime media
+backend/storage/*
+!backend/storage/media/
+backend/storage/media/*
+!backend/storage/media/demo/
+backend/storage/media/demo/*
+!backend/storage/media/demo/first-store/
+!backend/storage/media/demo/first-store/*.svg
+
 # JVM / Scala tooling
 .metals/
 .bloop/

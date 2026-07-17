@@ -208,6 +208,7 @@ Authenticated merchant/admin users can manage the minimal tenant-scoped product 
 - Product status is operational: `DRAFT` for incomplete records, `ACTIVE` for products ready for future order/storefront use, and `ARCHIVED` for retained records not intended for new use.
 - Product media supports authenticated primary image uploads through `/api/products/{productId}/media`; gallery and SEO uploads can populate existing storefront profile fields.
 - Public product responses include readiness checks for landing-engine review. These checks are informational and do not mutate order lifecycle.
+- Local seed loading adds a `first-store`/`coolair-mini` landing-engine rehearsal product when `classpath:db/seed` is enabled. Local Docker compose mounts the matching demo media read-only; production compose excludes this seed path.
 - Existing order creation remains stable. Product-referenced orders use stable order-line snapshots so historical orders remain readable after catalog edits.
 
 ## Database Backup And Restore
