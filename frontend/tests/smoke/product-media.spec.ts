@@ -112,6 +112,10 @@ test('merchant uploads primary product media from product editor', async ({ page
   await expect(thumbnail.locator('img')).toHaveCSS('object-fit', 'contain');
   await expect(thumbnail).toHaveCSS('width', '56px');
   await expect(thumbnail).toHaveCSS('height', '56px');
+  await expect(page.getByRole('link', { name: /^preview$/i })).toHaveAttribute(
+    'href',
+    'http://localhost:3000/products/argan-oil?wasilioPreview=1',
+  );
 });
 
 test('merchant uploads storefront gallery and SEO media into profile fields', async ({ page }) => {
@@ -247,6 +251,10 @@ test('merchant uploads storefront gallery and SEO media into profile fields', as
   await expect(page.getByRole('heading', { name: 'Product Publishing' })).toBeVisible();
   await expect(page.getByText('Public API readiness')).toBeVisible();
   await expect(page.getByText('3/7 required items complete')).toBeVisible();
+  await expect(page.getByRole('link', { name: /incomplete preview/i })).toHaveAttribute(
+    'href',
+    'http://localhost:3000/products/argan-oil?wasilioPreview=1',
+  );
   await page.getByRole('button', { name: /edit landing content/i }).click();
   await expect(page.getByRole('heading', { name: product.name })).toBeVisible();
 

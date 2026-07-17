@@ -31,7 +31,7 @@ export function publicOrderApiPattern(storeSlug?: string): string {
 }
 
 export function landingEngineProductUrl(productSlug: string): string {
-  return `${landingEngineUrlForDisplay()}/products/${productSlug}`;
+  return `${landingEngineUrlForDisplay()}/products/${productSlug}?wasilioPreview=1`;
 }
 
 export function landingEngineProductPattern(): string {

@@ -33,6 +33,7 @@ Local Wasilio seed loading includes a demo storefront, product, and published la
 | Product slug | `coolair-mini` |
 | Public product URL | `http://localhost:8080/api/public/storefront/first-store/products/coolair-mini` |
 | Public order URL | `http://localhost:8080/api/public/storefront/first-store/orders` |
+| Merchant preview URL | `http://localhost:3000/products/coolair-mini?wasilioPreview=1` |
 | Merchant login | `admin@example.com` |
 
 The seed is in `backend/src/main/resources/db/seed/V1001__landing_engine_rehearsal_seed.sql`. It is loaded only when local Flyway locations include `classpath:db/seed`; production compose excludes seed data.
@@ -97,6 +98,14 @@ Open landing-engine at its local product page, usually:
 ```text
 http://localhost:3000/products/coolair-mini
 ```
+
+For merchant QA immediately after changing product media in Wasilio, use the preview URL:
+
+```text
+http://localhost:3000/products/coolair-mini?wasilioPreview=1
+```
+
+The preview flag tells landing-engine to fetch the Wasilio product payload fresh for the operator request. Normal public product pages keep the short landing-engine cache.
 
 Submit one COD test order from landing-engine.
 

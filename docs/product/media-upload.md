@@ -5,6 +5,7 @@ Phase 20C exposes media readiness in public product responses and lets Wasilio i
 Phase 20D/20E hardens merchant-facing image rendering, profile media previews, and the landing-engine handoff contract.
 Phase 22 adds local-only demo media placeholders for the seeded landing-engine rehearsal; authenticated upload remains the real merchant media path.
 Phase 24 tightens merchant-facing media UX so uploaded product images render in stable dashboard frames immediately after upload and backend-relative media paths remain displayable in Wasilio.
+Phase 24B makes Wasilio merchant Preview links request fresh landing-engine product data so recently uploaded images are visible immediately without changing public customer caching.
 
 ## Scope
 
@@ -79,6 +80,7 @@ Landing-engine should treat these values as display URLs owned by Wasilio. It sh
 - Image frames must keep the same dimensions when the source is missing, loading, or unavailable; the fallback state should not expand rows or editor panels.
 - Product image uploads should update the open editor and product table cache immediately, then refresh from the backend in the background.
 - Wasilio UI previews may normalize backend-relative `/media/...` paths for display. This is a frontend rendering convenience only; stored product/profile payload values remain unchanged.
+- Wasilio merchant Preview links include `wasilioPreview=1`; landing-engine treats that flag as an operator preview and bypasses its short product cache for that request.
 - Storefront profile gallery and SEO fields remain URL-based payloads, but the editor should show compact previews from those URLs before save.
 - Missing media is a readiness concern, not a lifecycle blocker. Merchants can keep draft profile content hidden until they publish it.
 - Public readiness should be visible in Storefront Publishing when the store and product are active, because this is the closest in-app view to the landing-engine contract.
@@ -90,6 +92,7 @@ For every media contract change, verify:
 - `PRODUCT_IMAGE` upload returns a `publicUrl` and updates the authenticated product `imageUrl`.
 - Product dashboard/editor previews shrink the image into stable frames.
 - Broken or temporarily unreachable product media falls back inside the same thumbnail frame.
+- Product and publishing Preview links include `wasilioPreview=1` so landing-engine refreshes Wasilio product data after media changes.
 - `GALLERY_IMAGE` upload appends the returned URL into `galleryImageUrls` and shows a preview before save.
 - `SEO_IMAGE` upload writes the returned URL into `seoImageUrl` and shows a preview before save.
 - Saving the storefront profile sends the same gallery and SEO URLs back to Wasilio.
