@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { fakeJwt, installMockApi, loginAs } from './helpers';
 
 const order = {
@@ -119,6 +119,7 @@ const productLineOrder = {
 };
 
 test('merchant can understand order journey stage and next action', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await installMockApi(page);
   const token = fakeJwt({
     email: 'admin@example.com',
@@ -208,11 +209,18 @@ test('merchant can understand order journey stage and next action', async ({ pag
 
   await page.goto('/app/orders');
 
-  await expect(page.locator('p').filter({ hasText: /^Needs attention$/ })).toBeVisible();
-  await expect(page.locator('p').filter({ hasText: /^In progress$/ })).toBeVisible();
-  await expect(page.locator('p').filter({ hasText: /^Completed \/ closed$/ })).toBeVisible();
+  const workflowScan = page.getByLabel('Orders workflow scan');
+  await expect(workflowScan).toBeVisible();
+  await expect(workflowScan.getByText('Confirmation', { exact: true })).toBeVisible();
+  await expect(workflowScan.getByText('Assignment', { exact: true })).toBeVisible();
+  await expect(workflowScan.getByText('Pickup', { exact: true })).toBeVisible();
+  await expect(workflowScan.getByText('Delivery', { exact: true })).toBeVisible();
+  await expect(workflowScan.getByText('Recovery', { exact: true })).toBeVisible();
+  await expect(workflowScan.getByText('Closed', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Assign Courier' })).toBeVisible();
-  await expect(page.getByRole('table').getByText('Ready for delivery').first()).toBeVisible();
+  await expect(page.getByRole('table').getByText('Ready for assignment').first()).toBeVisible();
+  await expect(page.getByRole('table').getByText('MAD 349.00')).toBeVisible();
+  await expectNoHorizontalOverflow(page, 'orders-table-wrap');
 
   await page.goto('/app/orders/11111111-1111-1111-1111-111111111111');
   await expect(page).toHaveURL(/\/app\/orders\/11111111-1111-1111-1111-111111111111$/);
@@ -504,6 +512,7 @@ test('merchant sees captured product snapshots in order list and detail', async 
 });
 
 test('merchant can review failed delivery recovery details', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await installMockApi(page);
   let currentOrder = { ...failedOrder };
   const recoveryRecords: Array<Record<string, unknown>> = [];
@@ -774,6 +783,7 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   await expect(page.getByRole('columnheader', { name: 'Recovery status' })).toBeVisible();
   await expect(page.getByText('Customer refused')).toBeVisible();
   await expect(page.getByRole('table').getByText('Needs decision', { exact: true })).toBeVisible();
+  await expectNoHorizontalOverflow(page, 'orders-table-wrap');
   await page.getByRole('link', { name: 'Continue Recovery' }).click();
 
   await expect(page).toHaveURL(/\/app\/orders\/11111111-1111-1111-1111-111111111111$/);
@@ -851,3 +861,12 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
     },
   ]);
 });
+
+async function expectNoHorizontalOverflow(page: Page, tableTestId: string) {
+  const tableFits = await page
+    .getByTestId(tableTestId)
+    .evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
+  const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+  expect(tableFits).toBe(true);
+  expect(pageFits).toBe(true);
+}

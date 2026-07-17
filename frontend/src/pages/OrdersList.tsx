@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
-import { AlertCircle, Bookmark, ChevronLeft, ChevronRight, PlusCircle, Save, Trash2, X } from 'lucide-react';
+import { AlertCircle, Bookmark, CheckCircle2, ChevronLeft, ChevronRight, PackageCheck, PhoneCall, PlusCircle, Save, Trash2, Truck, X } from 'lucide-react';
 import {
   createOrderSearchSavedView,
   deleteOrderSearchSavedView,
@@ -39,23 +39,23 @@ const statusColors: Record<string, string> = {
 const statusLabels: Record<OrderStatus, string> = {
   CREATED: 'New order',
   CONFIRMATION_REQUESTED: 'Needs confirmation',
-  CONFIRMED: 'Ready for delivery',
+  CONFIRMED: 'Ready for assignment',
   REJECTED: 'Rejected',
-  ASSIGNED_TO_COURIER: 'In delivery',
+  ASSIGNED_TO_COURIER: 'Waiting pickup',
   PICKED_UP: 'Out for delivery',
   DELIVERED: 'Delivered',
-  FAILED: 'Failed',
+  FAILED: 'Recovery',
 };
 
 const statusStages: Record<OrderStatus, string> = {
-  CREATED: 'Needs attention',
-  CONFIRMATION_REQUESTED: 'Needs attention',
-  CONFIRMED: 'Ready for delivery',
+  CREATED: 'Confirmation',
+  CONFIRMATION_REQUESTED: 'Confirmation',
+  CONFIRMED: 'Assignment',
   REJECTED: 'Closed',
-  ASSIGNED_TO_COURIER: 'In delivery',
-  PICKED_UP: 'In delivery',
+  ASSIGNED_TO_COURIER: 'Pickup',
+  PICKED_UP: 'Delivery',
   DELIVERED: 'Closed',
-  FAILED: 'Needs review',
+  FAILED: 'Recovery',
 };
 
 const failureReasonLabels: Record<string, string> = {
@@ -80,10 +80,12 @@ const statuses: OrderStatus[] = [
 
 const statusPresets: Array<{ value: string; label: string; statuses: OrderStatus[] }> = [
   { value: 'ALL', label: 'All statuses', statuses: [] },
-  { value: 'NEEDS_CONFIRMATION', label: 'Needs confirmation', statuses: ['CREATED', 'CONFIRMATION_REQUESTED'] },
-  { value: 'IN_DELIVERY', label: 'In delivery', statuses: ['CONFIRMED', 'ASSIGNED_TO_COURIER', 'PICKED_UP'] },
+  { value: 'NEEDS_CONFIRMATION', label: 'Confirmation', statuses: ['CREATED', 'CONFIRMATION_REQUESTED'] },
+  { value: 'ASSIGNMENT', label: 'Assignment', statuses: ['CONFIRMED'] },
+  { value: 'PICKUP', label: 'Pickup', statuses: ['ASSIGNED_TO_COURIER'] },
+  { value: 'DELIVERY', label: 'Delivery', statuses: ['PICKED_UP'] },
   { value: 'DELIVERED', label: 'Delivered', statuses: ['DELIVERED'] },
-  { value: 'FAILED', label: 'Failed', statuses: ['FAILED'] },
+  { value: 'FAILED', label: 'Recovery', statuses: ['FAILED'] },
   { value: 'CLOSED', label: 'Completed / closed', statuses: ['DELIVERED', 'REJECTED'] },
 ];
 
@@ -313,6 +315,66 @@ function orderActionLabel(order: Order, recoveryStatus?: RecoveryListStatus) {
   return 'View Details';
 }
 
+function nextActionLabel(status: OrderStatus) {
+  if (status === 'CREATED' || status === 'CONFIRMATION_REQUESTED') {
+    return 'Continue confirmation';
+  }
+  if (status === 'CONFIRMED') {
+    return 'Assign courier';
+  }
+  if (status === 'ASSIGNED_TO_COURIER') {
+    return 'Confirm pickup';
+  }
+  if (status === 'PICKED_UP') {
+    return 'Record delivery result';
+  }
+  if (status === 'DELIVERED' || status === 'REJECTED') {
+    return 'View order';
+  }
+  return 'Review recovery';
+}
+
+function workflowBorderClass(status: OrderStatus) {
+  if (status === 'CREATED' || status === 'CONFIRMATION_REQUESTED') {
+    return 'border-l-blue-300';
+  }
+  if (status === 'CONFIRMED' || status === 'ASSIGNED_TO_COURIER') {
+    return 'border-l-amber-300';
+  }
+  if (status === 'PICKED_UP' || status === 'DELIVERED') {
+    return 'border-l-emerald-300';
+  }
+  if (status === 'FAILED') {
+    return 'border-l-red-300';
+  }
+  return 'border-l-gray-200';
+}
+
+function formatAmount(amount: number) {
+  return `MAD ${amount.toFixed(2)}`;
+}
+
+function formatCompactDate(value: string) {
+  return new Date(value).toLocaleDateString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    year: '2-digit',
+  });
+}
+
+function sourceLabel(source?: string) {
+  if (source === 'WASILIO_STOREFRONT') {
+    return 'Storefront / landing-engine';
+  }
+  if (!source || source === 'MANUAL') {
+    return 'Manual order';
+  }
+  return source
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
 function updateRecoveryQueueAfterRetry(pageData: FailedOrderRecoveryQueueResponse | undefined, orderId: string) {
   if (!pageData || !pageData.content.some((item) => item.order.id === orderId)) {
     return pageData;
@@ -509,12 +571,13 @@ export default function OrdersList() {
       : recoverySummaries.map((summary) => [summary.orderId, summary]),
   );
   const recoveryCounts = failedRecoveryQueuePage?.counts;
-  const visibleJourneyCounts = {
-    confirm: countByStatus(orders, 'CREATED') + countByStatus(orders, 'CONFIRMATION_REQUESTED'),
-    courier:
-      countByStatus(orders, 'CONFIRMED') + countByStatus(orders, 'ASSIGNED_TO_COURIER') + countByStatus(orders, 'PICKED_UP'),
+  const visibleWorkflowCounts = {
+    confirmation: countByStatus(orders, 'CREATED') + countByStatus(orders, 'CONFIRMATION_REQUESTED'),
+    assignment: countByStatus(orders, 'CONFIRMED'),
+    pickup: countByStatus(orders, 'ASSIGNED_TO_COURIER'),
+    delivery: countByStatus(orders, 'PICKED_UP'),
+    recovery: isFailureRecoveryView ? recoveryCounts?.all ?? 0 : visibleFailedOrders.length,
     closed: countByStatus(orders, 'DELIVERED') + countByStatus(orders, 'REJECTED'),
-    failed: isFailureRecoveryView ? recoveryCounts?.all ?? 0 : visibleFailedOrders.length,
   };
   const recoveryFilterCounts = new Map<FailureRecoveryFilter, number>(
     failureRecoveryFilters.map((filterOption) => [
@@ -671,22 +734,69 @@ export default function OrdersList() {
       <div className="flex flex-wrap justify-between items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Orders</h2>
-          <p className="text-sm text-gray-500">{totalElements} total orders across attention, progress, closed, and review states</p>
+          <p className="text-sm text-gray-500">
+            {totalElements} total orders in the current workflow view
+            {isFetching && !isLoading ? ' - Refreshing' : ''}
+          </p>
         </div>
         <Link
           to="/app/orders/new"
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
         >
           <PlusCircle size={18} />
-          New Order
+          New order
         </Link>
       </div>
 
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <JourneyMetric title="Needs attention" value={visibleJourneyCounts.confirm} detail="New orders or waiting for confirmation" tone="blue" />
-        <JourneyMetric title="In progress" value={visibleJourneyCounts.courier} detail="Confirmed, assigned, or in delivery" tone="amber" />
-        <JourneyMetric title="Completed / closed" value={visibleJourneyCounts.closed} detail="Delivered or rejected orders" tone="green" />
-        <JourneyMetric title="Failed / needs review" value={visibleJourneyCounts.failed} detail="Failed deliveries needing review" tone="red" />
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6" aria-label="Orders workflow scan">
+        <WorkflowMetric
+          step="01"
+          title="Confirmation"
+          value={visibleWorkflowCounts.confirmation}
+          detail="New or requested"
+          tone="blue"
+          icon={<PhoneCall size={18} />}
+        />
+        <WorkflowMetric
+          step="02"
+          title="Assignment"
+          value={visibleWorkflowCounts.assignment}
+          detail="Ready for courier"
+          tone="amber"
+          icon={<Truck size={18} />}
+        />
+        <WorkflowMetric
+          step="03"
+          title="Pickup"
+          value={visibleWorkflowCounts.pickup}
+          detail="Courier assigned"
+          tone="amber"
+          icon={<PackageCheck size={18} />}
+        />
+        <WorkflowMetric
+          step="04"
+          title="Delivery"
+          value={visibleWorkflowCounts.delivery}
+          detail="Out for delivery"
+          tone="green"
+          icon={<Truck size={18} />}
+        />
+        <WorkflowMetric
+          step="05"
+          title="Recovery"
+          value={visibleWorkflowCounts.recovery}
+          detail="Failed delivery"
+          tone="red"
+          icon={<AlertCircle size={18} />}
+        />
+        <WorkflowMetric
+          step="06"
+          title="Closed"
+          value={visibleWorkflowCounts.closed}
+          detail="Delivered or rejected"
+          tone="green"
+          icon={<CheckCircle2 size={18} />}
+        />
       </section>
 
       {isFailureRecoveryView && (
@@ -1080,18 +1190,16 @@ export default function OrdersList() {
       )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1040px] text-left border-collapse">
+        <div data-testid="orders-table-wrap" className="overflow-x-hidden">
+          <table className="w-full table-fixed text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200 text-sm text-gray-500 uppercase tracking-wider">
-                <th className="px-4 py-3 font-medium">Order ID</th>
-                <th className="px-4 py-3 font-medium">Customer</th>
-                <th className="px-4 py-3 font-medium">Product</th>
-                <th className="px-4 py-3 font-medium">Amount</th>
-                <th className="px-4 py-3 font-medium">{isFailureRecoveryView ? 'Failure reason' : 'Current status'}</th>
-                <th className="px-4 py-3 font-medium">Recovery status</th>
-                <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Action</th>
+                <th className="w-[15%] px-4 py-3 font-medium">Order</th>
+                <th className="w-[18%] px-4 py-3 font-medium">Customer</th>
+                <th className="w-[18%] px-4 py-3 font-medium">Product</th>
+                <th className="w-[19%] px-4 py-3 font-medium">{isFailureRecoveryView ? 'Failure reason' : 'Workflow'}</th>
+                <th className="w-[17%] px-4 py-3 font-medium">{isFailureRecoveryView ? 'Recovery status' : 'Next action'}</th>
+                <th className="w-[13%] px-4 py-3 font-medium">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-sm">
@@ -1110,45 +1218,47 @@ export default function OrdersList() {
                 const showRetryAction = recoveryStatus?.retryReady && !recoverySummaryUnavailable && !recoverySummaryPending;
 
                 const rowClassName = isFailureRecoveryView
-                  ? 'hover:bg-gray-50'
+                  ? 'border-l-4 border-l-red-300 hover:bg-gray-50'
                   : order.status === 'FAILED'
-                    ? 'bg-red-50/40 hover:bg-red-50'
-                    : 'hover:bg-gray-50';
+                    ? 'border-l-4 border-l-red-300 bg-red-50/40 hover:bg-red-50'
+                    : `border-l-4 ${workflowBorderClass(order.status)} hover:bg-gray-50`;
 
                 return (
                   <tr key={order.id} className={rowClassName}>
-                    <td className="px-4 py-3 font-mono text-gray-500">
+                    <td className="px-4 py-3 align-top font-mono text-gray-500">
                       <Link to={`/app/orders/${order.id}`} className="text-blue-600 hover:underline">
                         {order.id.slice(0, 8)}...
                       </Link>
+                      <p className="mt-1 font-sans text-xs text-gray-500">{formatCompactDate(order.createdAt)}</p>
+                      <p className="mt-1 line-clamp-2 font-sans text-xs font-medium text-gray-500">{sourceLabel(order.source)}</p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-top">
                       <p className="font-medium text-gray-900">
                         {order.customer.firstName} {order.customer.lastName}
                       </p>
-                      <p className="text-gray-500">{order.customer.phone}</p>
+                      <p className="mt-1 truncate text-gray-500">{order.customer.phone}</p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-top">
                       {productSummary ? (
-                        <span className="text-sm font-medium text-gray-800">{productSummary}</span>
+                        <span className="line-clamp-2 text-sm font-medium text-gray-800">{productSummary}</span>
                       ) : (
                         <span className="text-sm text-gray-400">-</span>
                       )}
+                      <p className="mt-1 whitespace-nowrap text-xs font-semibold text-gray-900">{formatAmount(order.amount)}</p>
                     </td>
-                    <td className="px-4 py-3 font-medium">{order.amount.toFixed(2)} MAD</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-top">
                       {isFailureRecoveryView ? (
                         <span className="text-sm font-medium text-gray-800">{failureReason ?? 'Not recorded'}</span>
                       ) : (
                         <>
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[order.status]}`}>
                             {statusLabels[order.status]}
                           </span>
                           <p className="mt-1 text-xs text-gray-500">{statusStages[order.status]}</p>
                         </>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-top">
                       {order.status === 'FAILED' ? (
                         <>
                           {recoverySummariesError ? (
@@ -1162,24 +1272,23 @@ export default function OrdersList() {
                           )}
                         </>
                       ) : (
-                        <span className="text-sm text-gray-400">-</span>
+                        <span className="text-sm font-medium text-gray-700">{nextActionLabel(order.status)}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 align-top">
                       {showRetryAction ? (
                         <button
                           type="button"
                           onClick={() => quickRetryMutation.mutate(order.id)}
                           disabled={isRetryingThisOrder}
-                          className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                          className="inline-flex min-h-10 w-full items-center justify-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                         >
                           {isRetryingThisOrder ? 'Returning...' : actionLabel}
                         </button>
                       ) : (
                         <Link
                           to={`/app/orders/${order.id}`}
-                          className={`inline-flex items-center rounded-md border px-3 py-2 text-sm font-medium ${
+                          className={`inline-flex min-h-10 w-full items-center justify-center rounded-md border px-3 py-2 text-center text-sm font-medium ${
                             order.status === 'FAILED' && recoveryStatus?.tone !== 'gray'
                               ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
                               : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
@@ -1194,14 +1303,14 @@ export default function OrdersList() {
               })}
               {!isLoading && displayedOrders.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
                     {isFailureRecoveryView ? 'No failed orders match this recovery filter.' : 'No orders found.'}
                   </td>
                 </tr>
               )}
               {isLoading && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
                     Loading orders...
                   </td>
                 </tr>
@@ -1243,16 +1352,20 @@ export default function OrdersList() {
   );
 }
 
-function JourneyMetric({
+function WorkflowMetric({
+  step,
   title,
   value,
   detail,
   tone,
+  icon,
 }: {
+  step: string;
   title: string;
   value: number;
   detail: string;
   tone: 'blue' | 'amber' | 'green' | 'red';
+  icon: ReactNode;
 }) {
   const tones = {
     blue: 'border-blue-200 bg-blue-50 text-blue-700',
@@ -1263,9 +1376,13 @@ function JourneyMetric({
 
   return (
     <div className={`rounded-lg border p-4 ${tones[tone]}`}>
-      <p className="text-xs font-semibold uppercase">{title}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-semibold uppercase">{step}</p>
+        <span className="rounded-md bg-white/70 p-1.5">{icon}</span>
+      </div>
+      <p className="mt-3 text-sm font-semibold text-gray-900">{title}</p>
       <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
-      <p className="mt-1 text-sm">{detail}</p>
+      <p className="mt-1 truncate text-xs">{detail}</p>
     </div>
   );
 }
