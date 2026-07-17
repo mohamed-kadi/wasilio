@@ -233,6 +233,12 @@ public class OrderController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/{orderId}/clear-confirmation-request")
+    public ResponseEntity<Void> clearConfirmationRequest(@PathVariable UUID orderId) {
+        orderLifecycleService.clearConfirmationRequest(getCurrentTenantId(), orderId);
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/{orderId}/confirm")
     public ResponseEntity<Void> confirmOrder(@PathVariable UUID orderId) {
         orderLifecycleService.confirmOrder(getCurrentTenantId(), orderId);

@@ -364,6 +364,30 @@ class OrderIntegrationTest {
     }
 
     @Test
+    void clearConfirmationRequest_returnsOrderToCreatedState() throws Exception {
+        String orderId = createOrder("Clearable");
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/request-confirmation")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/orders/" + orderId + "/clear-confirmation-request")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/orders/" + orderId)
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CREATED"));
+
+        mockMvc.perform(get("/api/orders/" + orderId + "/events")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(3))
+                .andExpect(jsonPath("$[2].eventType").value("OrderConfirmationRequestCleared"));
+    }
+
+    @Test
     void fulfilledLifecycle_succeedsThroughDeliveredAndBlocksFurtherMutation() throws Exception {
         String orderId = createOrder("Delivered");
         String courierId = createCourier("Courier 1");

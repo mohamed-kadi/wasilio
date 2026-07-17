@@ -1,7 +1,7 @@
 # Landing Engine Contract
 
 Phase 19F defined the stable handoff from landing-engine into Wasilio Core. Phase 20C adds a public product readiness review contract so landing-engine can render and QA Wasilio product pages without owning Wasilio operations logic.
-Phase 21 documents and tests the local integration rehearsal in `docs/product/landing-engine-integration-rehearsal.md`. Phase 22 adds seeded local `first-store` data for repeating that rehearsal across Wasilio and landing-engine.
+Phase 21 documents and tests the local integration rehearsal in `docs/product/landing-engine-integration-rehearsal.md`. Phase 22 adds seeded local `first-store` data for repeating that rehearsal across Wasilio and landing-engine. Phase 25 improves the Wasilio operator handoff from storefront intake to confirmation without changing the public contract.
 
 Landing-engine is an order-intent client. Wasilio remains the source of truth for order lifecycle, confirmation, courier operations, recovery, and intelligence scoring.
 
@@ -107,6 +107,31 @@ Duplicate submissions with the same `idempotencyKey` and the same canonical payl
 
 Duplicate submissions with the same `idempotencyKey` and a different canonical payload return `409 Conflict`.
 
+## Wasilio Operations Handoff
+
+Accepted storefront orders enter Wasilio through the existing inbound order review surface.
+
+For `WASILIO_STOREFRONT` records, the operator UI should use merchant-facing labels:
+
+- source: `Storefront / landing-engine`
+- normalized status: `Order created`
+- linked order handoff: `Ready for confirmation`
+
+When an inbound record has a linked internal Wasilio order ID, the UI can offer:
+
+- `Open confirmation`: selects the created order in the confirmation queue.
+- `Open order detail`: opens the canonical order detail page.
+
+The inbound detail panel may parse the stored raw payload into a compact summary for operators:
+
+- customer name and phone
+- delivery city
+- product name or slug
+- selected quantity
+- attribution source, medium, campaign, and landing page URL
+
+The raw payload remains available as developer/debug context. This parsing is display-only and must not mutate the order, lifecycle state, intelligence scores, or source payload.
+
 ## Server-Owned Fields
 
 Wasilio forces the source to `WASILIO_STOREFRONT` for this endpoint.
@@ -169,3 +194,4 @@ For every accepted order, Wasilio should be able to trace:
 - `OrderCreated` event with correlation ID
 - initial intelligence snapshot and audit event
 - confirmation queue visibility
+- operations handoff from inbound detail to confirmation and order detail

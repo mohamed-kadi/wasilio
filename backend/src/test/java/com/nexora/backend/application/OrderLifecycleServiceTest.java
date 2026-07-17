@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.domain.event.DomainEvent;
 import com.nexora.backend.domain.event.EventStore;
 import com.nexora.backend.domain.event.payload.OrderAssignedToCourierEvent;
+import com.nexora.backend.domain.event.payload.OrderConfirmationRequestClearedEvent;
 import com.nexora.backend.domain.event.payload.OrderConfirmationRequestedEvent;
 import com.nexora.backend.domain.event.payload.OrderConfirmedEvent;
 import com.nexora.backend.domain.event.payload.OrderCreatedEvent;
@@ -103,6 +104,37 @@ class OrderLifecycleServiceTest {
 
         IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
                 service.confirmOrder(tenantId, orderId)
+        );
+
+        assertTrue(ex.getMessage().contains("Invalid state transition"));
+        verify(eventStore, never()).append(any(DomainEvent.class), anyInt());
+    }
+
+    @Test
+    void clearConfirmationRequest_returnsRequestedOrderToCreated() throws Exception {
+        when(eventStore.getEventsForAggregate(tenantId, orderId)).thenReturn(List.of(
+                event("OrderCreated", new OrderCreatedEvent(customer, address, BigDecimal.TEN), 1),
+                event("OrderConfirmationRequested", new OrderConfirmationRequestedEvent(), 2)
+        ));
+
+        service.clearConfirmationRequest(tenantId, orderId);
+
+        verify(eventStore).append(eventCaptor.capture(), eq(2));
+        DomainEvent savedEvent = eventCaptor.getValue();
+        assertEquals("OrderConfirmationRequestCleared", savedEvent.getEventType());
+        assertEquals(3, savedEvent.getAggregateSequence());
+        assertEquals(EVENT_SCHEMA_VERSION, savedEvent.getEventSchemaVersion());
+        assertNotNull(objectMapper.readValue(savedEvent.getPayload(), OrderConfirmationRequestClearedEvent.class));
+    }
+
+    @Test
+    void clearConfirmationRequest_rejectsOrdersNotAwaitingConfirmation() throws Exception {
+        when(eventStore.getEventsForAggregate(tenantId, orderId)).thenReturn(List.of(
+                event("OrderCreated", new OrderCreatedEvent(customer, address, BigDecimal.TEN), 1)
+        ));
+
+        IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+                service.clearConfirmationRequest(tenantId, orderId)
         );
 
         assertTrue(ex.getMessage().contains("Invalid state transition"));

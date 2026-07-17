@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, CheckCircle2, Clock, MessageSquare, Package, PhoneCall, Truck, XCircle } from 'lucide-react';
 import {
   assignCourier,
-  confirmOrder,
+  clearConfirmationRequest,
+  fetchConfirmationAttempts,
   type DeliveryFailureRecoveryDecision,
   type DeliveryFailureReason,
   type DeliveryFollowUpTask,
@@ -17,13 +18,13 @@ import {
   markDelivered,
   markFailed,
   markPickedUp,
+  recordConfirmationAttempt,
   recordDeliveryFailureRecovery,
-  rejectOrder,
   requestConfirmation,
   resolveDeliveryFollowUp,
   retryFailedDelivery,
 } from '../api/client';
-import type { DeliveryFailureRecovery, Order, OrderStatus } from '../api/client';
+import type { ConfirmationAttempt, ConfirmationOutcome, DeliveryFailureRecovery, Order, OrderStatus } from '../api/client';
 import {
   IntelligenceBadge,
   IntelligenceHistory,
@@ -36,8 +37,7 @@ import { hasOrderLines } from '../lib/orderLines';
 
 type LifecycleCommand =
   | { action: 'request-confirmation' }
-  | { action: 'confirm' }
-  | { action: 'reject'; reason: string }
+  | { action: 'clear-confirmation-request' }
   | { action: 'assign-courier'; courierId: string }
   | { action: 'pick-up'; courierId: string }
   | { action: 'deliver' }
@@ -96,6 +96,38 @@ const failureReasonLabels: Record<string, string> = {
   OTHER: 'Other',
 };
 
+const confirmationOutcomes: ConfirmationOutcome[] = [
+  'CONFIRMED',
+  'NO_ANSWER',
+  'CALL_BACK_LATER',
+  'WRONG_NUMBER',
+  'REJECTED',
+];
+
+const confirmationOutcomeLabels: Record<ConfirmationOutcome, string> = {
+  CONFIRMED: 'Confirmed',
+  REJECTED: 'Rejected',
+  NO_ANSWER: 'No answer',
+  CALL_BACK_LATER: 'Call back later',
+  WRONG_NUMBER: 'Wrong number',
+};
+
+const confirmationOutcomeDescriptions: Record<ConfirmationOutcome, string> = {
+  CONFIRMED: 'Customer accepted the order. This moves it to courier assignment.',
+  REJECTED: 'Customer refused or cancelled. This closes the order as rejected.',
+  NO_ANSWER: 'No decision yet. Keep the order in confirmation follow-up.',
+  CALL_BACK_LATER: 'Customer asked for another call. Schedule the exact callback time.',
+  WRONG_NUMBER: 'The phone number is invalid or belongs to the wrong person.',
+};
+
+const confirmationOutcomeTones: Record<ConfirmationOutcome, string> = {
+  CONFIRMED: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+  REJECTED: 'border-red-200 bg-red-50 text-red-800',
+  NO_ANSWER: 'border-amber-200 bg-amber-50 text-amber-800',
+  CALL_BACK_LATER: 'border-blue-200 bg-blue-50 text-blue-800',
+  WRONG_NUMBER: 'border-orange-200 bg-orange-50 text-orange-800',
+};
+
 const recoveryDecisionLabels: Record<DeliveryFailureRecoveryDecision, string> = {
   RETRY_DELIVERY: 'Retry delivery',
   REFUND_OR_CUSTOMER_FOLLOW_UP: 'Refund / customer follow-up',
@@ -127,6 +159,35 @@ function recoverySubmitLabel(decision: DeliveryFailureRecoveryDecision) {
     return 'Create follow-up task';
   }
   return 'Close as unreachable';
+}
+
+function confirmationSubmitLabel(outcome: ConfirmationOutcome) {
+  if (outcome === 'CONFIRMED') {
+    return 'Save confirmation';
+  }
+  if (outcome === 'CALL_BACK_LATER') {
+    return 'Schedule callback';
+  }
+  if (outcome === 'WRONG_NUMBER') {
+    return 'Save wrong number';
+  }
+  if (outcome === 'REJECTED') {
+    return 'Reject order';
+  }
+  return 'Save follow-up attempt';
+}
+
+function toLocalDateTimeInputValue(date: Date): string {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function toIsoFromLocalDateTime(value: string): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 function toInstantFromDate(date: string, endOfDay = false) {
@@ -162,7 +223,9 @@ export default function OrderDetails() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
   const [courierId, setCourierId] = useState('');
-  const [rejectReason, setRejectReason] = useState('Customer unreachable');
+  const [confirmationOutcome, setConfirmationOutcome] = useState<ConfirmationOutcome>('NO_ANSWER');
+  const [confirmationCallbackAt, setConfirmationCallbackAt] = useState('');
+  const [confirmationNote, setConfirmationNote] = useState('');
   const [failureReason, setFailureReason] = useState<DeliveryFailureReason>('CUSTOMER_REFUSED');
   const [confirmDeliverOpen, setConfirmDeliverOpen] = useState(false);
   const [recoveryDecision, setRecoveryDecision] = useState<DeliveryFailureRecoveryDecision>('RETRY_DELIVERY');
@@ -216,6 +279,16 @@ export default function OrderDetails() {
     enabled: !!id && order?.status === 'FAILED',
   });
 
+  const {
+    data: confirmationAttempts = [],
+    error: confirmationAttemptsError,
+    isLoading: loadingConfirmationAttempts,
+  } = useQuery({
+    queryKey: ['confirmation-attempts', id],
+    queryFn: () => fetchConfirmationAttempts(id!),
+    enabled: !!id && (order?.status === 'CREATED' || order?.status === 'CONFIRMATION_REQUESTED'),
+  });
+
   const mutation = useMutation({
     mutationFn: async (command: LifecycleCommand) => {
       if (!id) {
@@ -225,10 +298,8 @@ export default function OrderDetails() {
       switch (command.action) {
         case 'request-confirmation':
           return requestConfirmation(id);
-        case 'confirm':
-          return confirmOrder(id);
-        case 'reject':
-          return rejectOrder(id, command.reason);
+        case 'clear-confirmation-request':
+          return clearConfirmationRequest(id);
         case 'assign-courier':
           return assignCourier(id, command.courierId);
         case 'pick-up':
@@ -243,8 +314,40 @@ export default function OrderDetails() {
       setConfirmDeliverOpen(false);
       queryClient.invalidateQueries({ queryKey: ['order', id] });
       queryClient.invalidateQueries({ queryKey: ['order-timeline', id] });
+      queryClient.invalidateQueries({ queryKey: ['confirmation-attempts', id] });
+      queryClient.invalidateQueries({ queryKey: ['confirmation-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['confirmation-callbacks'] });
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       queryClient.invalidateQueries({ queryKey: ['orders-summary'] });
+    },
+  });
+
+  const confirmationAttemptMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) {
+        throw new Error('Order ID is missing');
+      }
+      const scheduledCallbackAt = confirmationOutcome === 'CALL_BACK_LATER'
+        ? toIsoFromLocalDateTime(confirmationCallbackAt)
+        : undefined;
+      if (confirmationOutcome === 'CALL_BACK_LATER' && !scheduledCallbackAt) {
+        throw new Error('Callback time is required for call-back-later attempts');
+      }
+      return recordConfirmationAttempt(id, confirmationOutcome, confirmationNote, scheduledCallbackAt);
+    },
+    onSuccess: () => {
+      setConfirmationNote('');
+      setConfirmationCallbackAt('');
+      void Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['order', id] }),
+        queryClient.invalidateQueries({ queryKey: ['order-timeline', id] }),
+        queryClient.invalidateQueries({ queryKey: ['confirmation-attempts', id] }),
+        queryClient.invalidateQueries({ queryKey: ['confirmation-queue'] }),
+        queryClient.invalidateQueries({ queryKey: ['confirmation-callbacks'] }),
+        queryClient.invalidateQueries({ queryKey: ['courier-assignment-queue'] }),
+        queryClient.invalidateQueries({ queryKey: ['orders'] }),
+        queryClient.invalidateQueries({ queryKey: ['orders-summary'] }),
+      ]);
     },
   });
 
@@ -402,7 +505,7 @@ export default function OrderDetails() {
     return <div>Order not found</div>;
   }
 
-  const mutationDisabled = mutation.isPending;
+  const mutationDisabled = mutation.isPending || confirmationAttemptMutation.isPending;
   const activeCouriers = (couriersPage?.content ?? []).filter((courier) => courier.active);
   const selectedPickupCourierId = order.courierId ?? courierId;
   const selectedCourierName = activeCouriers.find((courier) => courier.courierId === order.courierId)?.name ?? order.courierId;
@@ -416,6 +519,8 @@ export default function OrderDetails() {
   const closeDecisionMissingNote = recoveryDecision === 'CLOSE_UNRECOVERABLE' && !recoveryNote.trim();
   const duplicateFollowUpBlocked = recoveryDecision === 'REFUND_OR_CUSTOMER_FOLLOW_UP' && openFollowUpTasks.length > 0;
   const recoverySubmitDisabled = recoveryMutation.isPending || duplicateFollowUpBlocked;
+  const recentConfirmationAttempts = confirmationAttempts.slice(-3).reverse();
+  const confirmationSubmitDisabled = mutationDisabled || (confirmationOutcome === 'CALL_BACK_LATER' && !confirmationCallbackAt);
   const recoveryNextAction = openFollowUpTasks.length > 0
     ? 'Resolve customer follow-up'
     : canMoveBackToAssignment
@@ -565,30 +670,142 @@ export default function OrderDetails() {
             )}
 
             {order.status === 'CONFIRMATION_REQUESTED' && (
-              <>
-                <button
-                  type="button"
-                  disabled={mutationDisabled}
-                  onClick={() => mutation.mutate({ action: 'confirm' })}
-                  className="rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              <div className="basis-full rounded-lg border border-blue-100 bg-blue-50/60 p-4 text-left">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-950">Record customer confirmation</p>
+                    <p className="mt-1 text-sm text-blue-800">
+                      Save the real call outcome. Non-final outcomes keep the order in confirmation follow-up.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={mutationDisabled}
+                    onClick={() => mutation.mutate({ action: 'clear-confirmation-request' })}
+                    className="rounded-md border border-blue-300 bg-white px-3 py-2 text-sm font-medium text-blue-900 hover:bg-blue-100 disabled:opacity-50"
+                  >
+                    Return to New order
+                  </button>
+                </div>
+
+                <form
+                  className="mt-4 space-y-4"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    confirmationAttemptMutation.mutate();
+                  }}
                 >
-                  Confirm Order
-                </button>
-                <input
-                  value={rejectReason}
-                  onChange={(event) => setRejectReason(event.target.value)}
-                  className="w-52 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  aria-label="Rejection reason"
-                />
-                <button
-                  type="button"
-                  disabled={mutationDisabled}
-                  onClick={() => mutation.mutate({ action: 'reject', reason: rejectReason })}
-                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                >
-                  Reject
-                </button>
-              </>
+                  <div>
+                    <p className="text-xs font-semibold uppercase text-gray-500">Outcome</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                      {confirmationOutcomes.map((outcomeOption) => {
+                        const selected = confirmationOutcome === outcomeOption;
+                        return (
+                          <button
+                            key={outcomeOption}
+                            type="button"
+                            onClick={() => {
+                              setConfirmationOutcome(outcomeOption);
+                              if (outcomeOption !== 'CALL_BACK_LATER') {
+                                setConfirmationCallbackAt('');
+                              }
+                            }}
+                            className={`min-h-16 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                              selected
+                                ? confirmationOutcomeTones[outcomeOption]
+                                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span className="font-semibold">{confirmationOutcomeLabels[outcomeOption]}</span>
+                            <span className="mt-1 block text-xs opacity-80">{confirmationOutcomeDescriptions[outcomeOption]}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {confirmationOutcome === 'CALL_BACK_LATER' && (
+                    <label className="block max-w-xs">
+                      <span className="mb-1 block text-sm font-medium text-gray-700">Callback time</span>
+                      <input
+                        type="datetime-local"
+                        value={confirmationCallbackAt}
+                        min={toLocalDateTimeInputValue(new Date())}
+                        onChange={(event) => setConfirmationCallbackAt(event.target.value)}
+                        required
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </label>
+                  )}
+
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-gray-700">
+                      {confirmationOutcome === 'REJECTED' ? 'Rejection reason' : 'Call note'}
+                    </span>
+                    <textarea
+                      value={confirmationNote}
+                      onChange={(event) => setConfirmationNote(event.target.value)}
+                      maxLength={1000}
+                      rows={3}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </label>
+
+                  {confirmationAttemptMutation.error && (
+                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {getErrorMessage(confirmationAttemptMutation.error)}
+                    </div>
+                  )}
+
+                  {confirmationAttemptsError && (
+                    <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                      {getErrorMessage(confirmationAttemptsError)}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <button
+                      type="submit"
+                      disabled={confirmationSubmitDisabled}
+                      className={`inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white disabled:opacity-50 ${
+                        confirmationOutcome === 'CONFIRMED'
+                          ? 'bg-emerald-700 hover:bg-emerald-800'
+                          : confirmationOutcome === 'REJECTED'
+                            ? 'bg-red-700 hover:bg-red-800'
+                            : 'bg-blue-600 hover:bg-blue-700'
+                      }`}
+                    >
+                      {confirmationOutcome === 'CONFIRMED'
+                        ? <CheckCircle2 size={18} />
+                        : confirmationOutcome === 'REJECTED'
+                          ? <XCircle size={18} />
+                          : <PhoneCall size={18} />}
+                      {confirmationSubmitLabel(confirmationOutcome)}
+                    </button>
+                    <p className="text-xs text-gray-500">
+                      Returning to New order only clears the requested stage; timeline history remains.
+                    </p>
+                  </div>
+                </form>
+
+                <div className="mt-4 border-t border-blue-100 pt-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase text-gray-500">Recent attempts</p>
+                    <Link to="/app/confirmations" className="text-xs font-medium text-blue-700 hover:underline">
+                      Open confirmation queue
+                    </Link>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {recentConfirmationAttempts.map((attempt) => (
+                      <ConfirmationAttemptItem key={attempt.attemptId} attempt={attempt} compact />
+                    ))}
+                    {!loadingConfirmationAttempts && recentConfirmationAttempts.length === 0 && (
+                      <p className="text-sm text-gray-500">No confirmation attempts recorded yet.</p>
+                    )}
+                    {loadingConfirmationAttempts && <p className="text-sm text-gray-500">Loading confirmation attempts...</p>}
+                  </div>
+                </div>
+              </div>
             )}
 
             {order.status === 'CONFIRMED' && (
@@ -1203,6 +1420,34 @@ function DetailRow({
         {content}
       </dd>
     </div>
+  );
+}
+
+function ConfirmationAttemptItem({
+  attempt,
+  compact = false,
+}: {
+  attempt: ConfirmationAttempt;
+  compact?: boolean;
+}) {
+  return (
+    <article className={`rounded-md border border-gray-200 bg-white ${compact ? 'px-3 py-2' : 'p-3'}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-gray-900">Attempt #{attempt.attemptNumber}</p>
+        <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${confirmationOutcomeTones[attempt.outcome]}`}>
+          {confirmationOutcomeLabels[attempt.outcome]}
+        </span>
+      </div>
+      {attempt.note && <p className="mt-2 text-sm text-gray-700">{attempt.note}</p>}
+      {attempt.callbackAt && (
+        <p className="mt-2 text-xs font-medium text-blue-700">
+          Callback: {new Date(attempt.callbackAt).toLocaleString()}
+        </p>
+      )}
+      <p className="mt-2 text-xs text-gray-500">
+        {attempt.createdBy} - {new Date(attempt.createdAt).toLocaleString()}
+      </p>
+    </article>
   );
 }
 

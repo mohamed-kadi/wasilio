@@ -24,6 +24,15 @@ CREATED
   -> DELIVERED
 ```
 
+If confirmation was requested by mistake, the request can be cleared before a final outcome:
+
+```text
+CONFIRMATION_REQUESTED
+  -> CREATED
+```
+
+This appends `OrderConfirmationRequestCleared`. It does not delete timeline history or confirmation attempts.
+
 ## Rejection Flow
 
 ```text

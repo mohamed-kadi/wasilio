@@ -61,6 +61,7 @@ public class OrderProjectionService {
         switch (event.getEventType()) {
             case "OrderCreated" -> createOrder(event);
             case "OrderConfirmationRequested" -> updateOrderStatus(event, OrderStatus.CONFIRMATION_REQUESTED);
+            case "OrderConfirmationRequestCleared" -> updateOrderStatus(event, OrderStatus.CREATED);
             case "OrderConfirmed" -> updateOrderStatus(event, OrderStatus.CONFIRMED);
             case "OrderRejected" -> rejectOrder(event);
             case "OrderAssignedToCourier" -> assignCourier(event);

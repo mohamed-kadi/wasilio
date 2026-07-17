@@ -1448,6 +1448,10 @@ export async function requestConfirmation(orderId: string): Promise<void> {
   await apiRequest<void>(`/orders/${orderId}/request-confirmation`, { method: 'POST' });
 }
 
+export async function clearConfirmationRequest(orderId: string): Promise<void> {
+  await apiRequest<void>(`/orders/${orderId}/clear-confirmation-request`, { method: 'POST' });
+}
+
 export async function confirmOrder(orderId: string): Promise<void> {
   await apiRequest<void>(`/orders/${orderId}/confirm`, { method: 'POST' });
 }

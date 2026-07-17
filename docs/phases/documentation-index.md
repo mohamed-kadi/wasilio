@@ -27,7 +27,7 @@ This index is the starting point for future engineers and AI agents.
 - `docs/product/courier-workflow.md`: internal courier resources, assignment, pickup, delivery, and performance.
 - `docs/product/intelligence-scoring.md`: Phase 19 confirmation confidence and fraud risk scoring model.
 - `docs/product/intelligence-calibration-rehearsal.md`: Phase 23 landing-engine-to-Wasilio score movement calibration runbook.
-- `docs/product/landing-engine-order-intake.md`: stable public product, media, and order-intent contract for landing-engine handoff into Wasilio.
+- `docs/product/landing-engine-order-intake.md`: stable public product, media, order-intent contract, and Phase 25 operations handoff for landing-engine orders.
 - `docs/product/landing-engine-integration-rehearsal.md`: Phase 21/22 local rehearsal checklist and seeded `first-store` flow for landing-engine product read and order submit.
 - `docs/product/media-upload.md`: Phase 20-24 product media upload, rendering, readiness, storage boundary, and media handoff QA rehearsal.
 

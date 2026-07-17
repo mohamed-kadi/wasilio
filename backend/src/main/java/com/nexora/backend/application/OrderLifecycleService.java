@@ -66,6 +66,18 @@ public class OrderLifecycleService {
     }
 
     @Transactional
+    public void clearConfirmationRequest(UUID tenantId, UUID orderId) {
+        OrderState order = loadOrderAndValidate(tenantId, orderId, OrderStatus.CONFIRMATION_REQUESTED);
+        appendEvent(
+                tenantId,
+                orderId,
+                "OrderConfirmationRequestCleared",
+                new OrderConfirmationRequestClearedEvent(),
+                order.sequence()
+        );
+    }
+
+    @Transactional
     public void confirmOrder(UUID tenantId, UUID orderId) {
         OrderState order = loadOrderAndValidate(tenantId, orderId, OrderStatus.CONFIRMATION_REQUESTED);
         appendEvent(tenantId, orderId, "OrderConfirmed", new OrderConfirmedEvent(), order.sequence());
@@ -155,6 +167,7 @@ public class OrderLifecycleService {
             return switch (event.getEventType()) {
                 case "OrderCreated" -> new OrderState(true, OrderStatus.CREATED, null, event.getAggregateSequence());
                 case "OrderConfirmationRequested" -> state.withStatus(OrderStatus.CONFIRMATION_REQUESTED, event.getAggregateSequence());
+                case "OrderConfirmationRequestCleared" -> state.withStatus(OrderStatus.CREATED, event.getAggregateSequence());
                 case "OrderConfirmed" -> state.withStatus(OrderStatus.CONFIRMED, event.getAggregateSequence());
                 case "OrderRejected" -> state.withStatus(OrderStatus.REJECTED, event.getAggregateSequence());
                 case "OrderAssignedToCourier" -> {

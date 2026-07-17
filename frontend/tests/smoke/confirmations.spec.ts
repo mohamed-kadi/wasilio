@@ -52,6 +52,7 @@ const courier = {
 };
 
 test('merchant can use the confirmation next-action panel', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await installMockApi(page);
 
   const attempts: Record<string, unknown>[] = [];
@@ -147,11 +148,25 @@ test('merchant can use the confirmation next-action panel', async ({ page }) => 
 
   await expect(page.getByRole('heading', { name: 'Confirmation Ops' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Call workspace' })).toBeVisible();
+  const queueBox = await page.getByRole('heading', { name: 'Confirmation queue' }).locator('xpath=ancestor::section[1]').boundingBox();
+  const workspaceBox = await page.getByRole('heading', { name: 'Call workspace' }).locator('xpath=ancestor::aside[1]').boundingBox();
+  expect(queueBox).not.toBeNull();
+  expect(workspaceBox).not.toBeNull();
+  expect(Math.round(workspaceBox?.x ?? 0)).toBeGreaterThan(Math.round(queueBox?.x ?? 0));
+  const pageHorizontalOverflow = await page.evaluate(() => (
+    document.documentElement.scrollWidth - document.documentElement.clientWidth
+  ));
+  expect(pageHorizontalOverflow).toBeLessThanOrEqual(1);
+  const queueHorizontalOverflow = await page.getByTestId('confirmation-queue-table-wrap').evaluate((element) => (
+    element.scrollWidth - element.clientWidth
+  ));
+  expect(queueHorizontalOverflow).toBeLessThanOrEqual(1);
   await expect(page.getByText('Avg confidence')).toBeVisible();
   await expect(page.getByText('73/100').first()).toBeVisible();
   await expect(page.getByText('Avg risk')).toBeVisible();
   await expect(page.getByText('No order selected.')).toBeVisible();
-  await expect(page.getByRole('table').getByText('Needs attention')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Review signals', { exact: true })).toBeVisible();
+  await expect(page.getByText('Verify first').first()).toBeVisible();
 
   await page.getByText('Sara Customer').click();
   const callWorkspace = page.getByRole('complementary');

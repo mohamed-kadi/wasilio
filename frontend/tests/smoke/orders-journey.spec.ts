@@ -229,6 +229,169 @@ test('merchant can understand order journey stage and next action', async ({ pag
   await expect(page.getByText('Product snapshot')).toHaveCount(0);
 });
 
+test('merchant records confirmation attempts and can clear a requested confirmation', async ({ page }) => {
+  await installMockApi(page);
+  const token = fakeJwt({
+    email: 'admin@example.com',
+    role: 'MERCHANT',
+    tenantId: '00000000-0000-0000-0000-000000000001',
+  });
+  let currentOrder = {
+    ...order,
+    status: 'CONFIRMATION_REQUESTED',
+    intelligence: {
+      ...order.intelligence,
+      confirmationConfidenceScore: 41,
+      fraudRiskScore: 67,
+      level: 'HIGH_RISK',
+      summary: 'Repeated contact issues require careful verification',
+    },
+  };
+  const attempts: Array<Record<string, unknown>> = [];
+  let clearRequests = 0;
+
+  await page.goto('/login');
+  await page.evaluate((sessionToken) => {
+    window.sessionStorage.setItem(
+      'nexora.auth.session',
+      JSON.stringify({
+        token: sessionToken,
+        user: {
+          email: 'admin@example.com',
+          role: 'MERCHANT',
+          tenantId: '00000000-0000-0000-0000-000000000001',
+          expiresAt: Date.now() + 3_600_000,
+        },
+      }),
+    );
+  }, token);
+
+  await page.route('**/api/couriers?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content: [],
+        page: 0,
+        size: 100,
+        totalElements: 0,
+        totalPages: 0,
+      }),
+    });
+  });
+
+  await page.route('**/api/orders/11111111-1111-1111-1111-111111111111', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(currentOrder),
+    });
+  });
+
+  await page.route('**/api/orders/11111111-1111-1111-1111-111111111111/timeline', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          itemId: 'timeline-confirmation-requested',
+          source: 'DOMAIN_EVENT',
+          category: 'CONFIRMATION',
+          type: 'OrderConfirmationRequested',
+          title: 'Order Confirmation Requested',
+          timestamp: '2026-06-21T10:01:00Z',
+          actor: null,
+          details: {},
+        },
+      ]),
+    });
+  });
+
+  await page.route('**/api/orders/11111111-1111-1111-1111-111111111111/confirmation-attempts', async (route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      attempts.push(body);
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          attemptId: `attempt-${attempts.length}`,
+          tenantId: order.tenantId,
+          orderId: order.id,
+          attemptNumber: attempts.length,
+          outcome: body.outcome,
+          note: body.note,
+          createdBy: 'admin@example.com',
+          createdAt: '2026-06-21T10:06:00Z',
+          callbackAt: body.callbackAt,
+          callbackResolvedAt: null,
+          callbackResolvedBy: null,
+        }),
+      });
+      return;
+    }
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(attempts.map((attempt, index) => ({
+        attemptId: `attempt-${index + 1}`,
+        tenantId: order.tenantId,
+        orderId: order.id,
+        attemptNumber: index + 1,
+        outcome: attempt.outcome,
+        note: attempt.note,
+        createdBy: 'admin@example.com',
+        createdAt: '2026-06-21T10:06:00Z',
+        callbackAt: attempt.callbackAt,
+        callbackResolvedAt: null,
+        callbackResolvedBy: null,
+      }))),
+    });
+  });
+
+  await page.route('**/api/orders/11111111-1111-1111-1111-111111111111/clear-confirmation-request', async (route) => {
+    clearRequests += 1;
+    currentOrder = {
+      ...currentOrder,
+      status: 'CREATED',
+      updatedAt: '2026-06-21T10:07:00Z',
+      version: currentOrder.version + 1,
+    };
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: '',
+    });
+  });
+
+  await page.goto('/app/orders/11111111-1111-1111-1111-111111111111');
+
+  await expect(page.getByText('Record customer confirmation')).toBeVisible();
+  await expect(page.getByRole('button', { name: /No answer/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Call back later/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Wrong number/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Return to New order' })).toBeVisible();
+
+  await page.getByRole('button', { name: /Wrong number/ }).click();
+  await page.getByLabel('Call note').fill('Phone belongs to another customer.');
+  await page.getByRole('button', { name: 'Save wrong number' }).click();
+
+  await expect(page.getByText('Attempt #1')).toBeVisible();
+  await expect(page.getByText('Phone belongs to another customer.')).toBeVisible();
+  expect(attempts).toHaveLength(1);
+  expect(attempts[0]).toMatchObject({
+    outcome: 'WRONG_NUMBER',
+    note: 'Phone belongs to another customer.',
+  });
+
+  await page.getByRole('button', { name: 'Return to New order' }).click();
+
+  await expect(page.getByRole('heading', { name: 'New order' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Request Confirmation' })).toBeVisible();
+  expect(clearRequests).toBe(1);
+});
+
 test('merchant sees captured product snapshots in order list and detail', async ({ page }) => {
   await installMockApi(page);
 
@@ -277,6 +440,14 @@ test('merchant sees captured product snapshots in order list and detail', async 
   });
 
   await page.route('**/api/orders/33333333-3333-3333-3333-333333333333/timeline', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([]),
+    });
+  });
+
+  await page.route('**/api/orders/33333333-3333-3333-3333-333333333333/confirmation-attempts', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

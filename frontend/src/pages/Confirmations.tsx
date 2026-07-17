@@ -246,6 +246,7 @@ export default function Confirmations() {
   const visibleHighRisk = orders.filter((order) => order.intelligence?.level === 'HIGH_RISK').length;
   const visibleNeedsAttention = orders.filter((order) => order.intelligence?.level === 'NEEDS_ATTENTION').length;
   const visibleHighConfidence = orders.filter((order) => order.intelligence?.level === 'HIGH_CONFIDENCE').length;
+  const visibleStorefrontOrders = orders.filter((order) => order.source === 'WASILIO_STOREFRONT').length;
 
   useEffect(() => {
     if (!highlightedOrder || appliedCreatedOrderId.current === highlightedOrder.id) {
@@ -322,10 +323,31 @@ export default function Confirmations() {
           tone={averageRisk === null ? 'info' : averageRisk >= 65 ? 'danger' : averageRisk >= 36 ? 'warning' : 'good'}
         />
         <SummaryMetric
-          label="High risk"
+          label="Verify first"
           value={String(visibleHighRisk)}
-          detail={`${visibleNeedsAttention} need attention / ${visibleHighConfidence} high confidence`}
+          detail={`${visibleNeedsAttention} review signals / ${visibleHighConfidence} fast confirm`}
           tone={visibleHighRisk > 0 ? 'danger' : 'neutral'}
+        />
+      </section>
+
+      <section className="grid gap-3 md:grid-cols-3">
+        <PriorityGuideCard
+          title="Verify first"
+          value={visibleHighRisk}
+          detail="High fraud risk or low confirmation confidence. Confirm details carefully before moving forward."
+          tone="danger"
+        />
+        <PriorityGuideCard
+          title="Review signals"
+          value={visibleNeedsAttention}
+          detail="Mixed evidence. Read the top score reason before deciding the next call outcome."
+          tone="warning"
+        />
+        <PriorityGuideCard
+          title="Storefront orders"
+          value={visibleStorefrontOrders}
+          detail="Orders created from landing-engine intake. Product and media context should already be available."
+          tone="info"
         />
       </section>
 
@@ -560,7 +582,7 @@ export default function Confirmations() {
         )}
       </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-6">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className="space-y-4">
           <div className="bg-white border border-gray-200 rounded-lg px-4 py-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -678,19 +700,17 @@ export default function Confirmations() {
             </div>
           )}
 
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1120px] text-left border-collapse">
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div data-testid="confirmation-queue-table-wrap" className="overflow-x-hidden">
+              <table className="w-full table-fixed border-collapse text-left">
                 <thead>
                   <tr className="bg-gray-50 border-b border-gray-200 text-xs text-gray-500 uppercase">
-                    <th className="p-4 font-medium">Order</th>
-                    <th className="p-4 font-medium">Customer</th>
-                    <th className="p-4 font-medium">Score</th>
-                    <th className="p-4 font-medium">Products</th>
-                    <th className="p-4 font-medium">Amount</th>
-                    <th className="p-4 font-medium">Status</th>
-                    <th className="p-4 font-medium">Next action</th>
-                    <th className="p-4 font-medium">Created</th>
+                    <th className="w-[15%] px-3 py-4 font-medium">Order</th>
+                    <th className="w-[16%] px-3 py-4 font-medium">Customer</th>
+                    <th className="w-[27%] px-3 py-4 font-medium">Priority</th>
+                    <th className="w-[17%] px-3 py-4 font-medium">Product</th>
+                    <th className="w-[13%] px-3 py-4 font-medium">Workflow</th>
+                    <th className="w-[12%] px-3 py-4 font-medium">Created</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 text-sm">
@@ -698,58 +718,52 @@ export default function Confirmations() {
                     const selected = selectedOrder?.id === order.id;
                     const highlighted = createdOrderId === order.id;
                     const productSummary = orderLineSummary(order.orderLines);
+                    const priority = confirmationPriority(order);
                     return (
                       <tr
                         key={order.id}
-                        className={`cursor-pointer hover:bg-gray-50 ${selected || highlighted ? 'bg-blue-50' : ''}`}
+                        className={`cursor-pointer border-l-4 hover:bg-gray-50 ${priority.rowClassName} ${selected || highlighted ? 'bg-blue-50' : ''}`}
                         onClick={() => selectOrder(order)}
                       >
-                        <td className="p-4">
+                        <td className="px-3 py-4 align-middle">
                           <p className="font-mono text-gray-600">{shortOrderId(order.id)}</p>
+                          <p className="mt-1 text-xs font-medium text-gray-500">{sourceLabel(order.source)}</p>
                           {highlighted && (
                             <span className="mt-2 inline-flex rounded-full bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white">
                               Start here
                             </span>
                           )}
                         </td>
-                        <td className="p-4">
+                        <td className="px-3 py-4 align-middle">
                           <p className="font-medium text-gray-900">{customerName(order)}</p>
                           <p className="text-gray-500">{order.customer.phone}</p>
                         </td>
-                        <td className="p-4">
-                          <div className="min-w-44">
-                            <IntelligenceBadge intelligence={order.intelligence} showScores={false} />
-                            <div className="mt-2">
-                              <IntelligenceScoreKpi intelligence={order.intelligence} compact showHeader={false} />
-                            </div>
-                          </div>
-                          {order.intelligence?.signals[0] && (
-                            <p className="mt-2 max-w-44 truncate text-xs text-gray-500">{order.intelligence.signals[0].label}</p>
-                          )}
+                        <td className="px-3 py-4 align-middle">
+                          <QueuePriorityCell order={order} />
                         </td>
-                        <td className="p-4">
+                        <td className="px-3 py-4 align-middle">
                           {productSummary ? (
-                            <span className="text-sm font-medium text-gray-800">{productSummary}</span>
+                            <span className="line-clamp-2 text-sm font-medium text-gray-800">{productSummary}</span>
                           ) : (
                             <span className="text-sm text-gray-400">-</span>
                           )}
+                          <p className="mt-1 whitespace-nowrap text-xs font-semibold text-gray-900">{formatAmount(order.amount)}</p>
                         </td>
-                        <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
-                        <td className="p-4">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusColors[order.status]}`}>
+                        <td className="px-3 py-4 align-middle">
+                          <span className={`inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[order.status]}`}>
                             {queueStatusLabels[order.status as (typeof queueStatuses)[number]] ?? order.status.replace(/_/g, ' ')}
                           </span>
+                          <p className="mt-2 text-xs leading-5 text-gray-600">
+                            {order.status === 'CREATED' ? 'Call customer' : 'Record follow-up'}
+                          </p>
                         </td>
-                        <td className="p-4 text-gray-700">
-                          {order.status === 'CREATED' ? 'Call customer' : 'Record follow-up attempt'}
-                        </td>
-                        <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleString()}</td>
+                        <td className="px-3 py-4 align-middle text-xs leading-5 text-gray-500">{formatCompactDateTime(order.createdAt)}</td>
                       </tr>
                     );
                   })}
                   {!isLoading && orders.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-gray-500">
+                      <td colSpan={6} className="p-8 text-center text-gray-500">
                         <div className="mx-auto max-w-sm">
                           <p className="text-sm font-medium text-gray-900">No orders waiting for confirmation.</p>
                           <p className="mt-1 text-sm text-gray-500">
@@ -776,7 +790,7 @@ export default function Confirmations() {
                   )}
                   {isLoading && (
                     <tr>
-                      <td colSpan={8} className="p-8 text-center text-gray-500">
+                      <td colSpan={6} className="p-8 text-center text-gray-500">
                         <p className="text-sm font-medium text-gray-900">Loading confirmation queue</p>
                         <p className="mt-1 text-sm text-gray-500">
                           Fetching orders that still need a customer decision.
@@ -819,7 +833,7 @@ export default function Confirmations() {
           </div>
         </section>
 
-        <aside className="bg-white border border-gray-200 rounded-lg p-5 space-y-5 h-fit xl:sticky xl:top-6">
+        <aside className="h-fit space-y-5 rounded-lg border border-gray-200 bg-white p-5 xl:sticky xl:top-6">
           <div className="flex items-center gap-2">
             <PhoneCall className="h-5 w-5 text-blue-600" />
             <h3 className="text-lg font-semibold text-gray-900">Call workspace</h3>
@@ -1057,6 +1071,171 @@ function getAttemptCallbackStatus(attempt: ConfirmationAttempt): ConfirmationCal
     return 'OVERDUE';
   }
   return callbackDate <= new Date() ? 'DUE' : 'UPCOMING';
+}
+
+function QueuePriorityCell({ order }: { order: Order }) {
+  const priority = confirmationPriority(order);
+  const confidence = order.intelligence?.confirmationConfidenceScore;
+  const risk = order.intelligence?.fraudRiskScore;
+  const topSignal = order.intelligence?.signals[0]?.label;
+
+  return (
+    <div className="min-w-0 space-y-2">
+      <div>
+        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${priority.badgeClassName}`}>
+          {priority.label}
+        </span>
+        <p className="mt-1 text-xs text-gray-500">{priority.detail}</p>
+      </div>
+      <div className="grid min-w-0 grid-cols-1 gap-1.5 xl:grid-cols-2 2xl:grid-cols-1">
+        <ScorePill label="Confidence" value={confidence} tone="confidence" />
+        <ScorePill label="Risk" value={risk} tone="risk" />
+      </div>
+      {topSignal && <p className="truncate text-xs text-gray-500">{topSignal}</p>}
+    </div>
+  );
+}
+
+function ScorePill({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value?: number;
+  tone: 'confidence' | 'risk';
+}) {
+  const valueLabel = value === undefined ? 'Pending' : `${value}/100`;
+  const fillClassName = value === undefined
+    ? 'bg-gray-300'
+    : tone === 'confidence'
+      ? confidenceFillClass(value)
+      : riskFillClass(value);
+
+  return (
+    <div className="min-w-0 rounded-md border border-gray-200 bg-white px-2 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-[11px] font-semibold uppercase text-gray-500">{label}</p>
+        <p className="shrink-0 text-xs font-semibold text-gray-900">{valueLabel}</p>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
+        <div className={`h-full rounded-full ${fillClassName}`} style={{ width: `${value ?? 0}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function PriorityGuideCard({
+  title,
+  value,
+  detail,
+  tone,
+}: {
+  title: string;
+  value: number;
+  detail: string;
+  tone: 'danger' | 'warning' | 'info';
+}) {
+  const toneClasses = {
+    danger: 'border-red-200 bg-red-50 text-red-950',
+    warning: 'border-amber-200 bg-amber-50 text-amber-950',
+    info: 'border-blue-200 bg-blue-50 text-blue-950',
+  }[tone];
+
+  return (
+    <div className={`rounded-lg border px-4 py-3 ${toneClasses}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase text-gray-500">{title}</p>
+          <p className="mt-1 text-sm text-gray-600">{detail}</p>
+        </div>
+        <span className="rounded-full bg-white px-3 py-1 text-sm font-semibold ring-1 ring-black/5">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+function confirmationPriority(order: Order) {
+  if (!order.intelligence) {
+    return {
+      label: 'Score pending',
+      detail: 'Call normally',
+      badgeClassName: 'border-gray-200 bg-gray-50 text-gray-700',
+      rowClassName: 'border-l-gray-200',
+    };
+  }
+
+  if (order.intelligence.level === 'HIGH_RISK') {
+    return {
+      label: 'Verify first',
+      detail: 'High fraud risk',
+      badgeClassName: 'border-red-200 bg-red-50 text-red-800',
+      rowClassName: 'border-l-red-400',
+    };
+  }
+
+  if (order.intelligence.level === 'HIGH_CONFIDENCE') {
+    return {
+      label: 'Fast confirm',
+      detail: 'Strong evidence',
+      badgeClassName: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+      rowClassName: 'border-l-emerald-400',
+    };
+  }
+
+  return {
+    label: 'Review signals',
+    detail: 'Mixed evidence',
+    badgeClassName: 'border-amber-200 bg-amber-50 text-amber-800',
+    rowClassName: 'border-l-amber-400',
+  };
+}
+
+function sourceLabel(source?: string) {
+  if (source === 'WASILIO_STOREFRONT') {
+    return 'Storefront / landing-engine';
+  }
+  if (!source || source === 'MANUAL') {
+    return 'Manual order';
+  }
+  return source
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatAmount(amount: number) {
+  return `MAD ${amount.toFixed(2)}`;
+}
+
+function formatCompactDateTime(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    year: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function confidenceFillClass(value: number) {
+  if (value >= 75) {
+    return 'bg-emerald-500';
+  }
+  if (value >= 50) {
+    return 'bg-amber-500';
+  }
+  return 'bg-red-500';
+}
+
+function riskFillClass(value: number) {
+  if (value >= 65) {
+    return 'bg-red-500';
+  }
+  if (value >= 36) {
+    return 'bg-amber-500';
+  }
+  return 'bg-emerald-500';
 }
 
 function SummaryMetric({

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.domain.event.DomainEvent;
 import com.nexora.backend.domain.event.DomainEventRepository;
 import com.nexora.backend.domain.event.payload.OrderAssignedToCourierEvent;
+import com.nexora.backend.domain.event.payload.OrderConfirmationRequestClearedEvent;
 import com.nexora.backend.domain.event.payload.OrderConfirmationRequestedEvent;
 import com.nexora.backend.domain.event.payload.OrderConfirmedEvent;
 import com.nexora.backend.domain.event.payload.OrderCreatedEvent;
@@ -155,6 +156,22 @@ class OrderProjectionServiceIntegrationTest {
         assertNull(order.getCourierId());
         assertNull(order.getFailureReason());
         assertEquals(7, order.getVersion());
+    }
+
+    @Test
+    void confirmationRequestClearedEventReturnsProjectionToCreated() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        save(event(tenantId, orderId, "OrderCreated", orderCreated("Clear"), 1));
+        save(event(tenantId, orderId, "OrderConfirmationRequested", new OrderConfirmationRequestedEvent(), 2));
+        save(event(tenantId, orderId, "OrderConfirmationRequestCleared", new OrderConfirmationRequestClearedEvent(), 3));
+
+        OrderProjectionService.ProjectionRebuildResult result = projectionService.rebuildAll();
+
+        assertEquals(3, result.eventsProcessed());
+        Order order = orderRepository.findByIdAndTenantId(orderId, tenantId).orElseThrow();
+        assertEquals(OrderStatus.CREATED, order.getStatus());
+        assertEquals(3, order.getVersion());
     }
 
     @Test
