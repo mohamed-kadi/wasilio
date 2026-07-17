@@ -35,7 +35,7 @@ function Sidebar() {
   const isSuperAdmin = session?.user.role === 'SUPER_ADMIN';
 
   return (
-    <div className="w-64 bg-white border-r min-h-screen flex flex-col">
+    <div className="flex min-h-screen w-64 shrink-0 flex-col border-r bg-white">
       <div className="h-16 flex items-center px-6 border-b">
         <BrandLogo markClassName="h-8 w-8" textClassName="text-xl" />
       </div>
@@ -257,9 +257,9 @@ function ProtectedApp() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <Sidebar />
-      <main className="flex-1 flex flex-col">
+      <main className="flex min-w-0 flex-1 flex-col">
         <Header />
-        <div className="p-8 flex-1 overflow-auto">
+        <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-8">
           <Routes>
             <Route index element={<Dashboard />} />
             <Route path="orders" element={<OrdersList />} />

@@ -245,19 +245,31 @@ test('merchant uploads storefront gallery and SEO media into profile fields', as
     });
   });
 
+  await page.setViewportSize({ width: 1440, height: 900 });
   await loginAs(page, 'merchant@example.com');
   await page.goto('/app/storefront/publishing');
 
   await expect(page.getByRole('heading', { name: 'Product Publishing' })).toBeVisible();
-  await expect(page.getByText('Public API readiness')).toBeVisible();
-  await expect(page.getByText('3/7 required items complete')).toBeVisible();
+  await expect(page.getByText('API check')).toBeVisible();
+  await expect(page.getByText('3/7 required complete')).toBeVisible();
   await expect(page.getByText('Media readiness').first()).toBeVisible();
   await expect(page.getByText('4/5 ready')).toBeVisible();
   await expect(page.getByText('Primary image', { exact: true })).toBeVisible();
   await expect(page.getByText('Gallery media', { exact: true })).toBeVisible();
   await expect(page.getByText('SEO image', { exact: true })).toBeVisible();
-  await expect(page.getByText('Uses primary image fallback.')).toBeVisible();
-  await expect(page.getByText('Landing preview refreshes Wasilio media.')).toBeVisible();
+  await expect(page.getByText('Primary image fallback.')).toBeVisible();
+  await expect(page.getByText('Preview bypasses cache.')).toBeVisible();
+  await expect(page.getByText('Preview page')).toBeVisible();
+  await expect(page.getByText('Customer-facing landing page')).toBeVisible();
+  await expect(page.getByText('API payload')).toBeVisible();
+  await expect(page.getByText('Data sent to landing-engine')).toBeVisible();
+  await expect(page.getByRole('button', { name: /copy preview page url/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: /copy api payload url/i })).toBeVisible();
+  await expect(page.getByText('localhost:8080 /argan-oil')).toBeVisible();
+  await expectPublishingPageToStayWithinViewport(page);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Product Publishing' })).toBeVisible();
+  await expectPublishingPageToStayWithinViewport(page);
   await expect(page.getByRole('link', { name: /incomplete preview/i })).toHaveAttribute(
     'href',
     'http://localhost:3000/products/argan-oil?wasilioPreview=1',
@@ -293,3 +305,23 @@ test('merchant uploads storefront gallery and SEO media into profile fields', as
   expect(payload.galleryImageUrls).toContain(galleryUrl);
   expect(payload.seoImageUrl).toBe(seoUrl);
 });
+
+async function expectPublishingPageToStayWithinViewport(page: import('@playwright/test').Page) {
+  const dimensions = await page.evaluate(() => {
+    const tableRegion = document.querySelector('[data-testid="publishing-table-scroll"]');
+
+    return {
+      documentScrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      viewportWidth: window.innerWidth,
+      tableScrollWidth: tableRegion?.scrollWidth ?? 0,
+      tableClientWidth: tableRegion?.clientWidth ?? 0,
+      windowScrollX: window.scrollX,
+    };
+  });
+
+  expect(dimensions.windowScrollX).toBe(0);
+  expect(dimensions.documentScrollWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+  expect(dimensions.bodyScrollWidth).toBeLessThanOrEqual(dimensions.viewportWidth);
+  expect(dimensions.tableScrollWidth).toBeLessThanOrEqual(dimensions.tableClientWidth);
+}

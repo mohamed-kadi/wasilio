@@ -77,7 +77,7 @@ export default function StorefrontPublishing() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Storefront</p>
@@ -133,7 +133,7 @@ export default function StorefrontPublishing() {
         />
       </section>
 
-      <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <section className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="border-b border-gray-200 px-4 py-3">
           <h3 className="text-sm font-semibold uppercase text-gray-500">Publishing table</h3>
           <p className="mt-1 text-sm text-gray-600">
@@ -141,19 +141,24 @@ export default function StorefrontPublishing() {
             as storefront inbound orders.
           </p>
         </div>
-        <div className="overflow-auto">
-          <table className="w-full min-w-[1280px] text-left text-sm">
+        <div className="overflow-hidden" data-testid="publishing-table-scroll">
+          <table className="w-full table-fixed text-left text-sm">
+            <colgroup>
+              <col className="w-[22%]" />
+              <col className="w-[14%]" />
+              <col className="w-[22%]" />
+              <col className="w-[16%]" />
+              <col className="w-[15%]" />
+              <col className="w-[11%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-                <th className="p-4 font-medium">Product</th>
-                <th className="p-4 font-medium">Catalog status</th>
-                <th className="p-4 font-medium">Profile status</th>
-                <th className="p-4 font-medium">Readiness</th>
-                <th className="p-4 font-medium">Media readiness</th>
-                <th className="p-4 font-medium">Price</th>
-                <th className="p-4 font-medium">Missing items</th>
-                <th className="p-4 font-medium">Public URLs</th>
-                <th className="p-4 font-medium">Actions</th>
+                <th className="px-3 py-3 font-medium">Product</th>
+                <th className="px-3 py-3 font-medium">Readiness</th>
+                <th className="px-3 py-3 font-medium">Media readiness</th>
+                <th className="px-3 py-3 font-medium">Missing items</th>
+                <th className="px-3 py-3 font-medium">Preview & API</th>
+                <th className="px-3 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -168,14 +173,14 @@ export default function StorefrontPublishing() {
               ))}
               {!productsLoading && products.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-500">
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
                     No products found. Create catalog products before publishing storefront pages.
                   </td>
                 </tr>
               )}
               {productsLoading && (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-gray-500">
+                  <td colSpan={6} className="p-8 text-center text-gray-500">
                     Loading products...
                   </td>
                 </tr>
@@ -303,23 +308,24 @@ function PublishingProductRow({
 
   return (
     <tr className={isSelected ? 'bg-blue-50/70' : 'hover:bg-gray-50'}>
-      <td className="p-4 align-top">
+      <td className="px-3 py-4 align-top">
         <div className="flex items-start gap-3">
           <ProductImageFrame imageUrl={product.imageUrl} alt={product.name} />
           <div className="min-w-0">
             <p className="font-medium text-gray-900">{product.name}</p>
-            <p className="mt-1 break-all font-mono text-xs text-gray-500">{product.slug}</p>
+            <p className="mt-1 truncate font-mono text-xs text-gray-500" title={product.slug}>{product.slug}</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <CatalogStatusBadge status={product.status} />
+              {isLoading ? <SmallPill>Loading</SmallPill> : <ProfileStatusBadge profile={profile ?? null} />}
+            </div>
+            <p className="mt-2 text-xs font-semibold text-gray-900">
+              {formatMoney(product.priceAmount, product.currency)}
+            </p>
+            {profileError && <p className="mt-2 text-xs text-red-700">{getErrorMessage(profileError)}</p>}
           </div>
         </div>
       </td>
-      <td className="p-4 align-top">
-        <CatalogStatusBadge status={product.status} />
-      </td>
-      <td className="p-4 align-top">
-        {isLoading ? <SmallMuted>Loading</SmallMuted> : <ProfileStatusBadge profile={profile ?? null} />}
-        {profileError && <p className="mt-2 text-xs text-red-700">{getErrorMessage(profileError)}</p>}
-      </td>
-      <td className="p-4 align-top">
+      <td className="px-3 py-4 align-top">
         <ReadinessBadge status={readiness.status} />
         <p className="mt-2 text-xs font-medium text-gray-700">
           {readiness.requiredComplete}/{readiness.requiredTotal} required items complete
@@ -330,70 +336,81 @@ function PublishingProductRow({
           readiness={publicReadinessQuery.data?.readiness}
           error={publicReadinessQuery.error}
         />
-        <p className="mt-2 max-w-44 text-xs text-gray-500">{publicState.detail}</p>
+        <p className="mt-2 max-w-32 text-xs text-gray-500">{publicState.detail}</p>
       </td>
-      <td className="p-4 align-top">
+      <td className="px-3 py-4 align-top">
         <MediaReadinessPanel readiness={mediaReadiness} />
       </td>
-      <td className="p-4 align-top font-medium text-gray-900">{formatMoney(product.priceAmount, product.currency)}</td>
-      <td className="p-4 align-top">
+      <td className="px-3 py-4 align-top">
         <MissingItemsList readiness={readiness} />
       </td>
-      <td className="p-4 align-top">
-        <div className="space-y-3">
-          <UrlLine label="Public API" value={apiUrl} />
+      <td className="px-3 py-4 align-top">
+        <div className="space-y-2">
           {previewUrl ? (
-            <UrlLine label="Landing preview" value={previewUrl} />
+            <PublicLinkCard
+              label="Preview page"
+              description="Customer-facing landing page"
+              value={previewUrl}
+            />
           ) : (
             <SmallMuted>Configure a store slug to preview landing-engine URLs.</SmallMuted>
           )}
+          <PublicLinkCard
+            label="API payload"
+            description="Data sent to landing-engine"
+            value={apiUrl}
+          />
         </div>
       </td>
-      <td className="p-4 align-top">
-        <div className="flex min-w-48 flex-col gap-2">
+      <td className="px-3 py-4 align-top">
+        <div className="flex min-w-0 flex-col gap-2">
           <button
             type="button"
             onClick={onSelect}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
+            aria-label="Edit landing content"
+            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-2 text-xs font-medium text-blue-700 hover:bg-blue-100"
           >
             <Edit3 size={16} />
-            Edit Landing Content
+            Edit
           </button>
           {previewUrl && publicReady ? (
             <a
               href={previewUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              aria-label="Preview public page"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 px-2 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
             >
               <ExternalLink size={16} />
-              Preview Public Page
+              Preview
             </a>
           ) : previewUrl ? (
             <a
               href={previewUrl}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 hover:bg-amber-100"
+              aria-label="Incomplete preview"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2 py-2 text-xs font-medium text-amber-800 hover:bg-amber-100"
             >
               <ExternalLink size={16} />
-              Incomplete Preview
+              Preview
             </a>
           ) : (
             <button
               type="button"
               disabled
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm font-medium text-gray-400"
+              aria-label="Preview public page"
+              className="inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-200 px-2 py-2 text-xs font-medium text-gray-400"
             >
               <ExternalLink size={16} />
-              Preview Public Page
+              Preview
             </button>
           )}
           <button
             type="button"
             onClick={toggleProfileStatus}
             disabled={!canToggleProfile || profileToggleMutation.isPending}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:text-gray-400 disabled:opacity-70"
+            className="inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 px-2 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:text-gray-400 disabled:opacity-70"
             title={canToggleProfile ? `${toggleLabel} profile` : 'Create landing content before publishing'}
           >
             <Send size={16} />
@@ -428,6 +445,10 @@ function CatalogStatusBadge({ status }: { status: ProductStatus }) {
   };
 
   return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${classes[status]}`}>{status}</span>;
+}
+
+function SmallPill({ children }: { children: ReactNode }) {
+  return <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">{children}</span>;
 }
 
 function ProfileStatusBadge({ profile }: { profile: StorefrontProductProfile | null }) {
@@ -489,10 +510,10 @@ function PublicReadinessSummary({
     const requiredMissing = readiness.items.filter((item) => item.required && !item.complete).length;
     const complete = requiredMissing === 0 && readiness.orderable;
     return (
-      <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-2">
-        <p className="text-xs font-semibold uppercase text-gray-500">Public API readiness</p>
+      <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
+        <p className="text-[11px] font-semibold uppercase text-gray-500">API check</p>
         <p className={`mt-1 text-xs font-medium ${complete ? 'text-emerald-700' : 'text-amber-800'}`}>
-          {readiness.requiredComplete}/{readiness.requiredTotal} required items complete
+          {readiness.requiredComplete}/{readiness.requiredTotal} required complete
         </p>
       </div>
     );
@@ -523,7 +544,7 @@ function MediaReadinessPanel({ readiness }: { readiness: MediaReadiness }) {
   const complete = readiness.readyCount === readiness.totalCount;
 
   return (
-    <div className="min-w-56 space-y-2">
+    <div className="max-w-full space-y-2">
       <div>
         <p className="text-xs font-semibold uppercase text-gray-500">Media readiness</p>
         <p className={`mt-1 text-xs font-semibold ${complete ? 'text-emerald-700' : 'text-amber-800'}`}>
@@ -555,7 +576,7 @@ function MediaReadinessRow({ item }: { item: MediaReadinessItem }) {
   return (
     <li className="flex gap-2 text-xs">
       <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${statusClasses[item.status]}`} />
-      <span>
+      <span className="min-w-0">
         <span className="font-medium text-gray-800">{item.label}</span>
         <span className="block leading-5 text-gray-500">{item.detail}</span>
       </span>
@@ -577,7 +598,7 @@ function MissingItemsList({ readiness }: { readiness: ProductReadiness }) {
   }
 
   return (
-    <div className="max-w-64 space-y-2">
+    <div className="max-w-40 space-y-2">
       {requiredMissing.length > 0 && (
         <div>
           <p className="text-xs font-semibold uppercase text-gray-500">Required</p>
@@ -608,19 +629,32 @@ function MissingItemsList({ readiness }: { readiness: ProductReadiness }) {
   );
 }
 
-function UrlLine({ label, value }: { label: string; value: string }) {
+function PublicLinkCard({
+  label,
+  description,
+  value,
+}: {
+  label: string;
+  description: string;
+  value: string;
+}) {
+  const summary = compactUrlLabel(value);
+
   return (
-    <div>
-      <p className="text-xs font-medium uppercase text-gray-500">{label}</p>
-      <div className="mt-1 flex items-start gap-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-2">
-        <p className="min-w-0 flex-1 break-all font-mono text-xs text-gray-800">{value}</p>
-        <CopyButton value={value} />
+    <div className="overflow-hidden rounded-md border border-gray-200 bg-gray-50 px-2 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-xs font-medium text-gray-800">{label}</p>
+          <p className="mt-0.5 text-[11px] leading-4 text-gray-500">{description}</p>
+          <p className="mt-0.5 truncate font-mono text-[11px] text-gray-500" title={value}>{summary}</p>
+        </div>
+        <CopyButton value={value} label={label} />
       </div>
     </div>
   );
 }
 
-function CopyButton({ value }: { value: string }) {
+function CopyButton({ value, label = 'URL' }: { value: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 
   function copyValue() {
@@ -638,12 +672,23 @@ function CopyButton({ value }: { value: string }) {
       type="button"
       onClick={copyValue}
       className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-600 hover:bg-gray-100"
-      aria-label="Copy URL"
-      title={copied ? 'Copied' : 'Copy URL'}
+      aria-label={`Copy ${label} URL`}
+      title={copied ? 'Copied' : `Copy ${label} URL`}
     >
       <Copy size={14} />
     </button>
   );
+}
+
+function compactUrlLabel(value: string): string {
+  try {
+    const url = new URL(value);
+    const parts = url.pathname.split('/').filter(Boolean);
+    const finalSegment = parts.at(-1);
+    return finalSegment ? `${url.host} /${finalSegment}` : url.host;
+  } catch {
+    return 'Copy configured URL';
+  }
 }
 
 function SmallMuted({ children }: { children: ReactNode }) {
@@ -775,12 +820,12 @@ function evaluateMediaReadiness({
     {
       label: 'Primary image',
       status: hasPrimaryImage ? 'ready' : 'missing',
-      detail: hasPrimaryImage ? 'Shown in catalog and landing hero.' : 'Upload a product image.',
+      detail: hasPrimaryImage ? 'Catalog and landing hero.' : 'Upload product image.',
     },
     {
       label: 'Gallery media',
       status: hasGalleryMedia ? 'ready' : 'missing',
-      detail: hasGalleryMedia ? `${profile?.galleryImageUrls.length ?? 0} gallery image ready.` : 'Add gallery media in landing content.',
+      detail: hasGalleryMedia ? `${profile?.galleryImageUrls.length ?? 0} gallery image ready.` : 'Add gallery media.',
     },
     {
       label: 'SEO image',
@@ -788,7 +833,7 @@ function evaluateMediaReadiness({
       detail: hasCustomSeoImage
         ? 'Custom SEO/social image set.'
         : hasPrimaryImage
-          ? 'Uses primary image fallback.'
+          ? 'Primary image fallback.'
           : 'Add an SEO image or primary image.',
     },
     {
@@ -799,7 +844,7 @@ function evaluateMediaReadiness({
     {
       label: 'Fresh preview',
       status: previewUrl?.includes('wasilioPreview=1') ? 'ready' : 'missing',
-      detail: previewUrl ? 'Landing preview refreshes Wasilio media.' : 'Configure storefront settings for preview.',
+      detail: previewUrl ? 'Preview bypasses cache.' : 'Configure storefront settings.',
     },
   ];
 
@@ -847,34 +892,34 @@ function publicMediaDetail(
   if (error) {
     return 'Public media check unavailable.';
   }
-  return primaryImageReady ? 'Public product includes primary image.' : 'Public API is missing primary image.';
+  return primaryImageReady ? 'Image present in public payload.' : 'Public API is missing image.';
 }
 
 function publicAvailability(product: Product, settings: PublicStorefrontSettings | null) {
   if (!settings) {
     return {
       label: 'Store not configured',
-      detail: 'Create storefront settings before public URLs resolve.',
+      detail: 'Create storefront settings.',
       tone: 'gray' as const,
     };
   }
   if (settings.status !== 'ACTIVE') {
     return {
       label: 'Store disabled',
-      detail: 'Enable storefront settings before public products are available.',
+      detail: 'Enable storefront settings.',
       tone: 'amber' as const,
     };
   }
   if (product.status !== 'ACTIVE') {
     return {
       label: 'Catalog hidden',
-      detail: 'Set the catalog product to ACTIVE before it appears publicly.',
+      detail: 'Set product to ACTIVE.',
       tone: 'amber' as const,
     };
   }
   return {
     label: 'Public product live',
-    detail: 'The public product API can resolve this product slug.',
+    detail: 'Public API resolves this slug.',
     tone: 'green' as const,
   };
 }

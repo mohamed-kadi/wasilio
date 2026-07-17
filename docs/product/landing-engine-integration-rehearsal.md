@@ -2,6 +2,7 @@
 
 Phase 21 verifies that landing-engine can use Wasilio as the product and order source without owning Wasilio operations logic.
 Phase 22 adds local rehearsal seed data for the shared `first-store` flow so Wasilio and landing-engine can be run together without manually creating the storefront/product every time. Phase 23 uses that same flow to validate intelligence score movement after operator confirmation evidence.
+Phase 24D adds a media handoff rehearsal around this flow so uploaded Wasilio media, public product media fields, fresh merchant previews, and dashboard layout stability are checked together.
 
 ## Local Landing Engine Configuration
 
@@ -107,6 +108,13 @@ http://localhost:3000/products/coolair-mini?wasilioPreview=1
 
 The preview flag tells landing-engine to fetch the Wasilio product payload fresh for the operator request. Normal public product pages keep the short landing-engine cache.
 
+As of Phase 24D, the expected landing-engine code path is:
+
+- `/products/{slug}?wasilioPreview=1` passes `fresh: true` to the product provider.
+- `wasilioProductProvider` uses `cache: 'no-store'` for that preview fetch.
+- Regular public product pages keep the existing short revalidation cache.
+- Wasilio Storefront Publishing shows the same preview URL as a compact copy/open action, not as a long wrapped table value.
+
 Submit one COD test order from landing-engine.
 
 Expected Wasilio checks after submission:
@@ -118,6 +126,7 @@ Expected Wasilio checks after submission:
 - The public receipt ID can be traced to the inbound order detail for debugging.
 
 For score movement validation after the order is accepted, use `docs/product/intelligence-calibration-rehearsal.md`.
+For real media upload/display validation before order submission, use `docs/product/media-upload.md#phase-24d-media-handoff-rehearsal`.
 
 ## Rehearsal Flow
 
@@ -184,5 +193,6 @@ External landing-engine browser QA should verify:
 
 - `/products/{productSlug}` fetches the Wasilio public product endpoint.
 - Primary product image, gallery images, and SEO/social image render from Wasilio URLs.
+- `?wasilioPreview=1` refreshes recently changed Wasilio media for merchant QA without changing the normal public cache behavior.
 - Order submission returns a receipt and shows the configured landing-engine success state.
 - The Wasilio merchant dashboard shows the resulting storefront inbound order and internal intelligence score.

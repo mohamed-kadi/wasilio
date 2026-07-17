@@ -7,6 +7,7 @@ Phase 22 adds local-only demo media placeholders for the seeded landing-engine r
 Phase 24 tightens merchant-facing media UX so uploaded product images render in stable dashboard frames immediately after upload and backend-relative media paths remain displayable in Wasilio.
 Phase 24B makes Wasilio merchant Preview links request fresh landing-engine product data so recently uploaded images are visible immediately without changing public customer caching.
 Phase 24C makes Storefront Publishing media readiness explicit so merchants can review primary image, gallery media, SEO image, public API media, and fresh preview status before publishing.
+Phase 24D turns that media path into a repeatable QA rehearsal: Wasilio upload/display, public product media payload, fresh landing-engine preview, and dashboard layout stability should be checked together before moving on.
 
 ## Scope
 
@@ -83,11 +84,31 @@ Landing-engine should treat these values as display URLs owned by Wasilio. It sh
 - Wasilio UI previews may normalize backend-relative `/media/...` paths for display. This is a frontend rendering convenience only; stored product/profile payload values remain unchanged.
 - Wasilio merchant Preview links include `wasilioPreview=1`; landing-engine treats that flag as an operator preview and bypasses its short product cache for that request.
 - Storefront Publishing should show media readiness separately from general landing content readiness. Primary image, gallery media, SEO image/fallback, public API media, and fresh preview status should be visible at row level.
+- Storefront Publishing must avoid horizontal page or table overflow on laptop-width dashboards when the media readiness and public links columns are visible.
+- Storefront Publishing should label public links by purpose: Preview page means the customer-facing landing page, while API payload means the data contract landing-engine reads from Wasilio.
+- Preview page and API payload URLs should remain copyable, but table rows should show compact purpose labels rather than long wrapped URLs.
 - Storefront profile gallery and SEO fields remain URL-based payloads, but the editor should show compact previews from those URLs before save.
 - Missing media is a readiness concern, not a lifecycle blocker. Merchants can keep draft profile content hidden until they publish it.
 - Public readiness should be visible in Storefront Publishing when the store and product are active, because this is the closest in-app view to the landing-engine contract.
 
-## Phase 20E Verification Checklist
+## Phase 24D Media Handoff Rehearsal
+
+Use this checklist when validating media with real local services, not just mocked browser tests.
+
+1. Start Wasilio backend with local seed support or a local merchant database.
+2. Start Wasilio frontend and sign in as a merchant/admin.
+3. Confirm storefront settings are active and expose the landing-engine `.env.local` values.
+4. Create or open an ACTIVE product.
+5. Upload a primary product image and confirm the product table/editor frames stay fixed-size with the full image contained.
+6. Open Storefront Publishing and confirm the row shows media readiness for primary image, gallery media, SEO image/fallback, public API media, and fresh preview.
+7. Confirm the full dashboard and publishing table do not shift left/right on a 14-inch/laptop viewport, including after browser refresh.
+8. Copy the Public API link and verify the response contains `product.imageUrl`, `seo.image`, `landingProfile.galleryImageUrls`, and `readiness.items` without internal tenant/order/intelligence fields.
+9. Open the landing preview link with `?wasilioPreview=1` and confirm landing-engine renders the latest uploaded Wasilio media.
+10. Submit a test COD order from landing-engine and confirm Wasilio owns the resulting inbound order, lifecycle, and intelligence score.
+
+Phase 24D does not add media domain rules. It validates that the existing authenticated upload path, public read path, and landing-engine preview cache bypass work together.
+
+## Verification Checklist
 
 For every media contract change, verify:
 
@@ -96,6 +117,8 @@ For every media contract change, verify:
 - Broken or temporarily unreachable product media falls back inside the same thumbnail frame.
 - Product and publishing Preview links include `wasilioPreview=1` so landing-engine refreshes Wasilio product data after media changes.
 - Storefront Publishing shows row-level media readiness for primary image, gallery media, SEO image, public API media, and fresh preview status.
+- Storefront Publishing keeps full-page and table horizontal scroll disabled at laptop width, including after browser refresh.
+- Preview page and API payload links remain copyable from Storefront Publishing without rendering full wrapped URLs in the table row.
 - `GALLERY_IMAGE` upload appends the returned URL into `galleryImageUrls` and shows a preview before save.
 - `SEO_IMAGE` upload writes the returned URL into `seoImageUrl` and shows a preview before save.
 - Saving the storefront profile sends the same gallery and SEO URLs back to Wasilio.
