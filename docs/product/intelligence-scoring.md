@@ -1,6 +1,6 @@
 # Intelligence Scoring
 
-Phase 19 introduced an explainable scoring layer for confirmation quality and fraud risk. Phase 20C moves the active calibration to `v2` by adding low-weight Wasilio storefront product/media context for storefront-originated orders.
+Phase 19 introduced an explainable scoring layer for confirmation quality and fraud risk. Phase 20C moves the active calibration to `v2` by adding low-weight Wasilio storefront product/media context for storefront-originated orders. Phase 23 validates score movement with a live landing-engine rehearsal path documented in `docs/product/intelligence-calibration-rehearsal.md`.
 
 The score is an operations signal only. It must not automatically confirm, reject, assign, retry, or close an order. The order lifecycle remains controlled by existing lifecycle commands and recovery rules.
 
@@ -144,6 +144,19 @@ Any future calibration change must keep these guarantees:
 - keep every score explainable by stored signals
 - keep public order ingestion independent from score fields
 - cover representative low-risk, review, and high-risk scenarios with integration tests
+
+## Phase 23 Calibration Rehearsal
+
+The current local `first-store` calibration path should move as follows:
+
+| Step | Expected Confidence | Expected Risk | Expected Level |
+| --- | ---: | ---: | --- |
+| Landing-engine order accepted | `76` | `32` | `HIGH_CONFIDENCE` |
+| First no-answer attempt | `66` | `42` | `NEEDS_ATTENTION` |
+| Second no-answer attempt | `41` | `67` | `HIGH_RISK` |
+| Confirmed on follow-up | `95` | `5` | `HIGH_CONFIDENCE` |
+
+See `docs/product/intelligence-calibration-rehearsal.md` for the manual runbook and QA checklist.
 
 ## Backend Ownership
 

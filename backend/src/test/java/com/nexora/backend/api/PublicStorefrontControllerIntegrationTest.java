@@ -10,6 +10,8 @@ import com.nexora.backend.application.PublicOrderDeliveryRequest;
 import com.nexora.backend.application.PublicOrderIntentRequest;
 import com.nexora.backend.application.PublicOrderProductRequest;
 import com.nexora.backend.application.PublicOrderSelectionRequest;
+import com.nexora.backend.application.ConfirmationWorkflowService;
+import com.nexora.backend.domain.model.ConfirmationOutcome;
 import com.nexora.backend.domain.model.InboundOrder;
 import com.nexora.backend.domain.model.Order;
 import com.nexora.backend.domain.model.Product;
@@ -111,6 +113,9 @@ class PublicStorefrontControllerIntegrationTest {
 
     @Autowired
     private OrderIntelligenceScoringService orderIntelligenceScoringService;
+
+    @Autowired
+    private ConfirmationWorkflowService confirmationWorkflowService;
 
     @Autowired
     private EntityManager entityManager;
@@ -452,6 +457,92 @@ class PublicStorefrontControllerIntegrationTest {
         assertEquals("HIGH_CONFIDENCE", score.snapshot().getLevel().name());
         assertTrue(score.signals().stream().anyMatch(signal -> signal.getSignalKey().equals("storefront_product_image_present")));
         assertTrue(score.signals().stream().anyMatch(signal -> signal.getSignalKey().equals("storefront_landing_content_ready")));
+    }
+
+    @Test
+    void landingEngineOrderScoreMovesThroughConfirmationCalibrationPath() throws Exception {
+        UUID correlationId = UUID.randomUUID();
+        publicStorefrontRepository.saveAndFlush(firstStorefront());
+        Product product = productRepository.saveAndFlush(firstStoreProduct());
+        storefrontProductProfileRepository.saveAndFlush(firstStoreProfile(product.getId()));
+
+        ObjectNode orderPayload = firstStoreLandingEngineOrderPayload(
+                product,
+                "order-first-store-phase-23-calibration",
+                "phase-23-calibration"
+        );
+        MvcResult orderResult = mockMvc.perform(post(FIRST_STORE_ORDER_PATH)
+                        .header(CorrelationIdContext.HEADER_NAME, correlationId.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(orderPayload)))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.receiptId").isNotEmpty())
+                .andExpect(jsonPath("$.intelligence").doesNotExist())
+                .andReturn();
+
+        JsonNode orderResponse = objectMapper.readTree(orderResult.getResponse().getContentAsString());
+        InboundOrder inboundOrder = inboundOrderRepository
+                .findById(UUID.fromString(orderResponse.path("receiptId").asText()))
+                .orElseThrow();
+        Order order = orderRepository.findByIdAndTenantId(inboundOrder.getNormalizedOrderId(), tenantId).orElseThrow();
+
+        OrderIntelligenceScoringService.OrderIntelligenceResult initial =
+                orderIntelligenceScoringService.getOrCalculateWithHistory(tenantId, order.getId(), 10);
+        assertEquals(76, initial.snapshot().getConfirmationConfidenceScore());
+        assertEquals(32, initial.snapshot().getFraudRiskScore());
+        assertEquals("HIGH_CONFIDENCE", initial.snapshot().getLevel().name());
+        assertEquals("Initial score", initial.history().get(0).getChangeLabel());
+
+        confirmationWorkflowService.recordAttempt(
+                tenantId,
+                order.getId(),
+                ConfirmationOutcome.NO_ANSWER,
+                "No answer on first landing-engine order call",
+                null,
+                "operator@example.com"
+        );
+        OrderIntelligenceScoringService.OrderIntelligenceResult afterFirstNoAnswer =
+                orderIntelligenceScoringService.getOrCalculateWithHistory(tenantId, order.getId(), 10);
+        assertEquals(66, afterFirstNoAnswer.snapshot().getConfirmationConfidenceScore());
+        assertEquals(42, afterFirstNoAnswer.snapshot().getFraudRiskScore());
+        assertEquals("NEEDS_ATTENTION", afterFirstNoAnswer.snapshot().getLevel().name());
+        assertEquals("Moved to Needs attention", afterFirstNoAnswer.history().get(0).getChangeLabel());
+        assertEquals("first_no_answer", afterFirstNoAnswer.history().get(0).getReasonKey());
+
+        confirmationWorkflowService.recordAttempt(
+                tenantId,
+                order.getId(),
+                ConfirmationOutcome.NO_ANSWER,
+                "No answer again on the same landing-engine order",
+                null,
+                "operator@example.com"
+        );
+        OrderIntelligenceScoringService.OrderIntelligenceResult afterSecondNoAnswer =
+                orderIntelligenceScoringService.getOrCalculateWithHistory(tenantId, order.getId(), 10);
+        assertEquals(41, afterSecondNoAnswer.snapshot().getConfirmationConfidenceScore());
+        assertEquals(67, afterSecondNoAnswer.snapshot().getFraudRiskScore());
+        assertEquals("HIGH_RISK", afterSecondNoAnswer.snapshot().getLevel().name());
+        assertEquals("Moved to High risk", afterSecondNoAnswer.history().get(0).getChangeLabel());
+        assertEquals("second_no_answer", afterSecondNoAnswer.history().get(0).getReasonKey());
+        assertTrue(afterSecondNoAnswer.signals().stream()
+                .anyMatch(signal -> signal.getSignalKey().equals("repeated_unresolved_outcome")));
+
+        confirmationWorkflowService.recordAttempt(
+                tenantId,
+                order.getId(),
+                ConfirmationOutcome.CONFIRMED,
+                "Customer confirmed on follow-up",
+                null,
+                "operator@example.com"
+        );
+        OrderIntelligenceScoringService.OrderIntelligenceResult afterConfirmed =
+                orderIntelligenceScoringService.getOrCalculateWithHistory(tenantId, order.getId(), 10);
+        assertEquals(95, afterConfirmed.snapshot().getConfirmationConfidenceScore());
+        assertEquals(5, afterConfirmed.snapshot().getFraudRiskScore());
+        assertEquals("HIGH_CONFIDENCE", afterConfirmed.snapshot().getLevel().name());
+        assertEquals("Moved to High confidence", afterConfirmed.history().get(0).getChangeLabel());
+        assertEquals("order_confirmed", afterConfirmed.history().get(0).getReasonKey());
+        assertEquals(4, afterConfirmed.history().size());
     }
 
     @Test
@@ -917,6 +1008,30 @@ class PublicStorefrontControllerIntegrationTest {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
+    }
+
+    private ObjectNode firstStoreLandingEngineOrderPayload(Product product, String idempotencyKey, String campaign) {
+        ObjectNode orderPayload = objectMapper.createObjectNode();
+        orderPayload.put("idempotencyKey", idempotencyKey);
+        ObjectNode selection = orderPayload.putObject("selection");
+        selection.put("quantity", 1);
+        ObjectNode selectedProduct = selection.putObject("product");
+        selectedProduct.put("productId", product.getId().toString());
+        selectedProduct.put("productSlug", product.getSlug());
+        selectedProduct.putNull("variantId");
+        ObjectNode customer = orderPayload.putObject("customer");
+        customer.put("name", "Amina Buyer");
+        customer.put("phone", "0612345678");
+        ObjectNode delivery = orderPayload.putObject("delivery");
+        delivery.put("city", "Casablanca");
+        delivery.put("address", "12 Rue Atlas");
+        delivery.put("notes", "Call before delivery");
+        ObjectNode attribution = orderPayload.putObject("attribution");
+        attribution.put("source", "landing-engine");
+        attribution.put("campaign", campaign);
+        attribution.put("content", "first-store");
+        attribution.put("landingPageUrl", "http://localhost:3000/products/coolair-mini");
+        return orderPayload;
     }
 
     private Product firstStoreProduct() {

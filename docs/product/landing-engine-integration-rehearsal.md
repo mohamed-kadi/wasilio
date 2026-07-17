@@ -1,7 +1,7 @@
 # Landing Engine Integration Rehearsal
 
 Phase 21 verifies that landing-engine can use Wasilio as the product and order source without owning Wasilio operations logic.
-Phase 22 adds local rehearsal seed data for the shared `first-store` flow so Wasilio and landing-engine can be run together without manually creating the storefront/product every time.
+Phase 22 adds local rehearsal seed data for the shared `first-store` flow so Wasilio and landing-engine can be run together without manually creating the storefront/product every time. Phase 23 uses that same flow to validate intelligence score movement after operator confirmation evidence.
 
 ## Local Landing Engine Configuration
 
@@ -107,6 +107,8 @@ Expected Wasilio checks after submission:
 - The normalized order appears in Wasilio operations queues without landing-engine owning lifecycle status.
 - Wasilio creates the initial intelligence snapshot internally.
 - The public receipt ID can be traced to the inbound order detail for debugging.
+
+For score movement validation after the order is accepted, use `docs/product/intelligence-calibration-rehearsal.md`.
 
 ## Rehearsal Flow
 
