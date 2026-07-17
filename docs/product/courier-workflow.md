@@ -37,6 +37,8 @@ The pickup queue lists tenant-scoped orders that are:
 
 Operators can filter by courier, status, date range, and pagination. Marking pickup appends `OrderPickedUp` and moves the order projection to `PICKED_UP`.
 
+The pickup UX keeps assigned orders compact on laptop screens by showing product with amount, assigned courier, pickup status, and the pickup action in one row. Courier filtering, date filters, pagination, and the assignment handoff remain unchanged.
+
 ## Delivery Queue
 
 The delivery queue lists tenant-scoped orders that are:
@@ -50,6 +52,8 @@ Operators can filter by courier, date range, and pagination. Delivery outcomes a
 - `FAILED`: appends `OrderDeliveryFailed` and moves the order projection to `FAILED`.
 
 Only `PICKED_UP` orders can be marked delivered or failed. Confirmed, assigned, delivered, failed, rejected, or created orders are rejected by lifecycle rules.
+
+The delivery UX uses the same compact handoff pattern: product with amount, courier context, delivery status, and delivered/failed outcome controls stay visible without a wide table. The failure panel still collects the existing failure reason and optional note before sending the order into recovery.
 
 ## Failure Reasons
 

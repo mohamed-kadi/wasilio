@@ -292,54 +292,69 @@ export default function PickupQueue() {
       )}
 
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left text-sm">
+        <div data-testid="pickup-queue-table-wrap" className="overflow-x-hidden">
+          <table className="w-full table-fixed text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-                <th className="p-4 font-medium">Order</th>
-                <th className="p-4 font-medium">Customer</th>
-                <th className="p-4 font-medium">Products</th>
-                <th className="p-4 font-medium">Amount</th>
-                <th className="p-4 font-medium">Courier</th>
-                <th className="p-4 font-medium">Next action</th>
-                <th className="p-4 font-medium">Created</th>
-                <th className="p-4 font-medium">Action</th>
+                <th className="w-[15%] p-4 font-medium">Order</th>
+                <th className="w-[18%] p-4 font-medium">Customer</th>
+                <th className="w-[18%] p-4 font-medium">Product</th>
+                <th className="w-[25%] p-4 font-medium">Pickup handoff</th>
+                <th className="w-[24%] p-4 font-medium">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {orders.map((order) => {
                 const highlighted = assignedOrderId === order.id;
                 return (
-                  <tr key={order.id} className={`hover:bg-gray-50 ${highlighted ? 'bg-orange-50' : ''}`}>
-                    <td className="p-4">
+                  <tr
+                    key={order.id}
+                    className={`border-l-4 hover:bg-gray-50 ${highlighted ? 'border-l-orange-500 bg-orange-50' : 'border-l-transparent'}`}
+                  >
+                    <td className="p-4 align-top">
                       <Link to={`/app/orders/${order.id}`} className="font-mono text-blue-600 hover:underline">
                         {shortOrderId(order.id)}
                       </Link>
+                      <p className="mt-1 line-clamp-2 text-xs font-medium text-gray-500">{sourceLabel(order.source)}</p>
                       {highlighted && (
                         <span className="mt-2 inline-flex rounded-full bg-orange-600 px-2.5 py-1 text-xs font-semibold text-white">
                           From assignment
                         </span>
                       )}
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 align-top">
                       <p className="font-medium text-gray-900">{customerName(order)}</p>
-                      <p className="text-gray-500">{order.customer.phone}</p>
+                      <p className="mt-1 truncate text-gray-500">{order.customer.phone}</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-gray-500">{deliveryArea(order)}</p>
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 align-top">
                       {orderLineSummary(order.orderLines) ? (
-                        <span className="font-medium text-gray-800">{orderLineSummary(order.orderLines)}</span>
+                        <span className="line-clamp-2 font-medium text-gray-800">{orderLineSummary(order.orderLines)}</span>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
+                      <p className="mt-1 whitespace-nowrap text-xs font-semibold text-gray-900">{formatAmount(order.amount)}</p>
                     </td>
-                    <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
-                    <td className="p-4">
-                      <p className="font-medium text-gray-900">{courierNames.get(order.courierId ?? '') ?? 'Unknown courier'}</p>
-                      <p className="font-mono text-xs text-gray-500">{order.courierId}</p>
+                    <td className="p-4 align-top">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className="inline-flex whitespace-nowrap rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-800">
+                            Assigned
+                          </span>
+                          <span className="inline-flex whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800">
+                            Pickup pending
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{courierNames.get(order.courierId ?? '') ?? 'Unknown courier'}</p>
+                          <p className="mt-1 truncate font-mono text-xs text-gray-500">{order.courierId ?? 'No courier id'}</p>
+                        </div>
+                        <p className="text-xs leading-5 text-gray-500">Created {formatCompactDateTime(order.createdAt)}</p>
+                      </div>
                     </td>
-                    <td className="p-4 text-gray-700">Confirm package pickup</td>
-                    <td className="p-4 text-gray-500">{new Date(order.createdAt).toLocaleString()}</td>
-                    <td className="p-4">
+                    <td className="p-4 align-top">
+                      <p className="mb-2 text-sm font-medium text-gray-900">Confirm package pickup</p>
+                      <p className="mb-3 text-xs leading-5 text-gray-500">Moves to delivery after the package leaves the merchant.</p>
                       <button
                         type="button"
                         disabled={!order.courierId || pickupMutation.isPending}
@@ -347,7 +362,7 @@ export default function PickupQueue() {
                           setPickedUpHandoff(null);
                           pickupMutation.mutate({ orderId: order.id, assignedCourierId: order.courierId! });
                         }}
-                        className="inline-flex items-center gap-2 rounded-md bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-orange-600 px-3 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50"
                       >
                         <PackageCheck size={16} />
                         Picked up
@@ -358,7 +373,7 @@ export default function PickupQueue() {
               })}
               {!isLoading && orders.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                  <td colSpan={5} className="p-8 text-center text-gray-500">
                     <div className="mx-auto max-w-sm">
                       <p className="text-sm font-medium text-gray-900">No assigned orders are waiting pickup.</p>
                       <p className="mt-1 text-sm text-gray-500">
@@ -385,7 +400,7 @@ export default function PickupQueue() {
               )}
               {isLoading && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                  <td colSpan={5} className="p-8 text-center text-gray-500">
                     <p className="text-sm font-medium text-gray-900">Loading pickup queue</p>
                     <p className="mt-1 text-sm text-gray-500">Fetching assigned orders that need physical pickup.</p>
                   </td>
@@ -439,6 +454,37 @@ function customerName(order: Order) {
 
 function shortOrderId(orderId: string) {
   return `${orderId.slice(0, 8)}...`;
+}
+
+function sourceLabel(source?: string) {
+  if (source === 'WASILIO_STOREFRONT') {
+    return 'Storefront / landing-engine';
+  }
+  if (!source || source === 'MANUAL') {
+    return 'Manual order';
+  }
+  return source
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function deliveryArea(order: Order) {
+  return [order.address.city, order.address.state, order.address.country].filter(Boolean).join(', ') || 'Address needs review';
+}
+
+function formatAmount(amount: number) {
+  return `MAD ${amount.toFixed(2)}`;
+}
+
+function formatCompactDateTime(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: 'numeric',
+    day: 'numeric',
+    year: '2-digit',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 function SummaryMetric({

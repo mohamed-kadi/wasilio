@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { fakeJwt, installMockApi } from './helpers';
 
 const courier = {
@@ -172,12 +172,7 @@ test('merchant can read courier workflow stages across queues', async ({ page })
   await expect(page.getByRole('table').getByText('Address ready')).toBeVisible();
   await expect(page.getByRole('table').getByText('Address has delivery basics')).toBeVisible();
   await expect(page.getByRole('table').getByText('Moves to pickup after assignment.')).toBeVisible();
-  const tableFits = await page
-    .getByTestId('assignment-queue-table-wrap')
-    .evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
-  const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
-  expect(tableFits).toBe(true);
-  expect(pageFits).toBe(true);
+  await expectNoHorizontalOverflow(page, 'assignment-queue-table-wrap');
   await page.getByRole('combobox').filter({ hasText: 'Select courier' }).selectOption(courier.courierId);
   await page.getByRole('button', { name: 'Assign courier' }).click();
   await expect(page.getByText('Order assigned and moved to pickup')).toBeVisible();
@@ -190,6 +185,9 @@ test('merchant can read courier workflow stages across queues', async ({ page })
   await expect(page.getByRole('table').getByText('From assignment', { exact: true })).toBeVisible();
   await expect(page.getByText('Mark picked up to move the order into delivery.')).toBeVisible();
   await expect(page.getByText('Confirm package pickup')).toBeVisible();
+  await expect(page.getByRole('table').getByText('MAD 349.00')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Pickup pending')).toBeVisible();
+  await expectNoHorizontalOverflow(page, 'pickup-queue-table-wrap');
   await page.getByRole('button', { name: 'Picked up' }).click();
   await expect(page.getByText('Order picked up and moved to delivery')).toBeVisible();
   await expect(page.getByText('Sara Customer is with Amine Courier')).toBeVisible();
@@ -200,6 +198,9 @@ test('merchant can read courier workflow stages across queues', async ({ page })
   await expect(page.getByText('Picked up order ready for delivery outcome')).toBeVisible();
   await expect(page.getByRole('table').getByText('From pickup', { exact: true })).toBeVisible();
   await expect(page.getByText('Choose delivered or document the failure reason.')).toBeVisible();
+  await expect(page.getByRole('table').getByText('MAD 349.00')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Out for delivery')).toBeVisible();
+  await expectNoHorizontalOverflow(page, 'delivery-queue-table-wrap');
   await page.getByRole('button', { name: 'Advanced filters' }).click();
   await expect(page.getByLabel('Delivery stage')).toHaveValue('OUT_FOR_DELIVERY');
   await expect(page.getByLabel('Rows per page')).toBeVisible();
@@ -223,6 +224,15 @@ test('merchant can read courier workflow stages across queues', async ({ page })
     courierId: courier.courierId,
   });
 });
+
+async function expectNoHorizontalOverflow(page: Page, tableTestId: string) {
+  const tableFits = await page
+    .getByTestId(tableTestId)
+    .evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
+  const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+  expect(tableFits).toBe(true);
+  expect(pageFits).toBe(true);
+}
 
 function pageResponse(order: Record<string, unknown>) {
   return {
