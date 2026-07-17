@@ -16,6 +16,11 @@ const product = {
   updatedAt: '2026-06-23T09:00:00Z',
 };
 
+const tinyPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+  'base64',
+);
+
 test('merchant uploads primary product media from product editor', async ({ page }) => {
   await installMockApi(page);
   let uploadedImageUrl = '';
@@ -77,7 +82,7 @@ test('merchant uploads primary product media from product editor', async ({ page
     await route.fulfill({
       status: 200,
       contentType: 'image/png',
-      body: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      body: tinyPng,
     });
   });
 
@@ -189,7 +194,7 @@ test('merchant uploads storefront gallery and SEO media into profile fields', as
     await route.fulfill({
       status: 200,
       contentType: 'image/png',
-      body: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      body: tinyPng,
     });
   });
   await page.route('**/api/public/storefront/demo-store/products/argan-oil', async (route) => {

@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { ImageIcon } from 'lucide-react';
+import { mediaDisplayUrl } from '../lib/mediaUrls';
 
 type ProductImageFrameSize = 'sm' | 'lg';
 
@@ -20,21 +22,31 @@ export default function ProductImageFrame({
   size = 'sm',
   testId = 'product-thumbnail',
 }: ProductImageFrameProps) {
+  const resolvedImageUrl = mediaDisplayUrl(imageUrl);
+  const [unavailableImageUrl, setUnavailableImageUrl] = useState<string | undefined>();
+  const imageUnavailable = Boolean(resolvedImageUrl && unavailableImageUrl === resolvedImageUrl);
+  const hasImage = Boolean(resolvedImageUrl) && !imageUnavailable;
+
   const frameClassName = [
     'flex shrink-0 items-center justify-center overflow-hidden rounded-md border bg-white',
     SIZE_CLASSES[size],
-    imageUrl ? 'border-gray-200' : 'border-dashed border-gray-300 text-gray-400',
+    hasImage
+      ? 'border-gray-200'
+      : imageUnavailable
+        ? 'border-amber-200 bg-amber-50 text-amber-600'
+        : 'border-dashed border-gray-300 text-gray-400',
   ].join(' ');
 
-  if (imageUrl) {
+  if (hasImage) {
     return (
       <span className={frameClassName} data-testid={testId}>
         <img
-          src={imageUrl}
+          src={resolvedImageUrl}
           alt={alt}
           loading="lazy"
           decoding="async"
-          className="block h-full w-full object-contain p-1"
+          onError={() => setUnavailableImageUrl(resolvedImageUrl)}
+          className="block h-full w-full max-h-full max-w-full object-contain p-1"
         />
       </span>
     );

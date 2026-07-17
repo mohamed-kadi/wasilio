@@ -26,6 +26,7 @@ import {
   type Product,
   type ProductPayload,
   type ProductStatus,
+  type ProductsPageResponse,
   type StorefrontProductProfile,
 } from '../api/client';
 import ProductImageFrame from '../components/ProductImageFrame';
@@ -159,6 +160,12 @@ export default function Products() {
     mutationFn: ({ productId, file }: { productId: string; file: File }) => uploadProductMedia(productId, file),
     onSuccess: async (media) => {
       setForm((current) => ({ ...current, imageUrl: media.publicUrl }));
+      setEditingProduct((current) => (
+        current?.id === media.productId
+          ? { ...current, imageUrl: media.publicUrl, updatedAt: media.createdAt }
+          : current
+      ));
+      updateProductImageInProductCaches(queryClient, media.productId, media.publicUrl, media.createdAt);
       await queryClient.invalidateQueries({ queryKey: ['products'] });
     },
   });
@@ -897,6 +904,28 @@ function productMatchesSearch(product: Product, searchTerm: string): boolean {
 function optionalValue(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function updateProductImageInProductCaches(
+  queryClient: ReturnType<typeof useQueryClient>,
+  productId: string,
+  imageUrl: string,
+  updatedAt: string,
+) {
+  const updateProductPage = (current: ProductsPageResponse | undefined) => {
+    if (!current) {
+      return current;
+    }
+    return {
+      ...current,
+      content: current.content.map((product) => (
+        product.id === productId ? { ...product, imageUrl, updatedAt } : product
+      )),
+    };
+  };
+
+  queryClient.setQueriesData<ProductsPageResponse>({ queryKey: ['products'] }, updateProductPage);
+  queryClient.setQueryData<ProductsPageResponse>(['storefront-publishing-products'], updateProductPage);
 }
 
 function slugPreview(value: string): string {
