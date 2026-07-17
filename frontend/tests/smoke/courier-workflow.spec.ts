@@ -10,9 +10,19 @@ const courier = {
   createdAt: '2026-06-20T10:00:00Z',
 };
 
+const backupCourier = {
+  courierId: '33333333-3333-3333-3333-333333333333',
+  tenantId: '00000000-0000-0000-0000-000000000001',
+  name: 'Nadia Courier',
+  phone: '+212600000003',
+  active: true,
+  createdAt: '2026-06-20T11:00:00Z',
+};
+
 const baseOrder = {
   id: '11111111-1111-1111-1111-111111111111',
   tenantId: '00000000-0000-0000-0000-000000000001',
+  source: 'WASILIO_STOREFRONT',
   customer: {
     firstName: 'Sara',
     lastName: 'Customer',
@@ -27,6 +37,34 @@ const baseOrder = {
     country: 'Morocco',
   },
   amount: 349,
+  orderLines: [
+    {
+      productName: 'CoolAir Mini',
+      sku: 'COOLAIR-MINI',
+      unitPrice: 349,
+      quantity: 1,
+      lineTotal: 349,
+      currency: 'MAD',
+    },
+  ],
+  intelligence: {
+    confirmationConfidenceScore: 82,
+    fraudRiskScore: 18,
+    level: 'HIGH_CONFIDENCE',
+    summary: 'Customer and address evidence support a fast assignment.',
+    calculatedAt: '2026-06-21T10:04:00Z',
+    signals: [
+      {
+        key: 'address_complete',
+        label: 'Address has delivery basics',
+        detail: 'Street, city, and country are present.',
+        confidenceDelta: 12,
+        riskDelta: -8,
+        severity: 'POSITIVE',
+        source: 'ORDER',
+      },
+    ],
+  },
   courierId: courier.courierId,
   createdAt: '2026-06-21T10:00:00Z',
   updatedAt: '2026-06-21T10:00:00Z',
@@ -34,6 +72,7 @@ const baseOrder = {
 };
 
 test('merchant can read courier workflow stages across queues', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await installMockApi(page);
   const assignments: Record<string, unknown>[] = [];
   const pickups: Record<string, unknown>[] = [];
@@ -67,10 +106,10 @@ test('merchant can read courier workflow stages across queues', async ({ page })
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        content: [courier],
+        content: [courier, backupCourier],
         page: 0,
         size: 100,
-        totalElements: 1,
+        totalElements: 2,
         totalPages: 1,
       }),
     });
@@ -123,9 +162,24 @@ test('merchant can read courier workflow stages across queues', async ({ page })
   await page.goto('/app/couriers/assignment');
   await expect(page.getByRole('heading', { name: 'Courier assignment' })).toBeVisible();
   await expect(page.getByText('Assign a courier to move the order into pickup.')).toBeVisible();
-  await expect(page.getByText('Move to pickup queue')).toBeVisible();
+  const courierOptions = page.getByRole('heading', { name: 'Active courier options' }).locator('xpath=ancestor::section[1]');
+  await expect(courierOptions).toBeVisible();
+  await expect(courierOptions.getByText('Amine Courier')).toBeVisible();
+  await expect(courierOptions.getByText('Nadia Courier')).toBeVisible();
+  await expect(page.getByRole('table').getByText('CoolAir Mini')).toBeVisible();
+  await expect(page.getByRole('table').getByText('MAD 349.00')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Customer confirmed')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Address ready')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Address has delivery basics')).toBeVisible();
+  await expect(page.getByRole('table').getByText('Moves to pickup after assignment.')).toBeVisible();
+  const tableFits = await page
+    .getByTestId('assignment-queue-table-wrap')
+    .evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
+  const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+  expect(tableFits).toBe(true);
+  expect(pageFits).toBe(true);
   await page.getByRole('combobox').filter({ hasText: 'Select courier' }).selectOption(courier.courierId);
-  await page.getByRole('button', { name: 'Assign' }).click();
+  await page.getByRole('button', { name: 'Assign courier' }).click();
   await expect(page.getByText('Order assigned and moved to pickup')).toBeVisible();
   await expect(page.getByText('Sara Customer is assigned to Amine Courier')).toBeVisible();
   await page.getByRole('link', { name: 'Open pickup queue' }).click();

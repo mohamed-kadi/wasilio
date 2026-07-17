@@ -26,6 +26,8 @@ Operators assign an active courier to an order. Assignment appends `OrderAssigne
 
 Reassignment is not supported in this phase. Once an order leaves `CONFIRMED`, another assignment command is rejected by the lifecycle rules.
 
+The assignment UX keeps the handoff compact: rows show the order, customer, product with amount, confirmation handoff context, address readiness, score indicators, and the courier assignment control. Active courier options are shown from the existing courier list so merchants can compare available couriers without changing assignment rules or adding a new backend contract.
+
 ## Pickup Queue
 
 The pickup queue lists tenant-scoped orders that are:

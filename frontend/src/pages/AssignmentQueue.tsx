@@ -1,10 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, PackageCheck, SlidersHorizontal, Truck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, PackageCheck, Phone, SlidersHorizontal, Truck, Users } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { assignCourier, fetchAssignmentQueue, fetchCouriers, getErrorMessage } from '../api/client';
 import { orderLineSummary } from '../lib/orderLines';
-import type { Order } from '../api/client';
+import type { Courier, Order } from '../api/client';
 
 interface AssignmentLocationState {
   confirmedOrderId?: string;
@@ -73,6 +73,8 @@ export default function AssignmentQueue() {
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
   const highlightedOrder = confirmedOrderId ? orders.find((order) => order.id === confirmedOrderId) : undefined;
   const confirmedOrderAssigned = confirmedOrderId === assignedHandoff?.order.id;
+  const addressReadyCount = orders.filter(hasDeliveryAddress).length;
+  const highConfidenceCount = orders.filter((order) => order.intelligence?.level === 'HIGH_CONFIDENCE').length;
 
   function resetFilters() {
     setCreatedFrom('');
@@ -126,14 +128,14 @@ export default function AssignmentQueue() {
           detail={couriersLoading ? 'Loading couriers' : 'Available for assignment'}
         />
         <SummaryMetric
-          label="Highlighted"
-          value={highlightedOrder ? shortOrderId(highlightedOrder.id) : 'None'}
-          detail={confirmedOrderId ? 'From confirmation' : 'No handoff selected'}
+          label="Address ready"
+          value={`${addressReadyCount}/${orders.length}`}
+          detail="Visible rows with delivery basics"
         />
         <SummaryMetric
-          label="Next stage"
-          value="Pickup"
-          detail="Package leaves merchant"
+          label="Fast handoff"
+          value={String(highConfidenceCount)}
+          detail="Visible high-confidence orders"
         />
       </section>
 
@@ -218,81 +220,115 @@ export default function AssignmentQueue() {
         </section>
       )}
 
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+              <Users size={18} />
+              Active courier options
+            </h3>
+            <p className="mt-1 text-sm text-gray-500">Use the same active courier list before assigning each confirmed order.</p>
+          </div>
+          <Link
+            to="/app/couriers"
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
+          >
+            Manage couriers
+          </Link>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {couriersLoading && (
+            <div className="rounded-md border border-gray-200 px-3 py-3 text-sm text-gray-500">Loading courier options.</div>
+          )}
+          {!couriersLoading && activeCouriers.length === 0 && (
+            <div className="rounded-md border border-gray-200 px-3 py-3 text-sm text-gray-500">No active couriers available.</div>
+          )}
+          {activeCouriers.slice(0, 4).map((courier) => (
+            <CourierOptionCard key={courier.courierId} courier={courier} />
+          ))}
+        </div>
+      </section>
+
       <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[920px] text-left text-sm">
+        <div data-testid="assignment-queue-table-wrap" className="overflow-x-hidden">
+          <table className="w-full table-fixed text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-                <th className="p-4 font-medium">Order</th>
-                <th className="p-4 font-medium">Customer</th>
-                <th className="p-4 font-medium">Products</th>
-                <th className="p-4 font-medium">Amount</th>
-                <th className="p-4 font-medium">Courier</th>
-                <th className="p-4 font-medium">Next action</th>
-                <th className="p-4 font-medium">Action</th>
+                <th className="w-[15%] p-4 font-medium">Order</th>
+                <th className="w-[18%] p-4 font-medium">Customer</th>
+                <th className="w-[18%] p-4 font-medium">Product</th>
+                <th className="w-[25%] p-4 font-medium">Confirmation handoff</th>
+                <th className="w-[24%] p-4 font-medium">Courier</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {orders.map((order) => {
                 const highlighted = confirmedOrderId === order.id;
                 return (
-                  <tr key={order.id} className={`hover:bg-gray-50 ${highlighted ? 'bg-green-50' : ''}`}>
-                    <td className="p-4">
+                  <tr
+                    key={order.id}
+                    className={`border-l-4 hover:bg-gray-50 ${highlighted ? 'border-l-green-500 bg-green-50' : 'border-l-transparent'}`}
+                  >
+                    <td className="p-4 align-top">
                       <Link to={`/app/orders/${order.id}`} className="font-mono text-blue-600 hover:underline">
                         {shortOrderId(order.id)}
                       </Link>
+                      <p className="mt-1 line-clamp-2 text-xs font-medium text-gray-500">{sourceLabel(order.source)}</p>
                       {highlighted && (
                         <span className="mt-2 inline-flex rounded-full bg-green-700 px-2.5 py-1 text-xs font-semibold text-white">
                           From confirmation
                         </span>
                       )}
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 align-top">
                       <p className="font-medium text-gray-900">{customerName(order)}</p>
-                      <p className="text-gray-500">{order.customer.phone}</p>
+                      <p className="mt-1 truncate text-gray-500">{order.customer.phone}</p>
+                      <p className="mt-1 line-clamp-2 text-xs text-gray-500">{deliveryArea(order)}</p>
                     </td>
-                    <td className="p-4">
+                    <td className="p-4 align-top">
                       {orderLineSummary(order.orderLines) ? (
-                        <span className="font-medium text-gray-800">{orderLineSummary(order.orderLines)}</span>
+                        <span className="line-clamp-2 font-medium text-gray-800">{orderLineSummary(order.orderLines)}</span>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
+                      <p className="mt-1 whitespace-nowrap text-xs font-semibold text-gray-900">{formatAmount(order.amount)}</p>
                     </td>
-                    <td className="p-4 font-medium">{order.amount.toFixed(2)} MAD</td>
-                    <td className="p-4">
+                    <td className="p-4 align-top">
+                      <AssignmentHandoff order={order} />
+                    </td>
+                    <td className="p-4 align-top">
                       <select
                         value={selectedCouriers[order.id] ?? ''}
                         onChange={(event) =>
                           setSelectedCouriers((current) => ({ ...current, [order.id]: event.target.value }))
                         }
-                        className="w-56 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full min-w-0 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
                         <option value="">Select courier</option>
                         {activeCouriers.map((courier) => (
                           <option key={courier.courierId} value={courier.courierId}>
-                            {courier.name}
+                            {courier.name} - {courier.phone}
                           </option>
                         ))}
                       </select>
-                    </td>
-                    <td className="p-4 text-gray-700">Move to pickup queue</td>
-                    <td className="p-4">
                       <button
                         type="button"
                         disabled={!selectedCouriers[order.id] || assignMutation.isPending}
                         onClick={() => assignOrder(order)}
-                        className="inline-flex items-center gap-2 rounded-md bg-yellow-600 px-3 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
+                        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-md bg-yellow-600 px-3 py-2 text-sm font-medium text-white hover:bg-yellow-700 disabled:opacity-50"
                       >
                         <PackageCheck size={16} />
-                        Assign
+                        Assign courier
                       </button>
+                      <p className="mt-2 text-xs leading-5 text-gray-500">Moves to pickup after assignment.</p>
                     </td>
                   </tr>
                 );
               })}
               {isLoading && (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-gray-500">
+                  <td colSpan={5} className="p-8 text-center text-gray-500">
                     <p className="text-sm font-medium text-gray-900">Loading assignment queue</p>
                     <p className="mt-1 text-sm text-gray-500">Fetching confirmed orders that need a courier.</p>
                   </td>
@@ -300,7 +336,7 @@ export default function AssignmentQueue() {
               )}
               {!isLoading && orders.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-gray-500">
+                  <td colSpan={5} className="p-8 text-center text-gray-500">
                     <div className="mx-auto max-w-sm">
                       <p className="text-sm font-medium text-gray-900">No confirmed orders need assignment.</p>
                       <p className="mt-1 text-sm text-gray-500">
@@ -519,6 +555,130 @@ function customerName(order: Order) {
 
 function shortOrderId(orderId: string) {
   return `${orderId.slice(0, 8)}...`;
+}
+
+function sourceLabel(source?: string) {
+  if (source === 'WASILIO_STOREFRONT') {
+    return 'Storefront / landing-engine';
+  }
+  if (!source || source === 'MANUAL') {
+    return 'Manual order';
+  }
+  return source
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function deliveryArea(order: Order) {
+  return [order.address.city, order.address.state, order.address.country].filter(Boolean).join(', ') || 'Address needs review';
+}
+
+function hasDeliveryAddress(order: Order) {
+  return Boolean(order.address.street?.trim() && order.address.city?.trim() && order.address.country?.trim());
+}
+
+function formatAmount(amount: number) {
+  return `MAD ${amount.toFixed(2)}`;
+}
+
+function AssignmentHandoff({ order }: { order: Order }) {
+  const addressReady = hasDeliveryAddress(order);
+  const confidence = order.intelligence?.confirmationConfidenceScore;
+  const risk = order.intelligence?.fraudRiskScore;
+  const topSignal = order.intelligence?.signals[0]?.label;
+
+  return (
+    <div className="min-w-0 space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+          Customer confirmed
+        </span>
+        <span
+          className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold ${
+            addressReady
+              ? 'border-blue-200 bg-blue-50 text-blue-800'
+              : 'border-amber-200 bg-amber-50 text-amber-800'
+          }`}
+        >
+          {addressReady ? 'Address ready' : 'Check address'}
+        </span>
+      </div>
+      <div className="grid min-w-0 grid-cols-2 gap-1.5">
+        <ScoreMini label="Confidence" value={confidence} tone="confidence" />
+        <ScoreMini label="Risk" value={risk} tone="risk" />
+      </div>
+      <p className="line-clamp-2 text-xs leading-5 text-gray-500">{topSignal ?? order.intelligence?.summary ?? 'No score signal yet.'}</p>
+    </div>
+  );
+}
+
+function ScoreMini({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value?: number;
+  tone: 'confidence' | 'risk';
+}) {
+  const valueLabel = value === undefined ? 'Pending' : `${value}/100`;
+  const fillClassName = value === undefined
+    ? 'bg-gray-300'
+    : tone === 'confidence'
+      ? confidenceFillClass(value)
+      : riskFillClass(value);
+
+  return (
+    <div className="min-w-0 rounded-md border border-gray-200 bg-white px-2 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="truncate text-[11px] font-semibold uppercase text-gray-500">{label}</p>
+        <p className="shrink-0 text-xs font-semibold text-gray-900">{valueLabel}</p>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
+        <div className={`h-full rounded-full ${fillClassName}`} style={{ width: `${value ?? 0}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function CourierOptionCard({ courier }: { courier: Courier }) {
+  return (
+    <div className="min-w-0 rounded-md border border-gray-200 px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-gray-900">{courier.name}</p>
+          <p className="mt-1 flex items-center gap-1 truncate text-xs text-gray-500">
+            <Phone size={13} />
+            {courier.phone}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+          Active
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function confidenceFillClass(value: number) {
+  if (value >= 75) {
+    return 'bg-emerald-500';
+  }
+  if (value >= 50) {
+    return 'bg-amber-500';
+  }
+  return 'bg-red-500';
+}
+
+function riskFillClass(value: number) {
+  if (value >= 70) {
+    return 'bg-red-500';
+  }
+  if (value >= 40) {
+    return 'bg-amber-500';
+  }
+  return 'bg-emerald-500';
 }
 
 function SummaryMetric({
