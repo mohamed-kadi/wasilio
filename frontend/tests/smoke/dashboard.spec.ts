@@ -1,8 +1,29 @@
 import { expect, test } from '@playwright/test';
-import { installMockApi, loginAs } from './helpers';
+import { fakeJwt, installMockApi } from './helpers';
 
 test('merchant can see the operational dashboard and next queue to work', async ({ page }) => {
   await installMockApi(page);
+  const token = fakeJwt({
+    email: 'admin@example.com',
+    role: 'MERCHANT',
+    tenantId: '00000000-0000-0000-0000-000000000001',
+  });
+
+  await page.goto('/login');
+  await page.evaluate((sessionToken) => {
+    window.sessionStorage.setItem(
+      'nexora.auth.session',
+      JSON.stringify({
+        token: sessionToken,
+        user: {
+          email: 'admin@example.com',
+          role: 'MERCHANT',
+          tenantId: '00000000-0000-0000-0000-000000000001',
+          expiresAt: Date.now() + 3_600_000,
+        },
+      }),
+    );
+  }, token);
 
   await page.route('**/api/confirmations/queue?**', async (route) => {
     await route.fulfill({
@@ -98,7 +119,21 @@ test('merchant can see the operational dashboard and next queue to work', async 
     });
   });
 
-  await loginAs(page, 'admin@example.com');
+  await page.route('**/api/inbound-orders/summary', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        rejectedCount: 1,
+        normalizedTodayCount: 4,
+        latestRejectedSource: 'WASILIO_STOREFRONT',
+        latestRejectedAt: '2026-07-17T10:00:00Z',
+        latestRejectedReason: 'Missing customer phone',
+      }),
+    });
+  });
+
+  await page.goto('/app');
 
   await expect(page.getByRole('heading', { name: 'Operations dashboard' })).toBeVisible();
   await expect(page.getByText('24 active orders need confirmation, courier movement, or recovery')).toBeVisible();
@@ -117,13 +152,18 @@ test('merchant can see the operational dashboard and next queue to work', async 
   await expect(page.getByText('Needs decision', { exact: true })).toBeVisible();
   await expect(page.getByText('Retry ready', { exact: true })).toBeVisible();
   await expect(page.getByText('Refund review', { exact: true })).toBeVisible();
-  await expect(page.getByText('Delivery outcomes')).toBeVisible();
-  await expect(page.getByText('Success')).toBeVisible();
 
-  await expect(page.getByText('Operational map')).toBeVisible();
-  await expect(page.getByText('Confirm', { exact: true })).toBeVisible();
-  await expect(page.getByText('Assign', { exact: true })).toBeVisible();
-  await expect(page.getByText('Recover', { exact: true })).toBeVisible();
+  const workflow = page.getByLabel('Operations workflow');
+  await expect(workflow).toBeVisible();
+  await expect(workflow.getByText('Confirmation to performance')).toBeVisible();
+  await expect(workflow.getByText('Confirmation', { exact: true })).toBeVisible();
+  await expect(workflow.getByText('Assignment', { exact: true })).toBeVisible();
+  await expect(workflow.getByText('Pickup', { exact: true })).toBeVisible();
+  await expect(workflow.getByText('Delivery', { exact: true })).toBeVisible();
+  await expect(workflow.getByText('Recovery', { exact: true })).toBeVisible();
+  await expect(workflow.getByText('Performance', { exact: true })).toBeVisible();
+  await expect(workflow.getByText('12 delivered / 5 failed')).toBeVisible();
+  await expect(workflow.getByText('71%')).toBeVisible();
 
   await page.getByRole('link', { name: /Retry ready\s+1/ }).click();
   await expect(page).toHaveURL(/\/app\/orders$/);
@@ -133,7 +173,7 @@ test('merchant can see the operational dashboard and next queue to work', async 
   await page.goto('/app');
   await page.getByRole('link', { name: 'Open follow-ups', exact: true }).click();
   await expect(page).toHaveURL(/\/app\/delivery-follow-ups$/);
-  await expect(page.getByRole('heading', { name: 'Customer follow-ups' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Delivery follow-ups' })).toBeVisible();
 });
 
 function pageResponse(totalElements: number) {

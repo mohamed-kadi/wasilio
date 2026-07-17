@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { AlertCircle, ArrowRight, CheckCircle2, Clock, ClipboardList, Inbox, MessageSquare, PackageCheck, PhoneCall, Truck } from 'lucide-react';
+import { AlertCircle, ArrowRight, BarChart3, CheckCircle2, Clock, Inbox, MessageSquare, PackageCheck, PhoneCall, Truck } from 'lucide-react';
 import {
   type DeliveryFailureRecoveryState,
   type OrderSource,
@@ -205,6 +205,86 @@ export default function Dashboard() {
         </div>
       </section>
 
+      <section className="rounded-lg border border-gray-200 bg-white p-5" aria-label="Operations workflow">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase text-blue-700">Operations workflow</p>
+            <h3 className="mt-1 text-lg font-semibold text-gray-900">Confirmation to performance</h3>
+          </div>
+          <Link
+            to="/app/couriers/performance"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline"
+          >
+            Courier performance
+            <ArrowRight size={16} />
+          </Link>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <WorkflowStageCard
+            step="01"
+            title="Confirmation"
+            value={needsConfirmation}
+            detail={`${dueCallbacks} due callbacks`}
+            to="/app/confirmations"
+            tone="blue"
+            isLoading={isLoading}
+            icon={<PhoneCall size={18} />}
+          />
+          <WorkflowStageCard
+            step="02"
+            title="Assignment"
+            value={awaitingAssignment}
+            detail="Confirmed orders"
+            to="/app/couriers/assignment"
+            tone="amber"
+            isLoading={isLoading}
+            icon={<Truck size={18} />}
+          />
+          <WorkflowStageCard
+            step="03"
+            title="Pickup"
+            value={waitingPickup}
+            detail="Assigned packages"
+            to="/app/couriers/pickup"
+            tone="amber"
+            isLoading={isLoading}
+            icon={<PackageCheck size={18} />}
+          />
+          <WorkflowStageCard
+            step="04"
+            title="Delivery"
+            value={outForDelivery}
+            detail="Awaiting outcome"
+            to="/app/couriers/delivery"
+            tone="green"
+            isLoading={isLoading}
+            icon={<Truck size={18} />}
+          />
+          <WorkflowStageCard
+            step="05"
+            title="Recovery"
+            value={activeFailedRecovery}
+            detail={`${retryReady} retry ready`}
+            to={recoveryTarget}
+            state={recoveryState}
+            tone="red"
+            isLoading={isLoading}
+            icon={<AlertCircle size={18} />}
+          />
+          <WorkflowStageCard
+            step="06"
+            title="Performance"
+            value={`${deliverySuccessRate}%`}
+            detail={`${delivered} delivered / ${failed} failed`}
+            to="/app/couriers/performance"
+            tone="green"
+            isLoading={isLoading}
+            icon={<BarChart3 size={18} />}
+          />
+        </div>
+      </section>
+
       <section className="rounded-lg border border-gray-200 bg-white p-5" aria-label="Ingestion health">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex gap-3">
@@ -317,51 +397,6 @@ export default function Dashboard() {
         </WorkloadLane>
       </section>
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="rounded-lg border border-gray-200 bg-white p-5 lg:col-span-2">
-          <div className="flex items-center gap-3">
-            <div className="rounded-md bg-gray-100 p-2 text-gray-700">
-              <ClipboardList size={20} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">Operational map</h3>
-              <p className="text-sm text-gray-500">Read left to right: confirm, hand off, deliver, then recover exceptions.</p>
-            </div>
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-5">
-            <FlowStep label="Confirm" value={needsConfirmation} to="/app/confirmations" isLoading={isLoading} />
-            <FlowStep label="Assign" value={awaitingAssignment} to="/app/couriers/assignment" isLoading={isLoading} />
-            <FlowStep label="Pickup" value={waitingPickup} to="/app/couriers/pickup" isLoading={isLoading} />
-            <FlowStep label="Deliver" value={outForDelivery} to="/app/couriers/delivery" isLoading={isLoading} />
-            <FlowStep label="Recover" value={activeFailedRecovery} to={recoveryTarget} state={recoveryState} isLoading={isLoading} />
-          </div>
-        </div>
-
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
-          <div className="flex items-center gap-3">
-            <div className="rounded-md bg-emerald-50 p-2 text-emerald-700">
-              <CheckCircle2 size={20} />
-            </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">Delivery outcomes</h3>
-              <p className="text-sm text-gray-500">Closed delivery results recorded so far.</p>
-            </div>
-          </div>
-          <dl className="mt-5 grid grid-cols-3 gap-3">
-            <OutcomeStat label="Delivered" value={delivered} isLoading={isLoading} />
-            <OutcomeStat label="Failed" value={failed} isLoading={isLoading} tone="red" />
-            <OutcomeStat label="Success" value={`${deliverySuccessRate}%`} isLoading={isLoading} />
-          </dl>
-          <Link
-            to="/app/couriers/performance"
-            className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-blue-700 hover:underline"
-          >
-            Review courier performance
-            <ArrowRight size={16} />
-          </Link>
-        </div>
-      </section>
     </div>
   );
 }
@@ -600,53 +635,48 @@ function PriorityPill({
   );
 }
 
-function FlowStep({
-  label,
+function WorkflowStageCard({
+  step,
+  title,
   value,
+  detail,
   to,
   state,
+  tone,
   isLoading,
+  icon,
 }: {
-  label: string;
-  value: number;
+  step: string;
+  title: string;
+  value: number | string;
+  detail: string;
   to: string;
-  state?: {
-    statuses?: OrderStatus[];
-    recoveryFocus?: boolean;
-    failureRecoveryFilter?: DeliveryFailureRecoveryState;
-  };
+  state?: OrdersNavigationState;
+  tone: 'blue' | 'amber' | 'green' | 'red';
   isLoading: boolean;
+  icon: ReactNode;
 }) {
+  const tones = {
+    blue: 'border-blue-200 bg-blue-50 text-blue-700',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700',
+    green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    red: 'border-red-200 bg-red-50 text-red-700',
+  };
+
   return (
     <Link
       to={to}
       state={state}
-      className="flex items-center justify-between rounded-md border border-gray-100 bg-gray-50 px-3 py-3 text-sm hover:border-blue-200 hover:bg-blue-50"
+      className="min-w-0 rounded-md border border-gray-200 bg-gray-50 p-4 hover:border-blue-200 hover:bg-blue-50"
     >
-      <span className="font-semibold text-gray-800">{label}</span>
-      <span className="rounded-full bg-white px-2.5 py-1 font-bold text-gray-900">{isLoading ? '...' : value}</span>
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-xs font-semibold uppercase text-gray-500">{step}</span>
+        <span className={`rounded-md border p-1.5 ${tones[tone]}`}>{icon}</span>
+      </div>
+      <p className="mt-4 text-sm font-semibold text-gray-900">{title}</p>
+      <p className="mt-2 text-2xl font-bold text-gray-950">{isLoading ? '...' : value}</p>
+      <p className="mt-1 truncate text-xs text-gray-500">{isLoading ? 'Loading' : detail}</p>
     </Link>
-  );
-}
-
-function OutcomeStat({
-  label,
-  value,
-  isLoading,
-  tone = 'green',
-}: {
-  label: string;
-  value: number | string;
-  isLoading: boolean;
-  tone?: 'green' | 'red';
-}) {
-  const labelTone = tone === 'red' ? 'text-red-700' : 'text-gray-500';
-
-  return (
-    <div className="rounded-md border border-gray-100 bg-gray-50 p-3">
-      <dt className={`text-xs font-semibold uppercase ${labelTone}`}>{label}</dt>
-      <dd className="mt-2 text-2xl font-bold text-gray-900">{isLoading ? '...' : value}</dd>
-    </div>
   );
 }
 
