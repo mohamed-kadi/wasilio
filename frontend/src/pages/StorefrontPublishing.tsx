@@ -142,13 +142,14 @@ export default function StorefrontPublishing() {
           </p>
         </div>
         <div className="overflow-auto">
-          <table className="w-full min-w-[1120px] text-left text-sm">
+          <table className="w-full min-w-[1280px] text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
                 <th className="p-4 font-medium">Product</th>
                 <th className="p-4 font-medium">Catalog status</th>
                 <th className="p-4 font-medium">Profile status</th>
                 <th className="p-4 font-medium">Readiness</th>
+                <th className="p-4 font-medium">Media readiness</th>
                 <th className="p-4 font-medium">Price</th>
                 <th className="p-4 font-medium">Missing items</th>
                 <th className="p-4 font-medium">Public URLs</th>
@@ -167,14 +168,14 @@ export default function StorefrontPublishing() {
               ))}
               {!productsLoading && products.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                  <td colSpan={9} className="p-8 text-center text-gray-500">
                     No products found. Create catalog products before publishing storefront pages.
                   </td>
                 </tr>
               )}
               {productsLoading && (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-500">
+                  <td colSpan={9} className="p-8 text-center text-gray-500">
                     Loading products...
                   </td>
                 </tr>
@@ -286,6 +287,15 @@ function PublishingProductRow({
     ? publicProductApiUrl(settings.storeSlug, product.slug)
     : publicProductApiPattern();
   const previewUrl = settings?.storeSlug ? landingEngineProductUrl(product.slug) : null;
+  const mediaReadiness = evaluateMediaReadiness({
+    product,
+    profile: profile ?? null,
+    publicReadinessEnabled,
+    publicReadinessLoading: publicReadinessQuery.isLoading,
+    publicReadiness: publicReadinessQuery.data?.readiness,
+    publicReadinessError: publicReadinessQuery.error,
+    previewUrl,
+  });
 
   function toggleProfileStatus() {
     profileToggleMutation.mutate(nextStatus);
@@ -321,6 +331,9 @@ function PublishingProductRow({
           error={publicReadinessQuery.error}
         />
         <p className="mt-2 max-w-44 text-xs text-gray-500">{publicState.detail}</p>
+      </td>
+      <td className="p-4 align-top">
+        <MediaReadinessPanel readiness={mediaReadiness} />
       </td>
       <td className="p-4 align-top font-medium text-gray-900">{formatMoney(product.priceAmount, product.currency)}</td>
       <td className="p-4 align-top">
@@ -490,6 +503,64 @@ function PublicReadinessSummary({
   }
 
   return null;
+}
+
+type MediaReadinessItemStatus = 'ready' | 'missing' | 'checking' | 'unavailable';
+
+interface MediaReadinessItem {
+  label: string;
+  status: MediaReadinessItemStatus;
+  detail: string;
+}
+
+interface MediaReadiness {
+  readyCount: number;
+  totalCount: number;
+  items: MediaReadinessItem[];
+}
+
+function MediaReadinessPanel({ readiness }: { readiness: MediaReadiness }) {
+  const complete = readiness.readyCount === readiness.totalCount;
+
+  return (
+    <div className="min-w-56 space-y-2">
+      <div>
+        <p className="text-xs font-semibold uppercase text-gray-500">Media readiness</p>
+        <p className={`mt-1 text-xs font-semibold ${complete ? 'text-emerald-700' : 'text-amber-800'}`}>
+          {complete ? 'All media ready' : `${readiness.readyCount}/${readiness.totalCount} ready`}
+        </p>
+      </div>
+      <ul className="space-y-1.5">
+        {readiness.items.map((item) => (
+          <MediaReadinessRow key={item.label} item={item} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function MediaReadinessRow({ item }: { item: MediaReadinessItem }) {
+  const Icon = item.status === 'ready'
+    ? CheckCircle2
+    : item.status === 'checking'
+      ? AlertTriangle
+      : XCircle;
+  const statusClasses = {
+    ready: 'text-emerald-700',
+    missing: 'text-amber-800',
+    checking: 'text-blue-700',
+    unavailable: 'text-gray-500',
+  };
+
+  return (
+    <li className="flex gap-2 text-xs">
+      <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${statusClasses[item.status]}`} />
+      <span>
+        <span className="font-medium text-gray-800">{item.label}</span>
+        <span className="block leading-5 text-gray-500">{item.detail}</span>
+      </span>
+    </li>
+  );
 }
 
 function MissingItemsList({ readiness }: { readiness: ProductReadiness }) {
@@ -675,6 +746,108 @@ function evaluateReadiness(
     requiredItems,
     recommendedItems,
   };
+}
+
+function evaluateMediaReadiness({
+  product,
+  profile,
+  publicReadinessEnabled,
+  publicReadinessLoading,
+  publicReadiness,
+  publicReadinessError,
+  previewUrl,
+}: {
+  product: Product;
+  profile: StorefrontProductProfile | null;
+  publicReadinessEnabled: boolean;
+  publicReadinessLoading: boolean;
+  publicReadiness?: PublicProductReadiness;
+  publicReadinessError: unknown;
+  previewUrl: string | null;
+}): MediaReadiness {
+  const hasPrimaryImage = hasText(product.imageUrl);
+  const hasGalleryMedia = Boolean(profile?.galleryImageUrls.length);
+  const hasCustomSeoImage = hasText(profile?.seoImageUrl);
+  const hasSeoImage = hasCustomSeoImage || hasPrimaryImage;
+  const publicPrimaryImageReady = publicReadinessItemComplete(publicReadiness, 'primary_image');
+
+  const items: MediaReadinessItem[] = [
+    {
+      label: 'Primary image',
+      status: hasPrimaryImage ? 'ready' : 'missing',
+      detail: hasPrimaryImage ? 'Shown in catalog and landing hero.' : 'Upload a product image.',
+    },
+    {
+      label: 'Gallery media',
+      status: hasGalleryMedia ? 'ready' : 'missing',
+      detail: hasGalleryMedia ? `${profile?.galleryImageUrls.length ?? 0} gallery image ready.` : 'Add gallery media in landing content.',
+    },
+    {
+      label: 'SEO image',
+      status: hasSeoImage ? 'ready' : 'missing',
+      detail: hasCustomSeoImage
+        ? 'Custom SEO/social image set.'
+        : hasPrimaryImage
+          ? 'Uses primary image fallback.'
+          : 'Add an SEO image or primary image.',
+    },
+    {
+      label: 'Public API media',
+      status: publicMediaStatus(publicReadinessEnabled, publicReadinessLoading, publicReadinessError, publicPrimaryImageReady),
+      detail: publicMediaDetail(publicReadinessEnabled, publicReadinessLoading, publicReadinessError, publicPrimaryImageReady),
+    },
+    {
+      label: 'Fresh preview',
+      status: previewUrl?.includes('wasilioPreview=1') ? 'ready' : 'missing',
+      detail: previewUrl ? 'Landing preview refreshes Wasilio media.' : 'Configure storefront settings for preview.',
+    },
+  ];
+
+  return {
+    readyCount: items.filter((item) => item.status === 'ready').length,
+    totalCount: items.length,
+    items,
+  };
+}
+
+function publicReadinessItemComplete(readiness: PublicProductReadiness | undefined, key: string): boolean {
+  return Boolean(readiness?.items.some((item) => item.key === key && item.complete));
+}
+
+function publicMediaStatus(
+  enabled: boolean,
+  loading: boolean,
+  error: unknown,
+  primaryImageReady: boolean,
+): MediaReadinessItemStatus {
+  if (!enabled) {
+    return 'unavailable';
+  }
+  if (loading) {
+    return 'checking';
+  }
+  if (error) {
+    return 'unavailable';
+  }
+  return primaryImageReady ? 'ready' : 'missing';
+}
+
+function publicMediaDetail(
+  enabled: boolean,
+  loading: boolean,
+  error: unknown,
+  primaryImageReady: boolean,
+): string {
+  if (!enabled) {
+    return 'Public product API is not active yet.';
+  }
+  if (loading) {
+    return 'Checking public product payload.';
+  }
+  if (error) {
+    return 'Public media check unavailable.';
+  }
+  return primaryImageReady ? 'Public product includes primary image.' : 'Public API is missing primary image.';
 }
 
 function publicAvailability(product: Product, settings: PublicStorefrontSettings | null) {

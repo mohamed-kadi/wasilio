@@ -251,6 +251,13 @@ test('merchant uploads storefront gallery and SEO media into profile fields', as
   await expect(page.getByRole('heading', { name: 'Product Publishing' })).toBeVisible();
   await expect(page.getByText('Public API readiness')).toBeVisible();
   await expect(page.getByText('3/7 required items complete')).toBeVisible();
+  await expect(page.getByText('Media readiness').first()).toBeVisible();
+  await expect(page.getByText('4/5 ready')).toBeVisible();
+  await expect(page.getByText('Primary image', { exact: true })).toBeVisible();
+  await expect(page.getByText('Gallery media', { exact: true })).toBeVisible();
+  await expect(page.getByText('SEO image', { exact: true })).toBeVisible();
+  await expect(page.getByText('Uses primary image fallback.')).toBeVisible();
+  await expect(page.getByText('Landing preview refreshes Wasilio media.')).toBeVisible();
   await expect(page.getByRole('link', { name: /incomplete preview/i })).toHaveAttribute(
     'href',
     'http://localhost:3000/products/argan-oil?wasilioPreview=1',
