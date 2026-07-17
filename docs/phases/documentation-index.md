@@ -26,6 +26,7 @@ This index is the starting point for future engineers and AI agents.
 - `docs/product/callback-workflow.md`: callback scheduling and resolution.
 - `docs/product/operations-dashboard.md`: dashboard workflow overview and existing read-model sources.
 - `docs/product/orders-workspace.md`: orders scan, search, saved views, recovery mode, and workflow labels.
+- `docs/product/order-detail-workflow.md`: Order Detail workflow-stage card, stage trail, action panel, and preserved deep recovery/intelligence context.
 - `docs/product/courier-workflow.md`: internal courier resources, assignment, pickup, delivery, and performance.
 - `docs/product/intelligence-scoring.md`: Phase 19 confirmation confidence and fraud risk scoring model.
 - `docs/product/intelligence-calibration-rehearsal.md`: Phase 23 landing-engine-to-Wasilio score movement calibration runbook.

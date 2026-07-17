@@ -45,35 +45,35 @@ type LifecycleCommand =
 
 const statusLabels: Record<OrderStatus, string> = {
   CREATED: 'New order',
-  CONFIRMATION_REQUESTED: 'Needs confirmation',
-  CONFIRMED: 'Confirmed',
+  CONFIRMATION_REQUESTED: 'Confirmation requested',
+  CONFIRMED: 'Ready for assignment',
   REJECTED: 'Rejected',
-  ASSIGNED_TO_COURIER: 'Assigned',
-  PICKED_UP: 'Picked up',
+  ASSIGNED_TO_COURIER: 'Waiting pickup',
+  PICKED_UP: 'Out for delivery',
   DELIVERED: 'Delivered',
-  FAILED: 'Failed delivery',
+  FAILED: 'Recovery',
 };
 
 const statusDescriptions: Record<OrderStatus, string> = {
-  CREATED: 'The order exists, but customer confirmation has not started.',
-  CONFIRMATION_REQUESTED: 'The customer must be called before this order goes to courier operations.',
-  CONFIRMED: 'The customer accepted the order. Assign a courier when ready.',
+  CREATED: 'The order is waiting for customer confirmation.',
+  CONFIRMATION_REQUESTED: 'Record the real customer call outcome before sending this order to assignment.',
+  CONFIRMED: 'The customer accepted the order. Assign a courier when the package is ready.',
   REJECTED: 'The customer refused or cancelled. This order is closed.',
-  ASSIGNED_TO_COURIER: 'A courier has been assigned and pickup is pending.',
+  ASSIGNED_TO_COURIER: 'A courier has been assigned. Confirm pickup after the package leaves the merchant.',
   PICKED_UP: 'The package is with the courier. Record delivered or failed after the attempt.',
-  DELIVERED: 'The order was delivered successfully.',
-  FAILED: 'Delivery failed. Review the failure reason before any follow-up.',
+  DELIVERED: 'The order was delivered successfully and is closed.',
+  FAILED: 'Delivery failed. Continue recovery, follow-up, retry, refund review, or closure.',
 };
 
 const nextActions: Record<OrderStatus, string> = {
   CREATED: 'Request confirmation',
-  CONFIRMATION_REQUESTED: 'Confirm or reject after customer contact',
+  CONFIRMATION_REQUESTED: 'Record confirmation outcome',
   CONFIRMED: 'Assign courier',
-  REJECTED: 'No action needed',
-  ASSIGNED_TO_COURIER: 'Mark picked up when courier collects it',
+  REJECTED: 'View closed order',
+  ASSIGNED_TO_COURIER: 'Confirm pickup',
   PICKED_UP: 'Record delivery result',
-  DELIVERED: 'No action needed',
-  FAILED: 'Review failure',
+  DELIVERED: 'View closed order',
+  FAILED: 'Continue recovery',
 };
 
 const statusTones: Record<OrderStatus, string> = {
@@ -140,6 +140,17 @@ const recoveryDecisionDescriptions: Record<DeliveryFailureRecoveryDecision, stri
   CLOSE_UNRECOVERABLE: 'Use when the customer cannot be reached or the order should stay failed with no more delivery action.',
 };
 
+type WorkflowStage = 'CONFIRMATION' | 'ASSIGNMENT' | 'PICKUP' | 'DELIVERY' | 'RECOVERY' | 'CLOSED';
+
+const workflowStages: Array<{ value: WorkflowStage; label: string; detail: string }> = [
+  { value: 'CONFIRMATION', label: 'Confirmation', detail: 'Customer decision' },
+  { value: 'ASSIGNMENT', label: 'Assignment', detail: 'Courier handoff' },
+  { value: 'PICKUP', label: 'Pickup', detail: 'Package leaves merchant' },
+  { value: 'DELIVERY', label: 'Delivery', detail: 'Courier outcome' },
+  { value: 'RECOVERY', label: 'Recovery', detail: 'Failed delivery follow-up' },
+  { value: 'CLOSED', label: 'Closed', detail: 'Finished order' },
+];
+
 function formatFailureReason(reason?: string) {
   if (!reason) {
     return undefined;
@@ -200,13 +211,40 @@ function formatFollowUpDate(value?: string) {
 }
 
 function formatOrderSource(source?: string) {
+  if (source === 'WASILIO_STOREFRONT') {
+    return 'Storefront / landing-engine';
+  }
   if (!source) {
-    return 'Manual';
+    return 'Manual order';
   }
   return source
     .replace(/_/g, ' ')
     .toLowerCase()
     .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function workflowStageForStatus(status: OrderStatus): WorkflowStage {
+  if (status === 'CREATED' || status === 'CONFIRMATION_REQUESTED') {
+    return 'CONFIRMATION';
+  }
+  if (status === 'CONFIRMED') {
+    return 'ASSIGNMENT';
+  }
+  if (status === 'ASSIGNED_TO_COURIER') {
+    return 'PICKUP';
+  }
+  if (status === 'PICKED_UP') {
+    return 'DELIVERY';
+  }
+  if (status === 'FAILED') {
+    return 'RECOVERY';
+  }
+  return 'CLOSED';
+}
+
+function workflowStageLabel(status: OrderStatus) {
+  const stage = workflowStageForStatus(status);
+  return workflowStages.find((workflowStage) => workflowStage.value === stage)?.label ?? 'Workflow';
 }
 
 function formatDateTime(value?: string) {
@@ -534,10 +572,10 @@ export default function OrderDetails() {
   const amountLabel = `${order.amount.toFixed(2)} MAD`;
   const closedOrder = order.status === 'DELIVERED' || order.status === 'REJECTED';
   const workflowActionDescription = order.status === 'FAILED'
-    ? 'Failed delivery work is handled in the recovery workspace below.'
+    ? 'Recovery work is handled in the failed delivery workspace below.'
     : closedOrder
       ? 'This order is closed. Use the timeline and notes for investigation.'
-      : 'Use the action that matches the current COD stage.';
+      : 'Use the action that matches the current workflow stage.';
 
   const TimelineIcon = ({ type, category }: { type: string; category: string }) => {
     if (category === 'CALLBACK') return <PhoneCall className="w-5 h-5 text-purple-500" />;
@@ -596,18 +634,20 @@ export default function OrderDetails() {
       <section className={`rounded-lg border p-5 ${statusTones[order.status]}`}>
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase">Current COD stage</p>
-            <h3 className="mt-2 text-2xl font-bold text-gray-900">{statusLabels[order.status]}</h3>
+            <p className="text-xs font-semibold uppercase">Current workflow stage</p>
+            <h3 className="mt-2 text-2xl font-bold text-gray-900">{workflowStageLabel(order.status)}</h3>
             <p className="mt-2 text-sm">{statusDescriptions[order.status]}</p>
+            <p className="mt-2 text-xs font-semibold uppercase text-gray-600">Status: {statusLabels[order.status]}</p>
           </div>
           <div className="rounded-md bg-white/75 px-4 py-3 text-sm shadow-sm">
             <p className="text-xs font-semibold uppercase text-gray-500">Next action</p>
             <p className="mt-1 font-semibold text-gray-900">{nextActions[order.status]}</p>
           </div>
         </div>
+        <WorkflowStageTrail status={order.status} />
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryTile label="Customer" value={customerName} detail={order.customer.phone} />
-          <SummaryTile label="Amount" value={amountLabel} detail="Cash on delivery" />
+          <SummaryTile label="Order total" value={amountLabel} detail="Cash on delivery" />
           <SummaryTile label="Source" value={formatOrderSource(order.source)} detail={order.externalOrderId ?? 'No external reference'} />
           <SummaryTile label="Courier" value={selectedCourierName ?? 'Not assigned'} detail={order.courierId ? 'Assigned courier' : 'Pending assignment'} />
         </div>
@@ -654,7 +694,7 @@ export default function OrderDetails() {
       <section className="rounded-lg border border-gray-200 bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h3 className="text-sm font-semibold uppercase text-gray-500">Workflow action</h3>
+            <h3 className="text-sm font-semibold uppercase text-gray-500">Stage action</h3>
             <p className="mt-1 text-sm text-gray-600">{workflowActionDescription}</p>
           </div>
           <div className="flex max-w-2xl flex-wrap justify-end gap-2">
@@ -975,17 +1015,18 @@ export default function OrderDetails() {
         <aside className="rounded-lg border border-gray-200 bg-white p-6">
           <SectionHeader
             eyebrow="Operations"
-            title="Order Snapshot"
+            title="Workflow Snapshot"
             description="Operational identifiers and fulfillment context."
           />
           <dl className="mt-6 space-y-3">
+            <DetailRow label="Stage" value={workflowStageLabel(order.status)} />
             <DetailRow label="Status">
               <span className={`rounded-full border px-2.5 py-1 text-sm font-medium ${statusTones[order.status]}`}>
                 {statusLabels[order.status]}
               </span>
             </DetailRow>
             <DetailRow label="Next action" value={nextActions[order.status]} />
-            <DetailRow label="Total amount" value={amountLabel} />
+            <DetailRow label="Total Amount" value={amountLabel} />
             <DetailRow label="Source" value={formatOrderSource(order.source)} />
             <DetailRow label="External order ID" value={order.externalOrderId} mono />
             <DetailRow label="Inbound order ID" value={order.inboundOrderId} mono />
@@ -1396,6 +1437,32 @@ function SummaryTile({
       <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
       <p className="mt-1 truncate text-sm font-semibold text-gray-900">{value}</p>
       {detail && <p className="mt-1 truncate text-xs text-gray-600">{detail}</p>}
+    </div>
+  );
+}
+
+function WorkflowStageTrail({ status }: { status: OrderStatus }) {
+  const activeStage = workflowStageForStatus(status);
+
+  return (
+    <div className="mt-5 grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6" aria-label="Order workflow stages">
+      {workflowStages.map((stage, index) => {
+        const isActive = activeStage === stage.value;
+        return (
+          <div
+            key={stage.value}
+            className={`min-h-[5.5rem] rounded-md border px-3 py-3 ${
+              isActive
+                ? 'border-blue-300 bg-white text-blue-900 ring-1 ring-inset ring-blue-400'
+                : 'border-white/60 bg-white/60 text-gray-700'
+            }`}
+          >
+            <p className="text-[11px] font-semibold uppercase text-gray-500">{String(index + 1).padStart(2, '0')}</p>
+            <p className="mt-2 text-sm font-semibold">{stage.label}</p>
+            <p className="mt-1 line-clamp-2 text-xs opacity-80">{stage.detail}</p>
+          </div>
+        );
+      })}
     </div>
   );
 }

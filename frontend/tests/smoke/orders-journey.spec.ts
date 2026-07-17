@@ -224,10 +224,11 @@ test('merchant can understand order journey stage and next action', async ({ pag
 
   await page.goto('/app/orders/11111111-1111-1111-1111-111111111111');
   await expect(page).toHaveURL(/\/app\/orders\/11111111-1111-1111-1111-111111111111$/);
-  await expect(page.getByText('Current COD stage', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Confirmed' })).toBeVisible();
+  await expect(page.getByText('Current workflow stage', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Assignment' })).toBeVisible();
+  await expect(page.getByLabel('Order workflow stages').getByText('Assignment', { exact: true })).toBeVisible();
   await expect(page.getByText('The customer accepted the order')).toBeVisible();
-  await expect(page.getByText('Workflow action')).toBeVisible();
+  await expect(page.getByText('Stage action')).toBeVisible();
   await expect(page.getByText('Score history')).toBeVisible();
   await expect(page.getByText('Moved to High confidence')).toBeVisible();
   await expect(page.getByText('+27')).toBeVisible();
@@ -395,7 +396,8 @@ test('merchant records confirmation attempts and can clear a requested confirmat
 
   await page.getByRole('button', { name: 'Return to New order' }).click();
 
-  await expect(page.getByRole('heading', { name: 'New order' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Confirmation' })).toBeVisible();
+  await expect(page.getByText('Status: New order')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Request Confirmation' })).toBeVisible();
   expect(clearRequests).toBe(1);
 });
@@ -787,9 +789,9 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   await page.getByRole('link', { name: 'Continue Recovery' }).click();
 
   await expect(page).toHaveURL(/\/app\/orders\/11111111-1111-1111-1111-111111111111$/);
-  await expect(page.getByRole('heading', { name: 'Failed delivery', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recovery', exact: true })).toBeVisible();
   await expect(page.getByText('Failure reason: Customer refused')).toBeVisible();
-  await expect(page.getByText('Failed delivery work is handled in the recovery workspace below.')).toBeVisible();
+  await expect(page.getByText('Recovery work is handled in the failed delivery workspace below.')).toBeVisible();
   await expect(page.getByText('No recovery decision recorded')).toBeVisible();
   await expect(page.getByText('Record recovery decision').first()).toBeVisible();
   await expect(page.getByRole('link', { name: 'Failed deliveries' })).toBeVisible();
@@ -837,7 +839,7 @@ test('merchant can review failed delivery recovery details', async ({ page }) =>
   await expect(page.getByRole('button', { name: 'Move back to assignment queue' })).toBeEnabled();
   await page.getByRole('button', { name: 'Move back to assignment queue' }).click();
 
-  await expect(page.getByRole('heading', { name: 'Confirmed' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Assignment' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Assign Courier' })).toBeVisible();
   await expect.poll(() => retryRequests).toBe(1);
   expect(recoveryRequests).toEqual([
