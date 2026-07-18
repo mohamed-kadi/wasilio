@@ -91,14 +91,14 @@ export function IntelligenceScoreKpi({
       <ScoreMeter
         label="Confirmation"
         value={intelligence.confirmationConfidenceScore}
-        valueLabel={`${intelligence.confirmationConfidenceScore}/100`}
+        valueLabel={`${intelligence.confirmationConfidenceScore} score`}
         fillClassName={confidenceFillClass(intelligence.confirmationConfidenceScore)}
         compact={compact}
       />
       <ScoreMeter
         label="Fraud risk"
         value={intelligence.fraudRiskScore}
-        valueLabel={`${intelligence.fraudRiskScore}/100`}
+        valueLabel={`${intelligence.fraudRiskScore} score`}
         fillClassName={riskFillClass(intelligence.fraudRiskScore)}
         compact={compact}
       />
@@ -273,7 +273,7 @@ function ScoreMeter({
     <div className={compact ? 'space-y-1.5' : 'space-y-2'}>
       <div className="flex items-center justify-between gap-3 text-xs">
         <span className="font-semibold uppercase text-gray-500">{label}</span>
-        <span className="font-semibold text-gray-900">{valueLabel}</span>
+        <span className="shrink-0 whitespace-nowrap font-semibold text-gray-900">{valueLabel}</span>
       </div>
       <div className="h-2 overflow-hidden rounded-full bg-gray-100">
         <div className={`h-full rounded-full ${fillClassName}`} style={{ width: `${clampedValue}%` }} />

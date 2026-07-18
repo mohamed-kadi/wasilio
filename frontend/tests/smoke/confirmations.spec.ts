@@ -162,8 +162,12 @@ test('merchant can use the confirmation next-action panel', async ({ page }) => 
   ));
   expect(queueHorizontalOverflow).toBeLessThanOrEqual(1);
   await expect(page.getByText('Avg confidence')).toBeVisible();
-  await expect(page.getByText('73/100').first()).toBeVisible();
+  await expect(page.getByTestId('confirmation-average-confidence')).toContainText('73');
+  await expect(page.getByTestId('confirmation-average-confidence')).toContainText('0-100');
+  await expect(page.getByText('73/100')).toHaveCount(0);
   await expect(page.getByText('Avg risk')).toBeVisible();
+  await expect(page.getByTestId('confirmation-average-risk')).toContainText('34');
+  await expect(page.getByTestId('confirmation-average-risk')).toContainText('0-100');
   await expect(page.getByText('No order selected.')).toBeVisible();
   await expect(page.getByRole('table').getByText('Review signals', { exact: true })).toBeVisible();
   await expect(page.getByText('Verify first').first()).toBeVisible();
@@ -173,6 +177,8 @@ test('merchant can use the confirmation next-action panel', async ({ page }) => 
   await expect(page.getByText('Selected order')).toBeVisible();
   await expect(callWorkspace.getByText('Review confirmation signals before progressing')).toBeVisible();
   await expect(callWorkspace.getByText('Address has delivery basics')).toBeVisible();
+  await expect(callWorkspace.getByText('73 score')).toBeVisible();
+  await expect(callWorkspace.getByText('34 score')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Call customer' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'WhatsApp' })).toBeVisible();
   await expect(page.getByText('Selected outcome')).toBeVisible();

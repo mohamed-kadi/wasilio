@@ -203,6 +203,14 @@ The intelligence report should show aggregate score health without changing oper
 
 The report reads current snapshots, current signals, and append-only audit events. It must not recalculate scores automatically or mutate orders.
 
+Phase 33 keeps the report merchant-facing by default:
+
+- show the review queue and operating bands before technical calibration values
+- present score values as designed `0-100` gauges and score chips, not raw `66/100` arithmetic text
+- show business impact labels such as `Raises risk and lowers confirmation confidence`
+- keep exact point deltas and threshold values available in explicit audit/details sections
+- keep all order links, score reasons, recent movement, and calibration data accessible for internal review
+
 Score UX should use business labels:
 
 - Confirmation confidence

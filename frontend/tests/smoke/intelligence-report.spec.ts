@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { installMockApi, loginAs } from './helpers';
 
 test('merchant can review intelligence report', async ({ page }) => {
@@ -92,11 +92,33 @@ test('merchant can review intelligence report', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Intelligence Report' })).toBeVisible();
   await expect(page.getByText('Scored orders', { exact: true })).toBeVisible();
   await expect(page.getByText('12', { exact: true })).toBeVisible();
-  await expect(page.getByText('72/100', { exact: true })).toBeVisible();
-  await expect(page.getByText('High-risk watchlist')).toBeVisible();
+  await expect(page.getByTestId('average-confirmation-score')).toContainText('72');
+  await expect(page.getByTestId('average-confirmation-score')).not.toContainText('72/100');
+  await expectScoreRangeOnOneLine(page, 'average-confirmation-score');
+  await expect(page.getByText('7 orders need review')).toBeVisible();
+  await expect(page.getByText('Needs review now')).toBeVisible();
   await expect(page.getByText('Sara Customer')).toBeVisible();
   await expect(page.getByText('Repeated no-answer attempts')).toBeVisible();
+  await expect(page.getByText('Raises risk and lowers confirmation confidence')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Moved to High risk' })).toBeVisible();
+  await page.getByText('Show audit points').click();
+  await expect(page.getByText('-60 confidence / +60 risk')).toBeVisible();
+  await expect(page.getByText('Scoring model details')).toBeVisible();
   await expect(page.getByText('Version v1')).toBeVisible();
+  await page.getByText('Scoring model details').click();
   await expect(page.getByText('65+ risk')).toBeVisible();
+  await expectNoHorizontalOverflow(page);
 });
+
+async function expectNoHorizontalOverflow(page: Page) {
+  const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+  expect(pageFits).toBe(true);
+}
+
+async function expectScoreRangeOnOneLine(page: Page, testId: string) {
+  const rangeHeight = await page
+    .getByTestId(testId)
+    .getByText('0-100')
+    .evaluate((element) => element.getBoundingClientRect().height);
+  expect(rangeHeight).toBeLessThanOrEqual(28);
+}

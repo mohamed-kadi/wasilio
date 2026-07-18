@@ -116,10 +116,6 @@ function shortOrderId(orderId: string) {
   return `${orderId.slice(0, 8)}...`;
 }
 
-function formatScoreKpi(value: number | null) {
-  return value === null ? 'Pending' : `${value}/100`;
-}
-
 export default function Confirmations() {
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -310,15 +306,17 @@ export default function Confirmations() {
           value={String(totalElements)}
           detail={isFetching && !isLoading ? 'Refreshing queue' : `${visibleNotStarted} not started / ${visibleInFollowUp} follow-up`}
         />
-        <SummaryMetric
+        <ScoreSummaryMetric
+          testId="confirmation-average-confidence"
           label="Avg confidence"
-          value={formatScoreKpi(averageConfidence)}
+          value={averageConfidence}
           detail={`${scoredOrders.length} scored visible orders`}
           tone={averageConfidence !== null && averageConfidence >= 75 ? 'good' : 'info'}
         />
-        <SummaryMetric
+        <ScoreSummaryMetric
+          testId="confirmation-average-risk"
           label="Avg risk"
-          value={formatScoreKpi(averageRisk)}
+          value={averageRisk}
           detail="Fraud risk across visible orders"
           tone={averageRisk === null ? 'info' : averageRisk >= 65 ? 'danger' : averageRisk >= 36 ? 'warning' : 'good'}
         />
@@ -1105,7 +1103,7 @@ function ScorePill({
   value?: number;
   tone: 'confidence' | 'risk';
 }) {
-  const valueLabel = value === undefined ? 'Pending' : `${value}/100`;
+  const valueLabel = value === undefined ? 'Pending' : `${value} score`;
   const fillClassName = value === undefined
     ? 'bg-gray-300'
     : tone === 'confidence'
@@ -1116,7 +1114,7 @@ function ScorePill({
     <div className="min-w-0 rounded-md border border-gray-200 bg-white px-2 py-2">
       <div className="flex items-center justify-between gap-2">
         <p className="truncate text-[11px] font-semibold uppercase text-gray-500">{label}</p>
-        <p className="shrink-0 text-xs font-semibold text-gray-900">{valueLabel}</p>
+        <p className="shrink-0 whitespace-nowrap text-xs font-semibold text-gray-900">{valueLabel}</p>
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
         <div className={`h-full rounded-full ${fillClassName}`} style={{ width: `${value ?? 0}%` }} />
@@ -1261,6 +1259,58 @@ function SummaryMetric({
     <div className={`rounded-lg border px-4 py-3 ${toneClasses}`}>
       <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
       <p className="mt-1 truncate text-lg font-semibold">{value}</p>
+      <p className="mt-1 truncate text-xs text-gray-500">{detail}</p>
+    </div>
+  );
+}
+
+function ScoreSummaryMetric({
+  testId,
+  label,
+  value,
+  detail,
+  tone = 'neutral',
+}: {
+  testId?: string;
+  label: string;
+  value: number | null;
+  detail: string;
+  tone?: 'neutral' | 'good' | 'info' | 'warning' | 'danger';
+}) {
+  const toneClasses = {
+    neutral: 'border-gray-200 bg-white text-gray-900',
+    good: 'border-emerald-200 bg-emerald-50 text-emerald-950',
+    info: 'border-blue-200 bg-blue-50 text-blue-950',
+    warning: 'border-amber-200 bg-amber-50 text-amber-950',
+    danger: 'border-red-200 bg-red-50 text-red-950',
+  }[tone];
+  const valueLabel = value === null ? 'Pending' : value;
+  const barWidth = value === null ? 0 : Math.max(0, Math.min(100, value));
+  const fillClassName = tone === 'danger'
+    ? 'bg-red-500'
+    : tone === 'warning'
+      ? 'bg-amber-500'
+      : tone === 'good'
+        ? 'bg-emerald-500'
+        : 'bg-blue-500';
+
+  return (
+    <div className={`rounded-lg border px-4 py-3 ${toneClasses}`} data-testid={testId}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
+          <p className="mt-1 flex min-w-0 items-end gap-1 whitespace-nowrap">
+            <span className="text-lg font-semibold">{valueLabel}</span>
+            {value !== null && <span className="pb-0.5 text-[10px] font-semibold uppercase text-gray-500">score</span>}
+          </p>
+        </div>
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-white/80 px-2 py-1 text-[10px] font-semibold tabular-nums text-gray-600">
+          0-100
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/70">
+        <div className={`h-full rounded-full ${fillClassName}`} style={{ width: `${barWidth}%` }} />
+      </div>
       <p className="mt-1 truncate text-xs text-gray-500">{detail}</p>
     </div>
   );
