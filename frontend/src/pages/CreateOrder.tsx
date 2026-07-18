@@ -23,6 +23,12 @@ interface ProductLineForm {
   quantity: string;
 }
 
+interface CityPreset {
+  city: string;
+  state: string;
+  zipCode: string;
+}
+
 const emptyForm: OrderFormData = {
   firstName: '',
   lastName: '',
@@ -36,11 +42,53 @@ const emptyForm: OrderFormData = {
   amount: '',
 };
 
-const cityPresets = [
+const cityPresets: CityPreset[] = [
+  { city: 'Agadir', state: 'Souss-Massa', zipCode: '80000' },
+  { city: 'Al Hoceima', state: 'Tanger-Tetouan-Al Hoceima', zipCode: '32000' },
+  { city: 'Azilal', state: 'Beni Mellal-Khenifra', zipCode: '22000' },
+  { city: 'Beni Mellal', state: 'Beni Mellal-Khenifra', zipCode: '23000' },
+  { city: 'Benslimane', state: 'Casablanca-Settat', zipCode: '13000' },
+  { city: 'Boujdour', state: 'Laayoune-Sakia El Hamra', zipCode: '71000' },
   { city: 'Casablanca', state: 'Casablanca-Settat', zipCode: '20000' },
-  { city: 'Rabat', state: 'Rabat-Sale-Kenitra', zipCode: '10000' },
+  { city: 'Chefchaouen', state: 'Tanger-Tetouan-Al Hoceima', zipCode: '91000' },
+  { city: 'Chichaoua', state: 'Marrakech-Safi', zipCode: '41000' },
+  { city: 'Dakhla', state: 'Dakhla-Oued Ed-Dahab', zipCode: '73000' },
+  { city: 'El Jadida', state: 'Casablanca-Settat', zipCode: '24000' },
+  { city: 'Errachidia', state: 'Draa-Tafilalet', zipCode: '52000' },
+  { city: 'Es Semara', state: 'Laayoune-Sakia El Hamra', zipCode: '72000' },
+  { city: 'Essaouira', state: 'Marrakech-Safi', zipCode: '44000' },
+  { city: 'Fes', state: 'Fes-Meknes', zipCode: '30000' },
+  { city: 'Figuig', state: 'Oriental', zipCode: '61000' },
+  { city: 'Guelmim', state: 'Guelmim-Oued Noun', zipCode: '81000' },
+  { city: 'Ifrane', state: 'Fes-Meknes', zipCode: '53000' },
+  { city: 'Kelaat Sraghna', state: 'Marrakech-Safi', zipCode: '43000' },
+  { city: 'Kenitra', state: 'Rabat-Sale-Kenitra', zipCode: '14000' },
+  { city: 'Khemisset', state: 'Rabat-Sale-Kenitra', zipCode: '15000' },
+  { city: 'Khenifra', state: 'Beni Mellal-Khenifra', zipCode: '54000' },
+  { city: 'Khouribga', state: 'Beni Mellal-Khenifra', zipCode: '25000' },
+  { city: 'Laayoune', state: 'Laayoune-Sakia El Hamra', zipCode: '70000' },
+  { city: 'Larache', state: 'Tanger-Tetouan-Al Hoceima', zipCode: '92000' },
   { city: 'Marrakech', state: 'Marrakech-Safi', zipCode: '40000' },
+  { city: 'Meknes', state: 'Fes-Meknes', zipCode: '50000' },
+  { city: 'Mohammedia', state: 'Casablanca-Settat', zipCode: '20650' },
+  { city: 'Nador', state: 'Oriental', zipCode: '62000' },
+  { city: 'Ouarzazate', state: 'Draa-Tafilalet', zipCode: '45000' },
+  { city: 'Oujda', state: 'Oriental', zipCode: '60000' },
+  { city: 'Rabat', state: 'Rabat-Sale-Kenitra', zipCode: '10000' },
+  { city: 'Safi', state: 'Marrakech-Safi', zipCode: '46000' },
+  { city: 'Sale', state: 'Rabat-Sale-Kenitra', zipCode: '11000' },
+  { city: 'Sefrou', state: 'Fes-Meknes', zipCode: '31000' },
+  { city: 'Settat', state: 'Casablanca-Settat', zipCode: '26000' },
+  { city: 'Sidi Kacem', state: 'Rabat-Sale-Kenitra', zipCode: '16000' },
+  { city: 'Tan-Tan', state: 'Guelmim-Oued Noun', zipCode: '82000' },
   { city: 'Tangier', state: 'Tanger-Tetouan-Al Hoceima', zipCode: '90000' },
+  { city: 'Taounate', state: 'Fes-Meknes', zipCode: '34000' },
+  { city: 'Taroudannt', state: 'Souss-Massa', zipCode: '83000' },
+  { city: 'Tata', state: 'Souss-Massa', zipCode: '84000' },
+  { city: 'Taza', state: 'Fes-Meknes', zipCode: '35000' },
+  { city: 'Temara', state: 'Rabat-Sale-Kenitra', zipCode: '12000' },
+  { city: 'Tetouan', state: 'Tanger-Tetouan-Al Hoceima', zipCode: '93000' },
+  { city: 'Tiznit', state: 'Souss-Massa', zipCode: '85000' },
 ];
 
 export default function CreateOrder() {
@@ -80,7 +128,18 @@ export default function CreateOrder() {
     });
   }
 
-  function applyCityPreset(preset: { city: string; state: string; zipCode: string }) {
+  function handleCityChange(event: ChangeEvent<HTMLSelectElement>) {
+    const preset = cityPresets.find((candidate) => candidate.city === event.target.value);
+    if (preset) {
+      applyCityPreset(preset);
+      return;
+    }
+
+    setFormData((current) => ({ ...current, city: '', state: '', zipCode: '' }));
+    clearFieldErrors(['city', 'state', 'zipCode']);
+  }
+
+  function applyCityPreset(preset: CityPreset) {
     setFormData((current) => ({
       ...current,
       city: preset.city,
@@ -299,22 +358,22 @@ export default function CreateOrder() {
                   onChange={handleChange}
                 />
               </div>
-              <Field
+              <CitySelect
                 label="City"
-                name="city"
                 value={formData.city}
                 error={fieldError('city', 'address.city')}
-                placeholder="Casablanca"
-                autoComplete="address-level2"
-                onChange={handleChange}
+                options={cityPresets}
+                onChange={handleCityChange}
               />
               <Field
                 label="Region"
                 name="state"
                 value={formData.state}
                 error={fieldError('state', 'address.state')}
+                help="Auto-filled after selection."
                 placeholder="Casablanca-Settat"
                 autoComplete="address-level1"
+                readOnly
                 onChange={handleChange}
               />
               <Field
@@ -322,9 +381,10 @@ export default function CreateOrder() {
                 name="zipCode"
                 value={formData.zipCode}
                 error={fieldError('zipCode', 'address.zipCode')}
-                help="Use the city postal code when the source order has no exact code."
+                help="Auto-filled after selection."
                 placeholder="20000"
                 autoComplete="postal-code"
+                readOnly
                 onChange={handleChange}
               />
               <Field
@@ -337,18 +397,6 @@ export default function CreateOrder() {
               />
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
-              {cityPresets.map((preset) => (
-                <button
-                  key={preset.city}
-                  type="button"
-                  onClick={() => applyCityPreset(preset)}
-                  className="rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                >
-                  {preset.city}
-                </button>
-              ))}
-            </div>
           </FormSection>
 
           <FormSection
@@ -511,7 +559,7 @@ export default function CreateOrder() {
           <section className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-amber-900">
             <p className="text-xs font-semibold uppercase">Demo tip</p>
             <p className="mt-2 text-sm leading-6">
-              Use the city presets during demos to enter a realistic Moroccan address quickly without slowing the workflow.
+              Choose a city to fill the region and main postal code without slowing the workflow.
             </p>
           </section>
         </aside>
@@ -544,6 +592,47 @@ function FormSection({
       </div>
       {children}
     </section>
+  );
+}
+
+function CitySelect({
+  label,
+  value,
+  error,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  error?: string;
+  options: CityPreset[];
+  onChange: (event: ChangeEvent<HTMLSelectElement>) => void;
+}) {
+  return (
+    <div className="block">
+      <label htmlFor="city" className="mb-1 block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+      <select
+        id="city"
+        required
+        name="city"
+        value={value}
+        autoComplete="address-level2"
+        onChange={onChange}
+        className={`w-full rounded-md border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+          error ? 'border-red-300' : 'border-gray-300'
+        }`}
+      >
+        <option value="">Select city</option>
+        {options.map((option) => (
+          <option key={option.city} value={option.city}>
+            {option.city}
+          </option>
+        ))}
+      </select>
+      {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
+    </div>
   );
 }
 
@@ -580,11 +669,20 @@ function Field({
   required = true,
   onChange,
 }: FieldProps) {
+  const helpId = help ? `${name}-help` : undefined;
+
   return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-gray-700">{label}</span>
-      {help && <span className="mb-2 block text-xs leading-5 text-gray-500">{help}</span>}
+    <div className="block">
+      <label htmlFor={name} className="mb-1 block text-sm font-medium text-gray-700">
+        {label}
+      </label>
+      {help && (
+        <span id={helpId} className="mb-2 block text-xs leading-5 text-gray-500">
+          {help}
+        </span>
+      )}
       <input
+        id={name}
         required={required}
         name={name}
         type={type}
@@ -593,6 +691,7 @@ function Field({
         inputMode={inputMode}
         placeholder={placeholder}
         autoComplete={autoComplete}
+        aria-describedby={helpId}
         value={value}
         readOnly={readOnly}
         onChange={onChange}
@@ -601,7 +700,7 @@ function Field({
         } ${error ? 'border-red-300' : 'border-gray-300'}`}
       />
       {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
-    </label>
+    </div>
   );
 }
 

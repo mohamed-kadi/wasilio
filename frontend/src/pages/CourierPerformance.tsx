@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -28,6 +28,8 @@ export default function CourierPerformance() {
   const [datePreset, setDatePreset] = useState<DatePreset>('LAST_7_DAYS');
   const [selectedCourierId, setSelectedCourierId] = useState<string | null>(null);
   const [failurePage, setFailurePage] = useState(0);
+  const [reviewRequestId, setReviewRequestId] = useState(0);
+  const failureReviewPanelRef = useRef<HTMLElement | null>(null);
   const range = useMemo(() => rangeForPreset(datePreset), [datePreset]);
 
   const {
@@ -97,7 +99,19 @@ export default function CourierPerformance() {
   function openFailures(metric: CourierPerformanceMetric) {
     setSelectedCourierId(metric.courierId);
     setFailurePage(0);
+    setReviewRequestId((currentId) => currentId + 1);
   }
+
+  useEffect(() => {
+    if (!selectedCourierId) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      failureReviewPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      failureReviewPanelRef.current?.focus({ preventScroll: true });
+    });
+  }, [selectedCourierId, reviewRequestId]);
 
   return (
     <div className="space-y-6">
@@ -105,7 +119,7 @@ export default function CourierPerformance() {
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Courier performance</h2>
           <p className="text-sm text-gray-500">
-            Compare assignment, pickup, delivery, and failed-delivery recovery signals
+            Compare couriers across Assignment, Pickup, Delivery, and Recovery
             {isFetching && !isLoading ? ' - Refreshing' : ''}
           </p>
           <p className="mt-2 text-xs font-medium text-gray-500">
@@ -161,9 +175,9 @@ export default function CourierPerformance() {
           tone="blue"
         />
         <PerformanceMetric
-          title="Assignment attempts"
+          title="Assignment workload"
           value={assignmentAttempts}
-          detail={rangeLabel(datePreset)}
+          detail="Assigned in range"
           icon={<RotateCcw size={18} />}
           tone="amber"
         />
@@ -175,16 +189,16 @@ export default function CourierPerformance() {
           tone="green"
         />
         <PerformanceMetric
-          title="Failed deliveries"
+          title="Recovery cases"
           value={failedOrders}
-          detail="Available for recovery review"
+          detail="Failed deliveries to review"
           icon={<XCircle size={18} />}
           tone={failedOrders > 0 ? 'red' : 'green'}
         />
         <PerformanceMetric
           title="Success rate"
           value={`${overallSuccessRate}%`}
-          detail={`${failedOrders} failed deliveries`}
+          detail={`${failedOrders} recovery case${failedOrders === 1 ? '' : 's'}`}
           icon={<BarChart3 size={18} />}
           tone={overallSuccessRate >= 80 || completedOrders === 0 ? 'green' : 'red'}
         />
@@ -199,19 +213,16 @@ export default function CourierPerformance() {
       <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
         <div className="border-b border-gray-200 px-5 py-4">
           <h3 className="font-semibold text-gray-900">Courier comparison</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Sorted by completed delivery outcomes, then delivery success rate.
-          </p>
+          <p className="mt-1 text-sm text-gray-500">Sorted by completed delivery outcomes, then success rate.</p>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[940px] text-left text-sm">
+        <div className="overflow-x-auto" data-testid="courier-performance-table-wrap">
+          <table className="w-full min-w-[780px] text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
                 <th className="p-4 font-medium">Courier</th>
-                <th className="p-4 font-medium">Workload</th>
-                <th className="p-4 font-medium">Delivery result</th>
-                <th className="p-4 font-medium">Success rate</th>
-                <th className="p-4 font-medium">Recovery review</th>
+                <th className="p-4 font-medium">Workflow activity</th>
+                <th className="p-4 font-medium">Delivery outcome</th>
+                <th className="p-4 font-medium">Recovery action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -237,22 +248,20 @@ export default function CourierPerformance() {
                     </td>
                     <td className="p-4">
                       <div className="grid grid-cols-2 gap-2">
-                        <MiniStat label="Assigned" value={metric.assignedOrdersCount} />
-                        <MiniStat label="Picked up" value={metric.pickedUpOrdersCount} />
-                      </div>
-                    </td>
-                    <td className="p-4">
-                      <div className="flex flex-wrap gap-2">
-                        <OutcomePill tone="green" label="Delivered" value={metric.deliveredOrdersCount} />
-                        <OutcomePill tone={metric.failedOrdersCount > 0 ? 'red' : 'gray'} label="Failed" value={metric.failedOrdersCount} />
+                        <MiniStat label="Assignment" value={metric.assignedOrdersCount} />
+                        <MiniStat label="Pickup" value={metric.pickedUpOrdersCount} />
                       </div>
                       <p className="mt-2 text-xs text-gray-500">
                         {completed} completed delivery outcome{completed === 1 ? '' : 's'}
                       </p>
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-2 w-32 rounded-full bg-gray-100">
+                      <div className="flex flex-wrap gap-2">
+                        <OutcomePill tone="green" label="Delivered" value={metric.deliveredOrdersCount} />
+                        <OutcomePill tone={metric.failedOrdersCount > 0 ? 'red' : 'gray'} label="Recovery" value={metric.failedOrdersCount} />
+                      </div>
+                      <div className="mt-3 flex items-center gap-3">
+                        <div className="h-2 w-28 rounded-full bg-gray-100">
                           <div
                             className={`h-2 rounded-full ${successBarClass(metric)}`}
                             style={{ width: `${completed > 0 ? successPercent : 0}%` }}
@@ -276,22 +285,29 @@ export default function CourierPerformance() {
                         }`}
                       >
                         <AlertTriangle size={16} />
-                        {metric.failedOrdersCount > 0 ? 'Review failures' : 'No failures'}
+                        {metric.failedOrdersCount > 0
+                          ? selected
+                            ? 'Recovery cases open'
+                            : 'Review recovery cases'
+                          : 'No recovery cases'}
                       </button>
+                      <p className="mt-2 text-xs text-gray-500">
+                        {metric.failedOrdersCount > 0 ? 'Open failed delivery records' : 'No failed deliveries in range'}
+                      </p>
                     </td>
                   </tr>
                 );
               })}
               {!isLoading && rankedMetrics.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-gray-500">
+                  <td colSpan={4} className="p-8 text-center text-gray-500">
                     No courier metrics are available for this period.
                   </td>
                 </tr>
               )}
               {isLoading && (
                 <tr>
-                  <td colSpan={5} className="p-8 text-center text-gray-500">
+                  <td colSpan={4} className="p-8 text-center text-gray-500">
                     <span className="inline-flex items-center gap-2">
                       <BarChart3 size={16} />
                       Loading courier metrics...
@@ -305,12 +321,18 @@ export default function CourierPerformance() {
       </section>
 
       {selectedMetric && (
-        <section className="rounded-lg border border-gray-200 bg-white">
+        <section
+          ref={failureReviewPanelRef}
+          tabIndex={-1}
+          aria-live="polite"
+          data-testid="courier-recovery-review"
+          className="scroll-mt-4 rounded-lg border border-blue-200 bg-white outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        >
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
             <div>
               <div className="flex items-center gap-2">
                 <AlertTriangle size={18} className="text-red-700" />
-                <h3 className="font-semibold text-gray-900">Failed deliveries for review</h3>
+                <h3 className="font-semibold text-gray-900">Recovery cases for review</h3>
               </div>
               <p className="mt-1 text-sm text-gray-500">
                 {selectedMetric.courierName} - {rangeLabel(datePreset)} - {failuresPage?.totalElements ?? selectedMetric.failedOrdersCount} record{(failuresPage?.totalElements ?? selectedMetric.failedOrdersCount) === 1 ? '' : 's'}
@@ -376,7 +398,7 @@ function FailureRecord({ item }: { item: DeliveryFailureDrilldownItem }) {
             {formatFailureReason(failure.reason)}
           </span>
           <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
-            Failed {formatDateTime(failure.createdAt)}
+            Failed delivery {formatDateTime(failure.createdAt)}
           </span>
         </div>
         <h4 className="mt-3 font-semibold text-gray-900">
@@ -407,7 +429,7 @@ function FailureRecord({ item }: { item: DeliveryFailureDrilldownItem }) {
         to={`/app/orders/${failure.orderId}`}
         className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-sm font-medium text-blue-700 hover:bg-blue-50"
       >
-        Open order
+        View Details
         <ArrowRight size={16} />
       </Link>
     </article>
@@ -476,13 +498,13 @@ function formatFailureReason(reason: string) {
 function formatOrderStatus(status: string) {
   const labels: Record<string, string> = {
     CREATED: 'New order',
-    CONFIRMATION_REQUESTED: 'Needs confirmation',
-    CONFIRMED: 'Confirmed',
+    CONFIRMATION_REQUESTED: 'Confirmation requested',
+    CONFIRMED: 'Ready for assignment',
     REJECTED: 'Rejected',
-    ASSIGNED_TO_COURIER: 'Assigned to courier',
-    PICKED_UP: 'With courier',
+    ASSIGNED_TO_COURIER: 'Waiting pickup',
+    PICKED_UP: 'Out for delivery',
     DELIVERED: 'Delivered',
-    FAILED: 'Delivery failed',
+    FAILED: 'Recovery',
   };
   return labels[status] ?? titleize(status);
 }

@@ -81,7 +81,20 @@ Failed recovery decisions sit on top of the failed order state:
 
 The current performance endpoint is query-based and tenant-scoped. For each courier it returns assigned, picked up, delivered, and failed order counts plus delivery success rate. Merchants can review today, the last 7 days, or the last 30 days, then drill into the exact failed delivery records for a courier and date window.
 
+The performance UX uses the same business stage language as the rest of Operations:
+
+- Assignment workload
+- Pickup activity
+- Delivery outcomes
+- Recovery cases
+
+The comparison table keeps all existing metrics but groups them into fewer columns so merchants can compare couriers on laptop screens without page-level horizontal scrolling. Failed delivery records are presented as recovery cases and link back to Order Detail for the deeper recovery, follow-up, timeline, and intelligence context.
+
 This is an operational summary, not a full analytics dashboard.
+
+## Courier Detail
+
+Courier Detail remains a profile and availability surface. It shows the courier's active/inactive state, phone number, profile creation date, and the workflow stages where the courier appears. Activation and profile edits still use the existing courier APIs; no courier domain rules change.
 
 ## Non-Goals
 
