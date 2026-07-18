@@ -176,8 +176,8 @@ test('staff workspace keeps access billing payments and receipts clear', async (
   expect(statusUpdates).toEqual(['OVERDUE']);
 
   await page.getByRole('link', { name: /^Billing$/i }).click();
-  await expect(page.getByText('Current plan', { exact: true })).toBeVisible();
   await expect(page.getByText('Subscription Update')).toBeVisible();
+  await expect(page.getByText(/Current period:/)).toBeVisible();
   await page.getByLabel('Subscription status').selectOption('ACTIVE');
   await page.getByRole('button', { name: /save subscription/i }).click();
   expect(subscriptionUpdates[0]).toMatchObject({

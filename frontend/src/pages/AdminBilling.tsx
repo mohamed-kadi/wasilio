@@ -508,8 +508,8 @@ export default function AdminBilling() {
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white">
-        <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr]">
-          <aside className="border-b border-gray-200 xl:border-b-0 xl:border-r">
+        <div className="grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)]">
+          <aside className="min-w-0 border-b border-gray-200 xl:border-b-0 xl:border-r">
             <TenantSelector
               filteredTenants={filteredTenants}
               selectedTenantId={effectiveTenantId}
@@ -522,8 +522,8 @@ export default function AdminBilling() {
             />
           </aside>
 
-          <main className="min-h-[580px] p-5">
-            <div className="mb-5 border-b border-gray-100 pb-4">
+          <main className="min-w-0 p-4">
+            <div className="mb-4 border-b border-gray-100 pb-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Staff section</p>
               <h3 className="mt-1 text-lg font-semibold text-gray-900">{activeSection.title}</h3>
               <p className="mt-1 text-sm text-gray-500">{activeSection.detail}</p>
@@ -600,31 +600,13 @@ export default function AdminBilling() {
 
             {activeTab === 'billing' && (
               <section className="mt-6 space-y-4">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <AdminInfoTile label="Current plan" value={detail?.plan?.name ?? selectedTenant?.plan?.name ?? 'No plan'} detail="Billing package" />
-                  <AdminInfoTile
-                    label="Monthly price"
-                    value={detail?.plan ? money(detail.plan.monthlyPrice, detail.plan.currency) : selectedTenant?.plan ? money(selectedTenant.plan.monthlyPrice, selectedTenant.plan.currency) : 'Not set'}
-                    detail="Before manual payment"
-                  />
-                  <AdminInfoTile
-                    label="Subscription"
-                    value={subscriptionStatusLabel(detail?.subscription?.status ?? selectedTenant?.subscription?.status)}
-                    detail="Commercial access state"
-                    tone={effectiveSubscriptionStatus === 'OVERDUE' || effectiveSubscriptionStatus === 'SUSPENDED' ? 'warning' : 'neutral'}
-                  />
-                  <AdminInfoTile
-                    label="Billing period"
-                    value={formatPeriod(detail?.subscription?.currentPeriodStart ?? selectedTenant?.subscription?.currentPeriodStart, detail?.subscription?.currentPeriodEnd ?? selectedTenant?.subscription?.currentPeriodEnd)}
-                    detail={`Trial ends: ${formatDate(detail?.subscription?.trialEndsAt ?? selectedTenant?.subscription?.trialEndsAt)}`}
-                  />
-                </div>
-
                 <form onSubmit={handleSubscription} className="rounded-lg border border-gray-200 bg-white p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h3 className="text-sm font-semibold uppercase text-gray-500">Subscription Update</h3>
-                      <p className="mt-1 text-sm text-gray-600">Assign a plan, update the billing state, and keep the current period accurate.</p>
+                      <p className="mt-1 text-sm text-gray-600">
+                        Current period: {formatPeriod(detail?.subscription?.currentPeriodStart ?? selectedTenant?.subscription?.currentPeriodStart, detail?.subscription?.currentPeriodEnd ?? selectedTenant?.subscription?.currentPeriodEnd)}
+                      </p>
                     </div>
                     <SubscriptionStatusBadge status={effectiveSubscriptionStatus} />
                   </div>
@@ -676,7 +658,7 @@ export default function AdminBilling() {
                   <AdminInfoTile label="Receipt selected" value={receiptPaymentId ? 'Ready to preview' : 'None selected'} detail="Open a receipt from payment history" />
                 </div>
 
-                <div className="grid grid-cols-1 gap-5 xl:grid-cols-[380px_1fr]">
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]">
                   <form onSubmit={handlePayment} className="rounded-lg border border-gray-200 bg-white p-5">
                     <h3 className="flex items-center gap-2 text-sm font-semibold uppercase text-gray-500">
                       <Banknote size={16} />
@@ -719,7 +701,6 @@ export default function AdminBilling() {
                   <PaymentHistory
                     payments={payments}
                     isLoading={detailQuery.isLoading}
-                    latestPayment={latestPayment}
                     onReceipt={(paymentId) => setReceiptPaymentId(paymentId)}
                   />
                 </div>
@@ -906,7 +887,7 @@ function LeadList({
               Campaign requests and due follow-ups are shown first.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex max-w-full flex-nowrap gap-2 overflow-x-auto pb-1">
             <LeadFilterButton active={statusFilter === 'ALL'} label="All" count={leads.length} onClick={() => setStatusFilter('ALL')} />
             <LeadFilterButton active={statusFilter === 'CAMPAIGN'} label="Campaign" count={stats.campaign} onClick={() => setStatusFilter('CAMPAIGN')} />
             {marketingLeadStatuses.map((leadStatus) => (
@@ -1153,7 +1134,7 @@ function LeadCard({
                 <button
                   type="submit"
                   disabled={isConverting}
-                  className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
                 >
                   <PlusCircle size={16} />
                   {isConverting ? 'Converting' : 'Create pilot workspace'}
@@ -1246,7 +1227,7 @@ function LeadFilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold ${
+      className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border px-2.5 py-2 text-xs font-semibold ${
         active ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
       }`}
     >
@@ -1471,7 +1452,7 @@ function LeadStatusBadge({ status }: { status: MarketingLeadStatus }) {
     ONBOARDED: 'bg-purple-50 text-purple-700',
   };
 
-  return <span className={`rounded-md px-2 py-1 text-xs font-semibold ${tones[status]}`}>{leadStatusLabel(status)}</span>;
+  return <span className={`whitespace-nowrap rounded-md px-2 py-1 text-xs font-semibold ${tones[status]}`}>{leadStatusLabel(status)}</span>;
 }
 
 function TenantSelector({
@@ -1495,12 +1476,12 @@ function TenantSelector({
 }) {
   return (
     <div>
-      <div className="space-y-3 border-b border-gray-200 p-4">
-        <div>
-          <h3 className="text-sm font-semibold uppercase text-gray-500">Merchant Workspaces</h3>
-          <p className="mt-1 text-xs text-gray-500">{filteredTenants.length} shown</p>
+      <div className="space-y-2 border-b border-gray-200 p-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-xs font-semibold uppercase text-gray-500">Workspaces</h3>
+          <p className="text-xs text-gray-500">{filteredTenants.length} shown</p>
         </div>
-        <div className="flex gap-2">
+        <div className="grid gap-2">
           <label className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-2.5 text-gray-400" size={16} />
             <input
@@ -1513,7 +1494,7 @@ function TenantSelector({
           <select
             value={statusFilter}
             onChange={(event) => onStatusFilter(event.target.value as TenantStatus | 'ALL')}
-            className="w-36 rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="ALL">All</option>
             {tenantStatuses.map((status) => (
@@ -1525,19 +1506,19 @@ function TenantSelector({
         </div>
       </div>
 
-      <div className="max-h-[620px] divide-y divide-gray-100 overflow-auto">
+      <div className="max-h-[540px] divide-y divide-gray-100 overflow-auto">
         {filteredTenants.map((tenant) => (
           <button
             key={tenant.tenantId}
             type="button"
             onClick={() => onSelect(tenant.tenantId)}
-            className={`block w-full px-4 py-3 text-left hover:bg-gray-50 ${
+            className={`block w-full px-3 py-2.5 text-left hover:bg-gray-50 ${
               tenant.tenantId === selectedTenantId ? 'bg-blue-50' : ''
             }`}
           >
             <span className="flex items-start justify-between gap-3">
-              <span>
-                <span className="block text-sm font-medium text-gray-900">{tenant.name}</span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-gray-900">{tenant.name}</span>
                 <span className="mt-1 block text-xs text-gray-500">{tenant.plan?.name ?? 'No plan'} · {tenant.ordersCount} orders</span>
               </span>
               <StatusBadge status={tenant.status} />
@@ -1565,18 +1546,18 @@ function TenantSummaryCard({
   const currentStatus = detail?.status ?? selectedTenant?.status ?? 'ACTIVE';
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+    <section className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-xl font-semibold text-gray-900">{detail?.name ?? selectedTenant?.name ?? 'Merchant workspace'}</h3>
+            <h3 className="truncate text-lg font-semibold text-gray-900">{detail?.name ?? selectedTenant?.name ?? 'Merchant workspace'}</h3>
             <StatusBadge status={currentStatus} />
           </div>
           <p className="mt-1 text-sm text-gray-500">
             {detail?.usersCount ?? selectedTenant?.usersCount ?? 0} team members · {detail?.ordersCount ?? selectedTenant?.ordersCount ?? 0} orders
           </p>
         </div>
-        <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+        <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 text-sm sm:grid-cols-3 lg:max-w-2xl">
           <SummaryMetric icon={<CreditCard size={16} />} label="Plan" value={detail?.plan?.name ?? selectedTenant?.plan?.name ?? 'No plan'} />
           <SummaryMetric icon={<CalendarClock size={16} />} label="Subscription" value={subscriptionStatusLabel(detail?.subscription?.status ?? selectedTenant?.subscription?.status)} />
           <SummaryMetric icon={<Banknote size={16} />} label="Last payment" value={latestPayment ? money(latestPayment.amount, latestPayment.currency) : 'None'} />
@@ -1595,49 +1576,46 @@ function TenantSummaryCard({
 function PaymentHistory({
   payments,
   isLoading,
-  latestPayment,
   onReceipt,
 }: {
   payments: TenantPayment[];
   isLoading: boolean;
-  latestPayment?: TenantPayment;
   onReceipt: (paymentId: string) => void;
 }) {
   return (
     <section className="rounded-lg border border-gray-200 bg-white">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
+      <div className="border-b border-gray-200 p-4">
         <div>
           <h3 className="text-sm font-semibold uppercase text-gray-500">Payment History</h3>
-          <p className="mt-1 text-xs text-gray-500">Review receipts without leaving the selected workspace.</p>
+          <p className="mt-1 text-xs text-gray-500">Receipts, collection details, and covered billing periods.</p>
         </div>
-        {latestPayment && <p className="text-xs font-medium text-gray-600">Latest receipt: {latestPayment.receiptNumber}</p>}
       </div>
       <div className="max-h-[540px] divide-y divide-gray-100 overflow-auto">
         {payments.map((payment) => (
-          <article key={payment.paymentId} className="grid gap-3 p-4 md:grid-cols-[1fr_auto]">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h4 className="font-semibold text-gray-900">{payment.receiptNumber}</h4>
-                <PaymentMethodBadge method={payment.method} />
+          <article key={payment.paymentId} className="p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h4 className="break-all text-base font-semibold text-gray-900">{payment.receiptNumber}</h4>
+                  <PaymentMethodBadge method={payment.method} />
+                </div>
+                <p className="mt-1 text-sm font-semibold text-gray-900">{money(payment.amount, payment.currency)}</p>
+                <p className="mt-1 text-xs text-gray-500">Paid {formatDateTime(payment.paidAt)}</p>
               </div>
-              <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
-                <PaymentFact label="Amount" value={money(payment.amount, payment.currency)} />
-                <PaymentFact label="Paid at" value={formatDateTime(payment.paidAt)} />
-                <PaymentFact label="Collected by" value={payment.collectedBy} />
-                <PaymentFact label="Billing period" value={formatPeriod(payment.periodStart, payment.periodEnd)} />
-                {payment.notes && <PaymentFact label="Notes" value={payment.notes} />}
-              </dl>
-            </div>
-            <div className="flex items-start md:justify-end">
               <button
                 type="button"
                 onClick={() => onReceipt(payment.paymentId)}
-                className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                className="inline-flex shrink-0 items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
               >
                 <FileText size={14} />
                 View receipt
               </button>
             </div>
+            <dl className="mt-3 grid gap-3 rounded-md bg-gray-50 p-3 text-sm md:grid-cols-2">
+              <PaymentFact label="Collected by" value={payment.collectedBy} />
+              <PaymentFact label="Billing period" value={formatPeriod(payment.periodStart, payment.periodEnd)} />
+              {payment.notes && <PaymentFact label="Notes" value={payment.notes} wide />}
+            </dl>
           </article>
         ))}
         {isLoading && <p className="p-4 text-sm text-gray-500">Loading payments...</p>}
@@ -1649,9 +1627,9 @@ function PaymentHistory({
   );
 }
 
-function PaymentFact({ label, value }: { label: string; value: string }) {
+function PaymentFact({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
   return (
-    <div>
+    <div className={wide ? 'md:col-span-2' : undefined}>
       <dt className="text-xs font-medium uppercase text-gray-500">{label}</dt>
       <dd className="mt-1 break-words font-medium text-gray-900">{value}</dd>
     </div>
@@ -1760,12 +1738,12 @@ function KpiCard({
 
 function SummaryMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="min-w-36 rounded-md border border-gray-200 bg-gray-50 p-3">
+    <div className="min-w-0 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
       <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase text-gray-500">
         {icon}
         {label}
       </div>
-      <p className="font-medium text-gray-900">{value}</p>
+      <p className="truncate font-medium text-gray-900">{value}</p>
     </div>
   );
 }
