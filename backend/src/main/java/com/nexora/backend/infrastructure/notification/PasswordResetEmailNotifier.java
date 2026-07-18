@@ -19,8 +19,38 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
 
     @Override
     public void sendPasswordResetLink(String email, String resetUrl, Instant expiresAt) {
+        sendLink(
+                email,
+                resetUrl,
+                expiresAt,
+                "Password reset requested",
+                "Reset your Wasilio password",
+                buildPasswordResetBody(resetUrl, expiresAt)
+        );
+    }
+
+    @Override
+    public void sendAccountSetupLink(String email, String setupUrl, Instant expiresAt) {
+        sendLink(
+                email,
+                setupUrl,
+                expiresAt,
+                "Account setup requested",
+                "Set up your Wasilio account",
+                buildAccountSetupBody(setupUrl, expiresAt)
+        );
+    }
+
+    private void sendLink(
+            String email,
+            String url,
+            Instant expiresAt,
+            String logLabel,
+            String subject,
+            String body
+    ) {
         if (properties.getMode() == EmailDeliveryProperties.Mode.LOG) {
-            log.info("Password reset requested for {}. Reset link expires at {}: {}", email, expiresAt, resetUrl);
+            log.info("{} for {}. Link expires at {}: {}", logLabel, email, expiresAt, url);
             return;
         }
 
@@ -32,14 +62,14 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(properties.getFrom());
         message.setTo(email);
-        message.setSubject("Reset your Wasilio password");
-        message.setText(buildBody(resetUrl, expiresAt));
+        message.setSubject(subject);
+        message.setText(body);
         mailSender.send(message);
 
-        log.info("Password reset email sent to {}. Link expires at {}", email, expiresAt);
+        log.info("{} email sent to {}. Link expires at {}", subject, email, expiresAt);
     }
 
-    private String buildBody(String resetUrl, Instant expiresAt) {
+    private String buildPasswordResetBody(String resetUrl, Instant expiresAt) {
         return """
                 Hello,
 
@@ -54,5 +84,22 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
 
                 Wasilio
                 """.formatted(resetUrl, expiresAt, properties.getSupportContact());
+    }
+
+    private String buildAccountSetupBody(String setupUrl, Instant expiresAt) {
+        return """
+                Hello,
+
+                Your Wasilio merchant workspace is ready.
+
+                Open this link to choose your password and finish account setup:
+                %s
+
+                This link expires at %s.
+
+                If you were not expecting this invitation, contact %s.
+
+                Wasilio
+                """.formatted(setupUrl, expiresAt, properties.getSupportContact());
     }
 }

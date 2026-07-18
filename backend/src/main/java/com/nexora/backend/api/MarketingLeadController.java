@@ -103,7 +103,7 @@ public class MarketingLeadController {
             @NotBlank @Size(min = 2, max = 120) String tenantName,
             @NotBlank @Size(min = 2, max = 120) String adminName,
             @NotBlank @Email @Size(max = 255) String adminEmail,
-            @NotBlank @Size(min = 12, max = 128) String password,
+            @Size(max = 128) String password,
             @Size(max = 2000) String internalNotes
     ) {}
 
@@ -152,7 +152,8 @@ public class MarketingLeadController {
     @PreAuthorize("hasRole('SUPER_ADMIN')")
     public ResponseEntity<TenantConversionResponse> convertToTenant(
             @PathVariable UUID leadId,
-            @Valid @RequestBody ConvertLeadToTenantRequest request
+            @Valid @RequestBody ConvertLeadToTenantRequest request,
+            HttpServletRequest servletRequest
     ) {
         MarketingLeadService.LeadTenantConversionResult result = marketingLeadService.convertToTenant(
                 leadId,
@@ -161,7 +162,8 @@ public class MarketingLeadController {
                         request.adminName(),
                         request.adminEmail(),
                         request.password(),
-                        request.internalNotes()
+                        request.internalNotes(),
+                        ClientIpResolver.resolve(servletRequest)
                 )
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(TenantConversionResponse.from(result));

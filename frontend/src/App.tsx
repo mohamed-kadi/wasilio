@@ -167,6 +167,7 @@ function Header() {
   const navigate = useNavigate();
   const session = useAuthStore((state) => state.session);
   const clearSession = useAuthStore((state) => state.clearSession);
+  const displayName = session?.user.name || session?.user.email;
 
   function handleLogout() {
     clearSession();
@@ -179,8 +180,11 @@ function Header() {
       <div className="flex-1" />
       <div className="flex items-center gap-4">
         <div className="text-right">
-          <p className="text-sm font-medium text-gray-700">{session?.user.email}</p>
-          <p className="text-xs uppercase tracking-wide text-gray-500">{session?.user.role}</p>
+          <p className="text-sm font-medium text-gray-700">{displayName}</p>
+          <p className="text-xs text-gray-500">
+            <span className="uppercase tracking-wide">{session?.user.role}</span>
+            {session?.user.name && <span> · {session.user.email}</span>}
+          </p>
         </div>
         <button
           type="button"
@@ -203,6 +207,7 @@ function AccountPaused() {
   const blockedTenantStatus = useAuthStore((state) => state.blockedTenantStatus);
   const clearTenantBlocked = useAuthStore((state) => state.clearTenantBlocked);
   const clearSession = useAuthStore((state) => state.clearSession);
+  const displayName = session?.user.name || session?.user.email;
 
   function handleCheckAgain() {
     clearTenantBlocked();
@@ -233,7 +238,8 @@ function AccountPaused() {
         </div>
 
         <div className="mt-5 rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
-          <p className="font-medium text-gray-900">{session?.user.email}</p>
+          <p className="font-medium text-gray-900">{displayName}</p>
+          {session?.user.name && <p className="mt-1 text-xs text-gray-500">{session.user.email}</p>}
           <p className="mt-1">Contact Wasilio support or settle the outstanding payment, then check again.</p>
         </div>
 

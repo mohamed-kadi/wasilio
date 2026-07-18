@@ -1,6 +1,7 @@
 package com.nexora.backend.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nexora.backend.application.PasswordResetNotifier;
 import com.nexora.backend.domain.model.Role;
 import com.nexora.backend.domain.model.Tenant;
 import com.nexora.backend.domain.model.User;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
@@ -19,6 +21,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.startsWith;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -46,6 +53,9 @@ class MarketingLeadIntegrationTest {
 
     @Autowired
     private TransactionTemplate transactionTemplate;
+
+    @MockBean
+    private PasswordResetNotifier passwordResetNotifier;
 
     private UUID internalTenantId;
 
@@ -124,7 +134,6 @@ class MarketingLeadIntegrationTest {
                           "tenantName": "Casa Beauty Pilot",
                           "adminName": "Sara Admin",
                           "adminEmail": "sara.admin@example.com",
-                          "password": "PilotPass123!",
                           "internalNotes": "Converted after qualification call. Free guided onboarding offered."
                         }
                         """))
@@ -139,6 +148,13 @@ class MarketingLeadIntegrationTest {
                 .header("Authorization", "Bearer " + login("superadmin@example.com")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[?(@.name == 'Casa Beauty Pilot')].status").value("TRIALING"));
+
+        verify(passwordResetNotifier).sendAccountSetupLink(
+                eq("sara.admin@example.com"),
+                startsWith("http://localhost/reset-password?token="),
+                any()
+        );
+        verify(passwordResetNotifier, never()).sendPasswordResetLink(any(), any(), any());
     }
 
     private String login(String email) throws Exception {
@@ -152,6 +168,7 @@ class MarketingLeadIntegrationTest {
     }
 
     private void cleanDatabase() {
+        entityManager.createNativeQuery("DELETE FROM password_reset_tokens").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM marketing_leads").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM tenant_payments").executeUpdate();
         entityManager.createNativeQuery("DELETE FROM tenant_subscriptions").executeUpdate();

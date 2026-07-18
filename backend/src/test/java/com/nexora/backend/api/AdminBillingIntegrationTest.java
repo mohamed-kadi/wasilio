@@ -21,9 +21,13 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -64,6 +68,7 @@ class AdminBillingIntegrationTest {
             entityManager.persist(new User(
                     UUID.randomUUID(),
                     "superadmin@example.com",
+                    "Wasilio Super Admin",
                     passwordEncoder.encode(PASSWORD),
                     Role.SUPER_ADMIN,
                     internalTenantId
@@ -163,7 +168,7 @@ class AdminBillingIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.method").value("CASH"))
                 .andExpect(jsonPath("$.currency").value("MAD"))
-                .andExpect(jsonPath("$.collectedBy").value("superadmin@example.com"))
+                .andExpect(jsonPath("$.collectedBy").value("Wasilio Super Admin"))
                 .andExpect(jsonPath("$.receiptNumber").isString())
                 .andReturn();
 
@@ -180,6 +185,29 @@ class AdminBillingIntegrationTest {
                 .andExpect(jsonPath("$.plan.name").value("Pilot"))
                 .andExpect(jsonPath("$.periodStart").value("2026-06-01T00:00:00Z"))
                 .andExpect(jsonPath("$.periodEnd").value("2026-07-01T00:00:00Z"));
+
+        mockMvc.perform(get("/api/admin/payments/summary")
+                .param("paidFrom", "2026-06-01T00:00:00Z")
+                .param("paidTo", "2026-07-01T00:00:00Z")
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paymentCount").value(1))
+                .andExpect(jsonPath("$.totals[0].currency").value("MAD"))
+                .andExpect(jsonPath("$.totals[0].amount").value(300.0))
+                .andExpect(jsonPath("$.monthlyTotals[0].month").value("2026-06"));
+
+        mockMvc.perform(get("/api/admin/payments/export")
+                .param("paidFrom", "2026-06-01T00:00:00Z")
+                .param("paidTo", "2026-07-01T00:00:00Z")
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", containsString("wasilio-payment-records.csv")))
+                .andExpect(content().contentTypeCompatibleWith("text/csv"))
+                .andExpect(content().string(containsString("Receipt Number,Merchant Workspace,Payment Method")))
+                .andExpect(content().string(containsString(payment.get("receiptNumber").asText())))
+                .andExpect(content().string(containsString("Atlas Shop")))
+                .andExpect(content().string(containsString("Wasilio Super Admin")))
+                .andExpect(content().string(not(containsString("superadmin@example.com"))));
     }
 
     private String createPlan(String token) throws Exception {

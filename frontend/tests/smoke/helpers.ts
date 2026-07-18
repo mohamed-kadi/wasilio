@@ -2,14 +2,16 @@ import type { Page } from '@playwright/test';
 
 interface TokenOptions {
   email: string;
+  name?: string;
   role: 'MERCHANT' | 'SUPER_ADMIN';
   tenantId: string;
 }
 
-export function fakeJwt({ email, role, tenantId }: TokenOptions) {
+export function fakeJwt({ email, name, role, tenantId }: TokenOptions) {
   const header = base64Url({ alg: 'HS256', typ: 'JWT' });
   const payload = base64Url({
     sub: email,
+    name,
     role,
     tenantId,
     exp: Math.floor(Date.now() / 1000) + 3600,
@@ -28,6 +30,7 @@ export async function installMockApi(page: Page) {
       body: JSON.stringify({
         token: fakeJwt({
           email,
+          name: role === 'SUPER_ADMIN' ? 'Wasilio Super Admin' : 'Merchant Owner',
           role,
           tenantId: role === 'SUPER_ADMIN'
             ? '00000000-0000-0000-0000-000000000099'

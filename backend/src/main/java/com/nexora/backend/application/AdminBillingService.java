@@ -20,12 +20,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.YearMonth;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -183,6 +188,82 @@ public class AdminBillingService {
         return new ReceiptDetail(tenant, payment, subscription, plan);
     }
 
+    @Transactional(readOnly = true)
+    public String exportPaymentRecordsCsv(Instant paidFrom, Instant paidTo) {
+        List<TenantPayment> payments = findPaymentRecords(paidFrom, paidTo);
+        Map<UUID, String> tenantNamesById = tenantRepository.findAllById(payments.stream()
+                        .map(TenantPayment::getTenantId)
+                        .distinct()
+                        .toList())
+                .stream()
+                .collect(Collectors.toMap(Tenant::getId, Tenant::getName));
+
+        StringBuilder csv = new StringBuilder();
+        appendCsvRow(csv, List.of(
+                "Receipt Number",
+                "Merchant Workspace",
+                "Payment Method",
+                "Amount",
+                "Currency",
+                "Paid At",
+                "Billing Period Start",
+                "Billing Period End",
+                "Collected By",
+                "Notes",
+                "Payment ID",
+                "Tenant ID",
+                "Created At"
+        ));
+
+        payments.forEach(payment -> appendCsvRow(csv, List.of(
+                payment.getReceiptNumber(),
+                tenantNamesById.getOrDefault(payment.getTenantId(), "Unknown workspace"),
+                payment.getMethod().name(),
+                payment.getAmount().toPlainString(),
+                payment.getCurrency(),
+                formatInstant(payment.getPaidAt()),
+                formatInstant(payment.getPeriodStart()),
+                formatInstant(payment.getPeriodEnd()),
+                payment.getCollectedBy(),
+                payment.getNotes() == null ? "" : payment.getNotes(),
+                payment.getPaymentId().toString(),
+                payment.getTenantId().toString(),
+                formatInstant(payment.getCreatedAt())
+        )));
+
+        return csv.toString();
+    }
+
+    @Transactional(readOnly = true)
+    public PaymentRecordsSummary summarizePaymentRecords(Instant paidFrom, Instant paidTo) {
+        List<TenantPayment> payments = findPaymentRecords(paidFrom, paidTo);
+        Map<String, PaymentTotalAccumulator> totalsByCurrency = new LinkedHashMap<>();
+        Map<String, PaymentTotalAccumulator> totalsByMonthCurrency = new LinkedHashMap<>();
+
+        for (TenantPayment payment : payments) {
+            totalsByCurrency.computeIfAbsent(payment.getCurrency(), PaymentTotalAccumulator::new).add(payment);
+
+            String month = YearMonth.from(payment.getPaidAt().atZone(ZoneOffset.UTC)).toString();
+            String monthCurrencyKey = month + "|" + payment.getCurrency();
+            totalsByMonthCurrency.computeIfAbsent(
+                    monthCurrencyKey,
+                    ignored -> new PaymentTotalAccumulator(payment.getCurrency(), month)
+            ).add(payment);
+        }
+
+        List<PaymentTotal> totals = totalsByCurrency.values().stream()
+                .map(PaymentTotalAccumulator::toTotal)
+                .sorted(Comparator.comparing(PaymentTotal::currency))
+                .toList();
+        List<MonthlyPaymentTotal> monthlyTotals = totalsByMonthCurrency.values().stream()
+                .map(PaymentTotalAccumulator::toMonthlyTotal)
+                .sorted(Comparator.comparing(MonthlyPaymentTotal::month).reversed()
+                        .thenComparing(MonthlyPaymentTotal::currency))
+                .toList();
+
+        return new PaymentRecordsSummary(payments.size(), paidFrom, paidTo, totals, monthlyTotals);
+    }
+
     private TenantSummary toSummary(Tenant tenant) {
         Optional<TenantSubscription> subscription = subscriptionRepository.findByTenantId(tenant.getId());
         Optional<SubscriptionPlan> plan = subscription.flatMap(value -> planRepository.findById(value.getPlanId()));
@@ -228,6 +309,37 @@ public class AdminBillingService {
         if (currency == null || !currency.trim().matches("[A-Za-z]{3}")) {
             throw new IllegalArgumentException("currency must be a 3-letter code");
         }
+    }
+
+    private List<TenantPayment> findPaymentRecords(Instant paidFrom, Instant paidTo) {
+        if (paidFrom != null && paidTo != null && !paidFrom.isBefore(paidTo)) {
+            throw new IllegalArgumentException("paidFrom must be before paidTo");
+        }
+        return paymentRepository.findAllByOrderByPaidAtDesc().stream()
+                .filter(payment -> paidFrom == null || !payment.getPaidAt().isBefore(paidFrom))
+                .filter(payment -> paidTo == null || payment.getPaidAt().isBefore(paidTo))
+                .toList();
+    }
+
+    private void appendCsvRow(StringBuilder csv, List<String> fields) {
+        csv.append(fields.stream()
+                        .map(this::escapeCsv)
+                        .collect(Collectors.joining(",")))
+                .append("\n");
+    }
+
+    private String escapeCsv(String value) {
+        if (value == null) {
+            return "";
+        }
+        if (value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r")) {
+            return "\"" + value.replace("\"", "\"\"") + "\"";
+        }
+        return value;
+    }
+
+    private String formatInstant(Instant value) {
+        return value == null ? "" : value.toString();
     }
 
     public record TenantSummary(
@@ -280,4 +392,54 @@ public class AdminBillingService {
             Instant periodEnd,
             String notes
     ) {}
+
+    public record PaymentRecordsSummary(
+            int paymentCount,
+            Instant paidFrom,
+            Instant paidTo,
+            List<PaymentTotal> totals,
+            List<MonthlyPaymentTotal> monthlyTotals
+    ) {}
+
+    public record PaymentTotal(
+            String currency,
+            BigDecimal amount,
+            long paymentCount
+    ) {}
+
+    public record MonthlyPaymentTotal(
+            String month,
+            String currency,
+            BigDecimal amount,
+            long paymentCount
+    ) {}
+
+    private static final class PaymentTotalAccumulator {
+        private final String currency;
+        private final String month;
+        private BigDecimal amount = BigDecimal.ZERO;
+        private long paymentCount;
+
+        private PaymentTotalAccumulator(String currency) {
+            this(currency, null);
+        }
+
+        private PaymentTotalAccumulator(String currency, String month) {
+            this.currency = currency;
+            this.month = month;
+        }
+
+        private void add(TenantPayment payment) {
+            amount = amount.add(payment.getAmount());
+            paymentCount++;
+        }
+
+        private PaymentTotal toTotal() {
+            return new PaymentTotal(currency, amount, paymentCount);
+        }
+
+        private MonthlyPaymentTotal toMonthlyTotal() {
+            return new MonthlyPaymentTotal(month, currency, amount, paymentCount);
+        }
+    }
 }

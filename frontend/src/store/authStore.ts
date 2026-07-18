@@ -7,6 +7,7 @@ export type BlockedTenantStatus = 'OVERDUE' | 'SUSPENDED' | 'DISABLED';
 
 export interface AuthUser {
   email: string;
+  name?: string;
   role: string;
   tenantId: string;
   expiresAt: number;
@@ -19,6 +20,7 @@ export interface AuthSession {
 
 interface JwtPayload {
   sub?: string;
+  name?: string;
   role?: string;
   tenantId?: string;
   exp?: number;
@@ -102,6 +104,7 @@ function sessionFromToken(token: string): AuthSession {
     token,
     user: {
       email: payload.sub,
+      name: payload.name,
       role: payload.role.replace(/^ROLE_/, ''),
       tenantId: payload.tenantId,
       expiresAt: payload.exp * 1000,

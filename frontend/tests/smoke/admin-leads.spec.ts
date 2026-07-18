@@ -140,7 +140,6 @@ test('super admin can update demo request follow-up status', async ({ page }) =>
   await leadCard.getByRole('button', { name: 'Convert' }).click();
   await leadCard.getByLabel('Store / business name').fill('Casa Beauty Pilot');
   await leadCard.getByLabel('Merchant owner email').fill('sara.admin@example.com');
-  await leadCard.getByLabel('Initial password').fill('PilotPass123!');
   await leadCard.getByLabel('Conversion notes').fill('Free guided onboarding offered.');
   await leadCard.getByRole('button', { name: /create pilot workspace/i }).click();
 
@@ -152,4 +151,5 @@ test('super admin can update demo request follow-up status', async ({ page }) =>
     adminEmail: 'sara.admin@example.com',
     internalNotes: 'Free guided onboarding offered.',
   });
+  expect(conversions[0]).not.toHaveProperty('password');
 });

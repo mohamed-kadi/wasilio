@@ -75,6 +75,7 @@ public class AuthController {
 
         Map<String, Object> extraClaims = new HashMap<>();
         extraClaims.put("role", userDetails.getAuthorities().iterator().next().getAuthority());
+        extraClaims.put("name", userDetails.getDisplayName());
 
         String jwt = jwtService.generateToken(extraClaims, userDetails.getUsername(), userDetails.getTenantId());
         abuseProtectionService.recordLoginSuccess(email);

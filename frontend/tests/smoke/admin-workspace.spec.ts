@@ -29,7 +29,7 @@ test('staff workspace keeps access billing payments and receipts clear', async (
     paidAt: '2026-07-17T10:00:00Z',
     periodStart: '2026-07-01T00:00:00Z',
     periodEnd: '2026-07-31T23:59:59Z',
-    collectedBy: 'superadmin@example.com',
+    collectedBy: 'Wasilio Super Admin',
     notes: 'July bank transfer.',
     createdAt: '2026-07-17T10:05:00Z',
   };
@@ -76,6 +76,32 @@ test('staff workspace keeps access billing payments and receipts clear', async (
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify([plan]),
+    });
+  });
+
+  await page.route('**/api/admin/payments/export**', async (route) => {
+    expect(route.request().url()).toContain('paidFrom=');
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/csv',
+      headers: {
+        'Content-Disposition': 'attachment; filename="wasilio-payment-records.csv"',
+      },
+      body: 'Receipt Number,Merchant Workspace,Payment Method,Amount,Currency,Collected By\nREC-2026-0001,Casa Beauty,BANK_TRANSFER,299,MAD,Wasilio Super Admin\n',
+    });
+  });
+
+  await page.route('**/api/admin/payments/summary**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        paymentCount: 1,
+        paidFrom: '2026-07-01T00:00:00Z',
+        paidTo: '2026-08-01T00:00:00Z',
+        totals: [{ currency: 'MAD', amount: 299, paymentCount: 1 }],
+        monthlyTotals: [{ month: '2026-07', currency: 'MAD', amount: 299, paymentCount: 1 }],
+      }),
     });
   });
 
@@ -166,6 +192,7 @@ test('staff workspace keeps access billing payments and receipts clear', async (
 
   await loginAs(page, 'superadmin@example.com');
 
+  await expect(page.getByText('Wasilio Super Admin')).toBeVisible();
   await expect(page.getByText('Workspace access', { exact: true })).toBeVisible();
   await expect(page.getByText('Team members', { exact: true })).toBeVisible();
   const accessForm = page.locator('form').filter({ hasText: 'Workspace Access' });
@@ -186,6 +213,10 @@ test('staff workspace keeps access billing payments and receipts clear', async (
   });
 
   await page.getByRole('link', { name: /^Payments$/i }).click();
+  await expect(page.getByRole('button', { name: /download records/i })).toBeVisible();
+  await expect(page.getByText('Matched receipts')).toBeVisible();
+  await page.getByLabel('Paid from').fill('2026-07-01');
+  await page.getByLabel('Paid to').fill('2026-07-31');
   await expect(page.getByText('Recorded payments', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Payment History' })).toBeVisible();
   const firstPaymentCard = page.getByRole('article').filter({ hasText: 'REC-2026-0001' });
@@ -207,4 +238,10 @@ test('staff workspace keeps access billing payments and receipts clear', async (
     notes: 'Upgrade payment.',
   });
   await expect(page.getByRole('heading', { name: 'REC-2026-0002' })).toBeVisible();
+
+  const exportResponse = page.waitForResponse((response) =>
+    response.url().includes('/api/admin/payments/export') && response.status() === 200,
+  );
+  await page.getByRole('button', { name: /download records/i }).click();
+  await exportResponse;
 });

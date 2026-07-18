@@ -20,7 +20,7 @@ The staff workspace uses sidebar navigation for its main sections:
 
 - `Merchant Workspaces`: workspace health, operational status, plan snapshot, user count, and order count.
 - `Billing`: selected workspace subscription plan, subscription status, billing period, and trial end.
-- `Payments`: manual payment recording, payment history, and receipts.
+- `Payments`: manual payment recording, payment history, receipts, and financial record export.
 - `Plans`: subscription plan review and creation. `Team seats` means how many people can log in under the same merchant workspace; the backend field is still `userLimit`.
 - `Demo Requests`: public demo requests, staff follow-up, campaign attribution, qualification, and pilot workspace conversion.
 
@@ -67,19 +67,45 @@ Future option:
 - Add invite codes for approved self-serve signup if Wasilio needs a middle path between closed pilot conversion and fully open signup.
 - Invite codes should be server-validated, single-use or limited-use, expirable, and tied to audit history.
 
-## Planned Account Setup Email
+## Account Setup Email
 
-The current demo request conversion flow creates the merchant owner with a staff-entered initial password. That is acceptable for local rehearsal but should be replaced before real merchant onboarding.
+The demo request conversion flow does not ask staff to create or share an initial password.
 
-Preferred production flow:
+Current guided pilot flow:
 
 1. Staff qualifies the demo request.
 2. Staff creates the pilot merchant workspace.
-3. Backend creates the merchant owner account.
-4. Backend sends an expiring setup-password email to the merchant owner.
+3. Backend creates the merchant owner account with a hidden temporary password.
+4. Backend sends an expiring setup-password email to the merchant owner using the existing password reset token flow.
 5. Merchant sets their own password through the existing reset/setup link flow.
 
-Do not email generated passwords. The backend should own token generation, expiry, notification delivery, and audit safety. The existing password reset token and email notifier infrastructure should be reused or extended for this phase.
+Do not email generated passwords. The backend owns token generation, expiry, notification delivery, and audit safety.
+
+## Financial Records
+
+Payments includes a staff-only CSV download for manual payment records. Staff can filter by paid date before downloading and see a summary of matched receipts, selected-period totals, and latest monthly totals.
+
+The export contains receipt number, merchant workspace, method, amount, currency, paid date, covered billing period, collector display name, notes, payment ID, tenant ID, and creation timestamp.
+
+Receipt privacy rule:
+
+- Receipts and exports should show a staff display name such as `Wasilio Super Admin`, not the staff login email.
+- Existing records may still contain older collector values until they are cleaned or reissued.
+
+Scope:
+
+- This is an operating-record export for bookkeeping and tax review.
+- It is not a formal invoice engine, tax calculation engine, or accounting approval workflow.
+- Future improvements can add invoice numbering rules, accountant-ready export formats, and formal tax categories after the manual-payment model is stable.
+
+## Staff Identity Display
+
+The auth token includes a display name claim. The frontend should show the staff display name first and keep the email as secondary context.
+
+Fallback rule:
+
+- `SUPER_ADMIN` without a stored name displays as `Wasilio Staff`.
+- Merchant users without a stored name display their email, not a staff label.
 
 ## Boundaries
 
@@ -89,6 +115,7 @@ The staff workspace may:
 - Update workspace access status.
 - Assign or update subscription state.
 - Record manual payments and generate receipts.
+- Download manual payment records for financial review.
 - Follow up with captured demo requests.
 - Convert a qualified request into a pilot merchant workspace.
 

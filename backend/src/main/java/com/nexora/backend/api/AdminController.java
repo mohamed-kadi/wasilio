@@ -15,6 +15,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -25,9 +27,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -190,6 +194,50 @@ public class AdminController {
         }
     }
 
+    public record PaymentRecordsSummaryResponse(
+            int paymentCount,
+            Instant paidFrom,
+            Instant paidTo,
+            List<PaymentTotalResponse> totals,
+            List<MonthlyPaymentTotalResponse> monthlyTotals
+    ) {
+        static PaymentRecordsSummaryResponse from(AdminBillingService.PaymentRecordsSummary summary) {
+            return new PaymentRecordsSummaryResponse(
+                    summary.paymentCount(),
+                    summary.paidFrom(),
+                    summary.paidTo(),
+                    summary.totals().stream().map(PaymentTotalResponse::from).toList(),
+                    summary.monthlyTotals().stream().map(MonthlyPaymentTotalResponse::from).toList()
+            );
+        }
+    }
+
+    public record PaymentTotalResponse(
+            String currency,
+            BigDecimal amount,
+            long paymentCount
+    ) {
+        static PaymentTotalResponse from(AdminBillingService.PaymentTotal total) {
+            return new PaymentTotalResponse(total.currency(), total.amount(), total.paymentCount());
+        }
+    }
+
+    public record MonthlyPaymentTotalResponse(
+            String month,
+            String currency,
+            BigDecimal amount,
+            long paymentCount
+    ) {
+        static MonthlyPaymentTotalResponse from(AdminBillingService.MonthlyPaymentTotal total) {
+            return new MonthlyPaymentTotalResponse(
+                    total.month(),
+                    total.currency(),
+                    total.amount(),
+                    total.paymentCount()
+            );
+        }
+    }
+
     public record ReceiptResponse(
             UUID paymentId,
             UUID tenantId,
@@ -293,6 +341,27 @@ public class AdminController {
                 .toList());
     }
 
+    @GetMapping("/payments/summary")
+    public ResponseEntity<PaymentRecordsSummaryResponse> summarizePayments(
+            @RequestParam(required = false) Instant paidFrom,
+            @RequestParam(required = false) Instant paidTo
+    ) {
+        return ResponseEntity.ok(PaymentRecordsSummaryResponse.from(
+                adminBillingService.summarizePaymentRecords(paidFrom, paidTo)
+        ));
+    }
+
+    @GetMapping(value = "/payments/export", produces = "text/csv")
+    public ResponseEntity<String> exportPayments(
+            @RequestParam(required = false) Instant paidFrom,
+            @RequestParam(required = false) Instant paidTo
+    ) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"wasilio-payment-records.csv\"")
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(adminBillingService.exportPaymentRecordsCsv(paidFrom, paidTo));
+    }
+
     @PostMapping("/plans")
     public ResponseEntity<SubscriptionPlanResponse> createPlan(@Valid @RequestBody CreatePlanRequest request) {
         return ResponseEntity.ok(SubscriptionPlanResponse.from(adminBillingService.createPlan(
@@ -340,7 +409,7 @@ public class AdminController {
                         request.periodEnd(),
                         request.notes()
                 ),
-                getCurrentUserEmail()
+                getCurrentUserDisplayName()
         )));
     }
 
@@ -352,11 +421,11 @@ public class AdminController {
         return ResponseEntity.ok(ReceiptResponse.from(adminBillingService.getReceiptDetail(tenantId, paymentId)));
     }
 
-    private String getCurrentUserEmail() {
+    private String getCurrentUserDisplayName() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof CustomUserDetails userDetails)) {
             throw new IllegalStateException("Authenticated user missing in security context");
         }
-        return userDetails.getUsername();
+        return userDetails.getDisplayName();
     }
 }

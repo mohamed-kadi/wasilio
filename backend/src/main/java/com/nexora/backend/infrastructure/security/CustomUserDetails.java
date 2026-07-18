@@ -1,6 +1,7 @@
 package com.nexora.backend.infrastructure.security;
 
 import com.nexora.backend.domain.model.User;
+import com.nexora.backend.domain.model.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -35,6 +36,14 @@ public class CustomUserDetails implements UserDetails {
 
     public String getRole() {
         return user.getRole().name();
+    }
+
+    public String getDisplayName() {
+        String name = user.getName();
+        if (name == null || name.isBlank()) {
+            return user.getRole() == Role.SUPER_ADMIN ? "Wasilio Staff" : user.getEmail();
+        }
+        return name.trim();
     }
 
     @Override

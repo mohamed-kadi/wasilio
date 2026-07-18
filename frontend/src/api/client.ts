@@ -901,6 +901,29 @@ export interface AdminTenantDetail extends AdminTenantSummary {
   payments: TenantPayment[];
 }
 
+export interface AdminPaymentRecordsQuery {
+  paidFrom?: string;
+  paidTo?: string;
+}
+
+export interface AdminPaymentTotal {
+  currency: string;
+  amount: number;
+  paymentCount: number;
+}
+
+export interface AdminMonthlyPaymentTotal extends AdminPaymentTotal {
+  month: string;
+}
+
+export interface AdminPaymentRecordsSummary {
+  paymentCount: number;
+  paidFrom?: string;
+  paidTo?: string;
+  totals: AdminPaymentTotal[];
+  monthlyTotals: AdminMonthlyPaymentTotal[];
+}
+
 export interface CreateSubscriptionPlanPayload {
   code: string;
   name: string;
@@ -967,7 +990,6 @@ export interface MarketingLeadConversionPayload {
   tenantName: string;
   adminName: string;
   adminEmail: string;
-  password: string;
   internalNotes?: string;
 }
 
@@ -1092,6 +1114,18 @@ export async function recordTenantPayment(
 
 export async function fetchTenantPaymentReceipt(tenantId: string, paymentId: string): Promise<TenantPaymentReceipt> {
   return apiRequest<TenantPaymentReceipt>(`/admin/tenants/${tenantId}/payments/${paymentId}/receipt`);
+}
+
+export async function fetchAdminPaymentRecordsSummary(
+  query: AdminPaymentRecordsQuery = {},
+): Promise<AdminPaymentRecordsSummary> {
+  const params = adminPaymentRecordsParams(query);
+  return apiRequest<AdminPaymentRecordsSummary>(`/admin/payments/summary${params}`);
+}
+
+export async function downloadAdminPaymentRecordsCsv(query: AdminPaymentRecordsQuery = {}): Promise<Blob> {
+  const params = adminPaymentRecordsParams(query);
+  return apiBlobRequest(`/admin/payments/export${params}`);
 }
 
 export async function fetchOrders(query: OrdersQuery = {}): Promise<OrdersPageResponse> {
@@ -1635,6 +1669,49 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
 
   const text = await response.text();
   return text ? (JSON.parse(text) as T) : (undefined as T);
+}
+
+async function apiBlobRequest(path: string, options: RequestOptions = {}): Promise<Blob> {
+  const { auth = true, headers: optionHeaders, ...requestOptions } = options;
+  const headers = new Headers(optionHeaders);
+
+  if (auth) {
+    const token = useAuthStore.getState().session?.token;
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...requestOptions,
+    headers,
+  });
+
+  if (response.status === 401) {
+    useAuthStore.getState().clearSession();
+  }
+
+  if (!response.ok) {
+    const error = await toApiError(response);
+    if (isBlockedTenantError(error)) {
+      useAuthStore.getState().setTenantBlocked(error.tenantStatus as BlockedTenantStatus);
+    }
+    throw error;
+  }
+
+  return response.blob();
+}
+
+function adminPaymentRecordsParams(query: AdminPaymentRecordsQuery) {
+  const params = new URLSearchParams();
+  if (query.paidFrom) {
+    params.set('paidFrom', query.paidFrom);
+  }
+  if (query.paidTo) {
+    params.set('paidTo', query.paidTo);
+  }
+  const text = params.toString();
+  return text ? `?${text}` : '';
 }
 
 function isBlockedTenantError(error: ApiError): boolean {

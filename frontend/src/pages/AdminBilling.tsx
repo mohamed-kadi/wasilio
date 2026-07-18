@@ -9,6 +9,7 @@ import {
   ChevronDown,
   ChevronUp,
   CreditCard,
+  Download,
   FileText,
   Mail,
   MessageCircle,
@@ -24,6 +25,8 @@ import {
 import {
   createSubscriptionPlan,
   convertMarketingLeadToTenant,
+  downloadAdminPaymentRecordsCsv,
+  fetchAdminPaymentRecordsSummary,
   fetchAdminTenant,
   fetchAdminTenants,
   fetchMarketingLeads,
@@ -36,6 +39,7 @@ import {
   upsertTenantSubscription,
   type AdminTenantDetail,
   type AdminTenantSummary,
+  type AdminPaymentRecordsQuery,
   type MarketingLead,
   type MarketingLeadStatus,
   type PaymentMethod,
@@ -123,6 +127,19 @@ function fromDateTimeLocal(value: string) {
   return value ? new Date(value).toISOString() : undefined;
 }
 
+function fromDateFilterStart(value: string) {
+  return value ? new Date(`${value}T00:00:00.000Z`).toISOString() : undefined;
+}
+
+function fromDateFilterEnd(value: string) {
+  if (!value) {
+    return undefined;
+  }
+  const exclusiveEnd = new Date(`${value}T00:00:00.000Z`);
+  exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() + 1);
+  return exclusiveEnd.toISOString();
+}
+
 function money(amount: number | undefined, currency = 'MAD') {
   return `${amount ?? 0} ${currency}`;
 }
@@ -140,6 +157,32 @@ function formatPeriod(start?: string, end?: string) {
     return 'Not specified';
   }
   return `${formatDate(start)} - ${formatDate(end)}`;
+}
+
+function formatFinancialTotals(totals: Array<{ amount: number; currency: string }>) {
+  if (!totals.length) {
+    return '0 MAD';
+  }
+  return totals.map((total) => money(total.amount, total.currency)).join(' · ');
+}
+
+function formatMonth(value: string) {
+  return new Date(`${value}-01T00:00:00.000Z`).toLocaleDateString(undefined, {
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+function saveBlob(blob: Blob, fileName: string) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 }
 
 function isFollowUpDue(value?: string) {
@@ -230,6 +273,8 @@ export default function AdminBilling() {
   const [paymentPeriodStart, setPaymentPeriodStart] = useState('');
   const [paymentPeriodEnd, setPaymentPeriodEnd] = useState('');
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [financialPaidFrom, setFinancialPaidFrom] = useState('');
+  const [financialPaidTo, setFinancialPaidTo] = useState('');
   const [planCode, setPlanCode] = useState('');
   const [planName, setPlanName] = useState('');
   const [planPrice, setPlanPrice] = useState('');
@@ -322,6 +367,10 @@ export default function AdminBilling() {
   const effectiveCurrentPeriodStart = currentPeriodStart || toDateTimeLocal(detail?.subscription?.currentPeriodStart);
   const effectiveCurrentPeriodEnd = currentPeriodEnd || toDateTimeLocal(detail?.subscription?.currentPeriodEnd);
   const effectiveTrialEndsAt = trialEndsAt || toDateTimeLocal(detail?.subscription?.trialEndsAt);
+  const financialRecordsQuery = useMemo<AdminPaymentRecordsQuery>(() => ({
+    paidFrom: fromDateFilterStart(financialPaidFrom),
+    paidTo: fromDateFilterEnd(financialPaidTo),
+  }), [financialPaidFrom, financialPaidTo]);
 
   const statusMutation = useMutation({
     mutationFn: () => updateAdminTenantStatus(effectiveTenantId, effectiveTenantStatus),
@@ -394,17 +443,29 @@ export default function AdminBilling() {
   });
 
   const leadConversionMutation = useMutation({
-    mutationFn: (payload: { leadId: string; tenantName: string; adminName: string; adminEmail: string; password: string; internalNotes?: string }) =>
+    mutationFn: (payload: { leadId: string; tenantName: string; adminName: string; adminEmail: string; internalNotes?: string }) =>
       convertMarketingLeadToTenant(payload.leadId, {
         tenantName: payload.tenantName,
         adminName: payload.adminName,
         adminEmail: payload.adminEmail,
-        password: payload.password,
         internalNotes: payload.internalNotes,
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['marketing-leads'] });
       await queryClient.invalidateQueries({ queryKey: ['admin-tenants'] });
+    },
+  });
+
+  const financialSummaryQuery = useQuery({
+    queryKey: ['admin-payment-records-summary', financialRecordsQuery],
+    queryFn: () => fetchAdminPaymentRecordsSummary(financialRecordsQuery),
+    enabled: activeTab === 'payments',
+  });
+
+  const financialExportMutation = useMutation({
+    mutationFn: () => downloadAdminPaymentRecordsCsv(financialRecordsQuery),
+    onSuccess: (blob) => {
+      saveBlob(blob, `wasilio-payment-records-${new Date().toISOString().slice(0, 10)}.csv`);
     },
   });
 
@@ -416,6 +477,8 @@ export default function AdminBilling() {
 
   const payments = detail?.payments ?? [];
   const latestPayment = payments[0];
+  const financialSummary = financialSummaryQuery.data;
+  const latestFinancialMonth = financialSummary?.monthlyTotals[0];
   const error =
     tenantsQuery.error ??
     plansQuery.error ??
@@ -427,6 +490,8 @@ export default function AdminBilling() {
     planMutation.error ??
     leadFollowUpMutation.error ??
     leadConversionMutation.error ??
+    financialSummaryQuery.error ??
+    financialExportMutation.error ??
     receiptQuery.error;
 
   async function refreshTenantData() {
@@ -468,6 +533,10 @@ export default function AdminBilling() {
 
   function handlePrintReceipt() {
     window.print();
+  }
+
+  function handleDownloadFinancialRecords() {
+    financialExportMutation.mutate();
   }
 
   function setActiveTab(tab: WorkspaceTab) {
@@ -652,6 +721,44 @@ export default function AdminBilling() {
 
             {activeTab === 'payments' && (
               <section className="mt-6 space-y-4">
+                <div className="rounded-lg border border-gray-200 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase text-gray-500">Financial Records</h3>
+                      <p className="mt-1 text-xs text-gray-500">Filter and download manual payment records for tax and bookkeeping review.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDownloadFinancialRecords}
+                      disabled={financialExportMutation.isPending}
+                      className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <Download size={16} />
+                      {financialExportMutation.isPending ? 'Preparing' : 'Download records'}
+                    </button>
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[180px_180px_minmax(0,1fr)]">
+                    <TextInput label="Paid from" value={financialPaidFrom} onChange={setFinancialPaidFrom} type="date" />
+                    <TextInput label="Paid to" value={financialPaidTo} onChange={setFinancialPaidTo} type="date" />
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <AdminInfoTile
+                        label="Matched receipts"
+                        value={financialSummaryQuery.isLoading ? '...' : String(financialSummary?.paymentCount ?? 0)}
+                        detail={financialPaidFrom || financialPaidTo ? 'Filtered period' : 'All recorded payments'}
+                      />
+                      <AdminInfoTile
+                        label="Period total"
+                        value={financialSummaryQuery.isLoading ? '...' : formatFinancialTotals(financialSummary?.totals ?? [])}
+                        detail="Manual payments collected"
+                      />
+                      <AdminInfoTile
+                        label="Latest month"
+                        value={latestFinancialMonth ? money(latestFinancialMonth.amount, latestFinancialMonth.currency) : 'None'}
+                        detail={latestFinancialMonth ? `${formatMonth(latestFinancialMonth.month)} · ${latestFinancialMonth.paymentCount} receipts` : 'No payment records'}
+                      />
+                    </div>
+                  </div>
+                </div>
                 <div className="grid gap-3 md:grid-cols-3">
                   <AdminInfoTile label="Recorded payments" value={String(payments.length)} detail="Manual receipts in this workspace" />
                   <AdminInfoTile label="Latest payment" value={latestPayment ? money(latestPayment.amount, latestPayment.currency) : 'None'} detail={latestPayment ? formatDateTime(latestPayment.paidAt) : 'No payment recorded'} />
@@ -850,7 +957,7 @@ function LeadList({
   updatingLeadId?: string;
   convertingLeadId?: string;
   onUpdate: (payload: { leadId: string; status: MarketingLeadStatus; nextFollowUpAt?: string; internalNotes?: string }) => void;
-  onConvert: (payload: { leadId: string; tenantName: string; adminName: string; adminEmail: string; password: string; internalNotes?: string }) => void;
+  onConvert: (payload: { leadId: string; tenantName: string; adminName: string; adminEmail: string; internalNotes?: string }) => void;
 }) {
   const [statusFilter, setStatusFilter] = useState<LeadFilter>('ALL');
   const stats = useMemo(() => {
@@ -947,7 +1054,7 @@ function LeadCard({
   isUpdating: boolean;
   isConverting: boolean;
   onUpdate: (payload: { leadId: string; status: MarketingLeadStatus; nextFollowUpAt?: string; internalNotes?: string }) => void;
-  onConvert: (payload: { leadId: string; tenantName: string; adminName: string; adminEmail: string; password: string; internalNotes?: string }) => void;
+  onConvert: (payload: { leadId: string; tenantName: string; adminName: string; adminEmail: string; internalNotes?: string }) => void;
 }) {
   const [status, setStatus] = useState<MarketingLeadStatus>(lead.status);
   const [nextFollowUpAt, setNextFollowUpAt] = useState(toDateTimeLocal(lead.nextFollowUpAt));
@@ -956,7 +1063,6 @@ function LeadCard({
   const [tenantName, setTenantName] = useState(lead.storeName);
   const [adminName, setAdminName] = useState(lead.contactName);
   const [adminEmail, setAdminEmail] = useState(lead.email ?? '');
-  const [password, setPassword] = useState('');
   const [conversionNotes, setConversionNotes] = useState('Qualified for guided pilot onboarding.');
   const due = isFollowUpDue(lead.nextFollowUpAt);
   const waLink = whatsappHref(lead.phone);
@@ -981,7 +1087,6 @@ function LeadCard({
       tenantName,
       adminName,
       adminEmail,
-      password,
       internalNotes: conversionNotes || undefined,
     });
   }
@@ -1094,7 +1199,7 @@ function LeadCard({
               <div>
                 <h5 className="text-sm font-semibold text-gray-900">Guided pilot conversion</h5>
                 <p className="mt-1 text-xs leading-5 text-gray-600">
-                  Create a pilot workspace and merchant owner from this qualified request.
+                  Create a pilot workspace and email the merchant owner an account setup link.
                 </p>
               </div>
               <button
@@ -1120,7 +1225,6 @@ function LeadCard({
                   onChange={setAdminName}
                 />
                 <FieldInput label="Merchant owner email" value={adminEmail} onChange={setAdminEmail} type="email" />
-                <FieldInput label="Initial password" value={password} onChange={setPassword} type="password" />
                 <label>
                   <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Conversion notes</span>
                   <textarea
@@ -1130,7 +1234,7 @@ function LeadCard({
                     className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </label>
-                <p className="text-xs leading-5 text-gray-500">Password must be at least 12 characters and include uppercase, lowercase, number, and symbol. Share it with the merchant through your agreed channel.</p>
+                <p className="text-xs leading-5 text-gray-500">The merchant receives a setup link by email and chooses their own password.</p>
                 <button
                   type="submit"
                   disabled={isConverting}

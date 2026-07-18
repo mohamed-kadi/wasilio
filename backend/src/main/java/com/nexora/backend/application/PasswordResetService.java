@@ -46,7 +46,15 @@ public class PasswordResetService {
     public void requestPasswordReset(String email, String remoteIp) {
         String normalizedEmail = normalizeEmail(email);
         userRepository.findByEmailIgnoreCase(normalizedEmail)
-                .ifPresent(user -> createResetToken(user, remoteIp));
+                .ifPresent(user -> createResetToken(user, remoteIp, ResetTokenPurpose.PASSWORD_RESET));
+    }
+
+    @Transactional
+    public void sendAccountSetupLink(String email, String remoteIp) {
+        String normalizedEmail = normalizeEmail(email);
+        User user = userRepository.findByEmailIgnoreCase(normalizedEmail)
+                .orElseThrow(() -> new IllegalArgumentException("Account setup user not found"));
+        createResetToken(user, remoteIp, ResetTokenPurpose.ACCOUNT_SETUP);
     }
 
     @Transactional
@@ -73,7 +81,7 @@ public class PasswordResetService {
         resetToken.setUsedAt(current);
     }
 
-    private void createResetToken(User user, String remoteIp) {
+    private void createResetToken(User user, String remoteIp, ResetTokenPurpose purpose) {
         Instant current = now();
         List<PasswordResetToken> existingTokens = tokenRepository.findByUserIdAndUsedAtIsNull(user.getId());
         existingTokens.forEach(token -> token.setUsedAt(current));
@@ -91,9 +99,14 @@ public class PasswordResetService {
 
         tokenRepository.save(resetToken);
         try {
-            notifier.sendPasswordResetLink(user.getEmail(), buildResetUrl(rawToken), resetToken.getExpiresAt());
+            String resetUrl = buildResetUrl(rawToken);
+            if (purpose == ResetTokenPurpose.ACCOUNT_SETUP) {
+                notifier.sendAccountSetupLink(user.getEmail(), resetUrl, resetToken.getExpiresAt());
+            } else {
+                notifier.sendPasswordResetLink(user.getEmail(), resetUrl, resetToken.getExpiresAt());
+            }
         } catch (RuntimeException ex) {
-            log.error("Password reset notification failed for user {}", user.getId(), ex);
+            log.error("{} notification failed for user {}", purpose.logLabel(), user.getId(), ex);
         }
     }
 
@@ -131,5 +144,20 @@ public class PasswordResetService {
 
     private Instant now() {
         return Instant.now(clock);
+    }
+
+    private enum ResetTokenPurpose {
+        PASSWORD_RESET("Password reset"),
+        ACCOUNT_SETUP("Account setup");
+
+        private final String logLabel;
+
+        ResetTokenPurpose(String logLabel) {
+            this.logLabel = logLabel;
+        }
+
+        private String logLabel() {
+            return logLabel;
+        }
     }
 }
