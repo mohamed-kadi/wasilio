@@ -36,6 +36,16 @@ The backend still stores these records as marketing leads. In the staff UI, they
 - `Not a fit`: duplicate, fake, outside target, or not ready.
 - `Workspace created`: a pilot merchant workspace was created from the request.
 
+## Current UX Direction
+
+The staff workspace should be organized for scanning before editing:
+
+- Show summary cards before action forms.
+- Use business labels in the UI while preserving backend enum values and payloads.
+- Keep Merchant Workspaces, Billing, Payments, Plans, and Demo Requests in the sidebar, not as nested page tabs.
+- Prefer compact cards and short summaries over dense administrative tables where possible.
+- Keep receipts printable and tied to recorded manual payments.
+
 ## Signup Access
 
 Public signup should not be treated as fully open self-service during early pilots.
@@ -56,6 +66,20 @@ Future option:
 
 - Add invite codes for approved self-serve signup if Wasilio needs a middle path between closed pilot conversion and fully open signup.
 - Invite codes should be server-validated, single-use or limited-use, expirable, and tied to audit history.
+
+## Planned Account Setup Email
+
+The current demo request conversion flow creates the merchant owner with a staff-entered initial password. That is acceptable for local rehearsal but should be replaced before real merchant onboarding.
+
+Preferred production flow:
+
+1. Staff qualifies the demo request.
+2. Staff creates the pilot merchant workspace.
+3. Backend creates the merchant owner account.
+4. Backend sends an expiring setup-password email to the merchant owner.
+5. Merchant sets their own password through the existing reset/setup link flow.
+
+Do not email generated passwords. The backend should own token generation, expiry, notification delivery, and audit safety. The existing password reset token and email notifier infrastructure should be reused or extended for this phase.
 
 ## Boundaries
 
@@ -81,4 +105,4 @@ Plan cleanup should use archive/deactivate first. True deletion should only be a
 
 ## Verification
 
-For frontend changes, run focused lint on `AdminBilling.tsx` and affected smoke tests, then run frontend typecheck, frontend build, and the admin demo requests smoke test.
+For frontend changes, run focused lint on `AdminBilling.tsx` and affected smoke tests, then run frontend typecheck, frontend build, and the staff admin smoke tests for workspace, plans, and demo requests.

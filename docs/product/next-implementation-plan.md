@@ -35,8 +35,9 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 
 1. Documentation organization and handoff clarity.
 2. Super-admin cleanup and UX review for staff/admin workflows. See `docs/product/staff-admin-workspace.md`.
-3. Real merchant launch-readiness pass.
-4. Intelligence calibration pilot after enough realistic confirmation evidence is available.
+3. Secure merchant account setup email after demo request conversion.
+4. Real merchant launch-readiness pass.
+5. Intelligence calibration pilot after enough realistic confirmation evidence is available.
 
 Landing-engine integration is already connected locally through the public product and order-intent contracts. Any landing-engine handoff work from here should be treated as production-readiness documentation, environment verification, and QA rehearsal, not a rebuild of the connection.
 
@@ -75,6 +76,7 @@ Scope:
 - Courier assignment, pickup, delivery outcome, and failure reason flows.
 - Staff admin workspace for billing, plans, payments, and demo requests.
 - Empty states, loading states, validation messages, and error handling.
+- Replace staff-entered merchant owner passwords with a backend-generated setup email before real merchant onboarding.
 
 Exit criteria:
 

@@ -92,6 +92,29 @@ const leadStatusLabels: Record<MarketingLeadStatus, string> = {
   ONBOARDED: 'Workspace created',
 };
 
+const tenantStatusLabels: Record<TenantStatus, string> = {
+  ACTIVE: 'Active',
+  TRIALING: 'Trial',
+  OVERDUE: 'Payment overdue',
+  SUSPENDED: 'Suspended',
+  DISABLED: 'Disabled',
+};
+
+const subscriptionStatusLabels: Record<SubscriptionStatus, string> = {
+  TRIALING: 'Trial',
+  ACTIVE: 'Active',
+  OVERDUE: 'Payment overdue',
+  SUSPENDED: 'Suspended',
+  CANCELED: 'Canceled',
+};
+
+const paymentMethodLabels: Record<PaymentMethod, string> = {
+  CASH: 'Cash',
+  BANK_TRANSFER: 'Bank transfer',
+  CHECK: 'Check',
+  OTHER: 'Other',
+};
+
 function toDateTimeLocal(value?: string) {
   return value ? value.slice(0, 16) : '';
 }
@@ -138,6 +161,54 @@ function isWorkspaceTab(value: string | null): value is WorkspaceTab {
 
 function leadStatusLabel(status: MarketingLeadStatus) {
   return leadStatusLabels[status];
+}
+
+function tenantStatusLabel(status: TenantStatus) {
+  return tenantStatusLabels[status];
+}
+
+function subscriptionStatusLabel(status?: SubscriptionStatus) {
+  return status ? subscriptionStatusLabels[status] : 'No subscription';
+}
+
+function paymentMethodLabel(method: PaymentMethod) {
+  return paymentMethodLabels[method];
+}
+
+function workspaceAccessCopy(status: TenantStatus) {
+  if (status === 'ACTIVE') {
+    return {
+      summary: 'Merchant workflows are available',
+      detail: 'The merchant can use orders, products, storefront, and operations tools.',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    };
+  }
+  if (status === 'TRIALING') {
+    return {
+      summary: 'Pilot access is available',
+      detail: 'The merchant can use Wasilio during the trial period.',
+      className: 'border-blue-200 bg-blue-50 text-blue-800',
+    };
+  }
+  if (status === 'OVERDUE') {
+    return {
+      summary: 'Access is blocked until payment is handled',
+      detail: 'Keep this state for merchants who need a payment follow-up before access resumes.',
+      className: 'border-amber-200 bg-amber-50 text-amber-800',
+    };
+  }
+  if (status === 'SUSPENDED') {
+    return {
+      summary: 'Access is suspended',
+      detail: 'Use this when Wasilio staff intentionally pauses the workspace.',
+      className: 'border-red-200 bg-red-50 text-red-800',
+    };
+  }
+  return {
+    summary: 'Access is disabled',
+    detail: 'Use this for workspaces that should not be used by the merchant.',
+    className: 'border-gray-200 bg-gray-50 text-gray-700',
+  };
 }
 
 export default function AdminBilling() {
@@ -343,7 +414,8 @@ export default function AdminBilling() {
     enabled: Boolean(effectiveTenantId && receiptPaymentId),
   });
 
-  const latestPayment = detail?.payments[0];
+  const payments = detail?.payments ?? [];
+  const latestPayment = payments[0];
   const error =
     tenantsQuery.error ??
     plansQuery.error ??
@@ -459,130 +531,209 @@ export default function AdminBilling() {
             <TenantSummaryCard detail={detail} selectedTenant={selectedTenant} latestPayment={latestPayment} />
 
             {activeTab === 'tenants' && (
-              <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <form onSubmit={handleTenantStatus} className="rounded-lg border border-gray-200 bg-white p-5">
-                  <h3 className="mb-4 text-sm font-semibold uppercase text-gray-500">Workspace Control</h3>
-                  <label>
-                    <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Operational status</span>
-                    <select
-                      value={effectiveTenantStatus}
-                      onChange={(event) => setTenantStatus(event.target.value as TenantStatus)}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      {tenantStatuses.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <p className="mt-3 text-xs text-gray-500">ACTIVE and TRIALING workspaces can use merchant workflows. OVERDUE, SUSPENDED, and DISABLED workspaces are blocked.</p>
-                  <button
-                    type="submit"
-                    disabled={!effectiveTenantId || statusMutation.isPending}
-                    className="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    <Save size={16} />
-                    Save status
-                  </button>
-                </form>
+              <section className="mt-6 space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <AdminInfoTile
+                    label="Workspace access"
+                    value={tenantStatusLabel(effectiveTenantStatus)}
+                    detail={workspaceAccessCopy(effectiveTenantStatus).summary}
+                    tone={isBlocked(effectiveTenantStatus) ? 'warning' : 'success'}
+                  />
+                  <AdminInfoTile
+                    label="Team members"
+                    value={String(detail?.usersCount ?? selectedTenant?.usersCount ?? 0)}
+                    detail="People who can sign in"
+                  />
+                  <AdminInfoTile
+                    label="Orders managed"
+                    value={String(detail?.ordersCount ?? selectedTenant?.ordersCount ?? 0)}
+                    detail="Orders in this workspace"
+                  />
+                </div>
 
-                <section className="rounded-lg border border-gray-200 bg-white p-5">
-                  <h3 className="mb-4 text-sm font-semibold uppercase text-gray-500">Workspace Snapshot</h3>
-                  <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                    <ReceiptField label="Users" value={String(detail?.usersCount ?? selectedTenant?.usersCount ?? 0)} />
-                    <ReceiptField label="Orders" value={String(detail?.ordersCount ?? selectedTenant?.ordersCount ?? 0)} />
-                    <ReceiptField label="Plan" value={detail?.plan?.name ?? selectedTenant?.plan?.name ?? 'No plan'} />
-                    <ReceiptField label="Subscription" value={detail?.subscription?.status ?? selectedTenant?.subscription?.status ?? 'None'} />
-                  </div>
-                </section>
-              </div>
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+                  <form onSubmit={handleTenantStatus} className="rounded-lg border border-gray-200 bg-white p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-semibold uppercase text-gray-500">Workspace Access</h3>
+                        <p className="mt-1 text-sm text-gray-600">Change whether the merchant can use Wasilio workflows.</p>
+                      </div>
+                      <StatusBadge status={effectiveTenantStatus} />
+                    </div>
+                    <label className="mt-4 block">
+                      <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Access status</span>
+                      <select
+                        value={effectiveTenantStatus}
+                        onChange={(event) => setTenantStatus(event.target.value as TenantStatus)}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        {tenantStatuses.map((status) => (
+                          <option key={status} value={status}>
+                            {tenantStatusLabel(status)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <WorkspaceAccessPanel status={effectiveTenantStatus} />
+                    <button
+                      type="submit"
+                      disabled={!effectiveTenantId || statusMutation.isPending}
+                      className="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      <Save size={16} />
+                      Save access status
+                    </button>
+                  </form>
+
+                  <section className="rounded-lg border border-gray-200 bg-white p-5">
+                    <h3 className="text-sm font-semibold uppercase text-gray-500">Workspace Snapshot</h3>
+                    <div className="mt-4 grid grid-cols-1 gap-3 text-sm">
+                      <ReceiptField label="Plan" value={detail?.plan?.name ?? selectedTenant?.plan?.name ?? 'No plan'} />
+                      <ReceiptField label="Subscription" value={subscriptionStatusLabel(detail?.subscription?.status ?? selectedTenant?.subscription?.status)} />
+                      <ReceiptField label="Created" value={formatDate(detail?.createdAt ?? selectedTenant?.createdAt)} />
+                      <ReceiptField label="Last updated" value={formatDateTime(detail?.updatedAt ?? selectedTenant?.updatedAt)} />
+                    </div>
+                  </section>
+                </div>
+              </section>
             )}
 
             {activeTab === 'billing' && (
-              <form onSubmit={handleSubscription} className="mt-6 rounded-lg border border-gray-200 bg-white p-5">
-                <h3 className="mb-4 text-sm font-semibold uppercase text-gray-500">Subscription</h3>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <label>
-                    <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Plan</span>
-                    <select
-                      value={effectivePlanId}
-                      onChange={(event) => setPlanId(event.target.value)}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">Select plan</option>
-                      {plans.map((plan) => (
-                        <option key={plan.planId} value={plan.planId}>
-                          {plan.name} · {money(plan.monthlyPrice, plan.currency)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <SelectInput label="Status" value={effectiveSubscriptionStatus} onChange={(value) => setSubscriptionStatus(value as SubscriptionStatus)} options={subscriptionStatuses} />
-                  <DateInput label="Period start" value={effectiveCurrentPeriodStart} onChange={setCurrentPeriodStart} />
-                  <DateInput label="Period end" value={effectiveCurrentPeriodEnd} onChange={setCurrentPeriodEnd} />
-                  <DateInput label="Trial ends" value={effectiveTrialEndsAt} onChange={setTrialEndsAt} />
+              <section className="mt-6 space-y-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <AdminInfoTile label="Current plan" value={detail?.plan?.name ?? selectedTenant?.plan?.name ?? 'No plan'} detail="Billing package" />
+                  <AdminInfoTile
+                    label="Monthly price"
+                    value={detail?.plan ? money(detail.plan.monthlyPrice, detail.plan.currency) : selectedTenant?.plan ? money(selectedTenant.plan.monthlyPrice, selectedTenant.plan.currency) : 'Not set'}
+                    detail="Before manual payment"
+                  />
+                  <AdminInfoTile
+                    label="Subscription"
+                    value={subscriptionStatusLabel(detail?.subscription?.status ?? selectedTenant?.subscription?.status)}
+                    detail="Commercial access state"
+                    tone={effectiveSubscriptionStatus === 'OVERDUE' || effectiveSubscriptionStatus === 'SUSPENDED' ? 'warning' : 'neutral'}
+                  />
+                  <AdminInfoTile
+                    label="Billing period"
+                    value={formatPeriod(detail?.subscription?.currentPeriodStart ?? selectedTenant?.subscription?.currentPeriodStart, detail?.subscription?.currentPeriodEnd ?? selectedTenant?.subscription?.currentPeriodEnd)}
+                    detail={`Trial ends: ${formatDate(detail?.subscription?.trialEndsAt ?? selectedTenant?.subscription?.trialEndsAt)}`}
+                  />
                 </div>
-                <button
-                  type="submit"
-                  disabled={!effectiveTenantId || !effectivePlanId || subscriptionMutation.isPending}
-                  className="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                >
-                  <Save size={16} />
-                  Save subscription
-                </button>
-              </form>
+
+                <form onSubmit={handleSubscription} className="rounded-lg border border-gray-200 bg-white p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase text-gray-500">Subscription Update</h3>
+                      <p className="mt-1 text-sm text-gray-600">Assign a plan, update the billing state, and keep the current period accurate.</p>
+                    </div>
+                    <SubscriptionStatusBadge status={effectiveSubscriptionStatus} />
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <label>
+                      <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Plan</span>
+                      <select
+                        value={effectivePlanId}
+                        onChange={(event) => setPlanId(event.target.value)}
+                        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        required
+                      >
+                        <option value="">Select plan</option>
+                        {plans.map((plan) => (
+                          <option key={plan.planId} value={plan.planId}>
+                            {plan.name} · {money(plan.monthlyPrice, plan.currency)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <SelectInput
+                      label="Subscription status"
+                      value={effectiveSubscriptionStatus}
+                      onChange={(value) => setSubscriptionStatus(value as SubscriptionStatus)}
+                      options={subscriptionStatuses}
+                      formatOption={(value) => subscriptionStatusLabel(value as SubscriptionStatus)}
+                    />
+                    <DateInput label="Current period starts" value={effectiveCurrentPeriodStart} onChange={setCurrentPeriodStart} />
+                    <DateInput label="Current period ends" value={effectiveCurrentPeriodEnd} onChange={setCurrentPeriodEnd} />
+                    <DateInput label="Trial ends" value={effectiveTrialEndsAt} onChange={setTrialEndsAt} />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!effectiveTenantId || !effectivePlanId || subscriptionMutation.isPending}
+                    className="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    <Save size={16} />
+                    Save subscription
+                  </button>
+                </form>
+              </section>
             )}
 
             {activeTab === 'payments' && (
-              <div className="mt-6 grid grid-cols-1 gap-6 2xl:grid-cols-[420px_1fr]">
-                <form onSubmit={handlePayment} className="rounded-lg border border-gray-200 bg-white p-5">
-                  <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase text-gray-500">
-                    <Banknote size={16} />
-                    Record Manual Payment
-                  </h3>
-                  <div className="grid grid-cols-1 gap-3">
-                    <SelectInput label="Method" value={paymentMethod} onChange={(value) => setPaymentMethod(value as PaymentMethod)} options={paymentMethods} />
-                    <TextInput label="Amount" value={paymentAmount} onChange={setPaymentAmount} type="number" required />
-                    <TextInput label="Currency" value={paymentCurrency} onChange={setPaymentCurrency} maxLength={3} required />
-                    <DateInput label="Paid at" value={paymentPaidAt} onChange={setPaymentPaidAt} />
-                    <DateInput label="Period start" value={paymentPeriodStart} onChange={setPaymentPeriodStart} />
-                    <DateInput label="Period end" value={paymentPeriodEnd} onChange={setPaymentPeriodEnd} />
-                  </div>
-                  <label className="mt-3 block">
-                    <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Notes</span>
-                    <textarea
-                      value={paymentNotes}
-                      onChange={(event) => setPaymentNotes(event.target.value)}
-                      className="min-h-20 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      maxLength={1000}
-                    />
-                  </label>
-                  <button
-                    type="submit"
-                    disabled={!effectiveTenantId || !paymentAmount || paymentMutation.isPending}
-                    className="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    <PlusCircle size={16} />
-                    Record payment
-                  </button>
-                </form>
+              <section className="mt-6 space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <AdminInfoTile label="Recorded payments" value={String(payments.length)} detail="Manual receipts in this workspace" />
+                  <AdminInfoTile label="Latest payment" value={latestPayment ? money(latestPayment.amount, latestPayment.currency) : 'None'} detail={latestPayment ? formatDateTime(latestPayment.paidAt) : 'No payment recorded'} />
+                  <AdminInfoTile label="Receipt selected" value={receiptPaymentId ? 'Ready to preview' : 'None selected'} detail="Open a receipt from payment history" />
+                </div>
 
-                <PaymentHistory
-                  payments={detail?.payments ?? []}
-                  isLoading={detailQuery.isLoading}
-                  latestPayment={latestPayment}
-                  onReceipt={(paymentId) => setReceiptPaymentId(paymentId)}
-                />
+                <div className="grid grid-cols-1 gap-5 xl:grid-cols-[380px_1fr]">
+                  <form onSubmit={handlePayment} className="rounded-lg border border-gray-200 bg-white p-5">
+                    <h3 className="flex items-center gap-2 text-sm font-semibold uppercase text-gray-500">
+                      <Banknote size={16} />
+                      Record Payment
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-600">Capture cash, transfer, check, or another manual payment for the selected workspace.</p>
+                    <div className="mt-4 grid grid-cols-1 gap-3">
+                      <SelectInput
+                        label="Payment method"
+                        value={paymentMethod}
+                        onChange={(value) => setPaymentMethod(value as PaymentMethod)}
+                        options={paymentMethods}
+                        formatOption={(value) => paymentMethodLabel(value as PaymentMethod)}
+                      />
+                      <TextInput label="Amount" value={paymentAmount} onChange={setPaymentAmount} type="number" required />
+                      <TextInput label="Currency" value={paymentCurrency} onChange={setPaymentCurrency} maxLength={3} required />
+                      <DateInput label="Paid at" value={paymentPaidAt} onChange={setPaymentPaidAt} />
+                      <DateInput label="Period starts" value={paymentPeriodStart} onChange={setPaymentPeriodStart} />
+                      <DateInput label="Period ends" value={paymentPeriodEnd} onChange={setPaymentPeriodEnd} />
+                    </div>
+                    <label className="mt-3 block">
+                      <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Notes</span>
+                      <textarea
+                        value={paymentNotes}
+                        onChange={(event) => setPaymentNotes(event.target.value)}
+                        className="min-h-20 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        maxLength={1000}
+                      />
+                    </label>
+                    <button
+                      type="submit"
+                      disabled={!effectiveTenantId || !paymentAmount || paymentMutation.isPending}
+                      className="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      <PlusCircle size={16} />
+                      Record payment
+                    </button>
+                  </form>
+
+                  <PaymentHistory
+                    payments={payments}
+                    isLoading={detailQuery.isLoading}
+                    latestPayment={latestPayment}
+                    onReceipt={(paymentId) => setReceiptPaymentId(paymentId)}
+                  />
+                </div>
 
                 {receiptQuery.data && (
-                  <section className="receipt-shell rounded-lg border border-gray-200 bg-white p-5 2xl:col-span-2">
+                  <section className="receipt-shell rounded-lg border border-gray-200 bg-white p-5">
                     <div className="receipt-actions mb-4 flex flex-wrap items-center justify-between gap-3">
-                      <h3 className="flex items-center gap-2 text-sm font-semibold uppercase text-gray-500">
-                        <FileText size={16} />
-                        Receipt
-                      </h3>
+                      <div>
+                        <h3 className="flex items-center gap-2 text-sm font-semibold uppercase text-gray-500">
+                          <FileText size={16} />
+                          Receipt Preview
+                        </h3>
+                        <p className="mt-1 text-xs text-gray-500">Printable manual payment confirmation.</p>
+                      </div>
                       <button
                         type="button"
                         onClick={handlePrintReceipt}
@@ -595,7 +746,7 @@ export default function AdminBilling() {
                     <ReceiptDocument receipt={receiptQuery.data} />
                   </section>
                 )}
-              </div>
+              </section>
             )}
 
             {activeTab === 'plans' && (
@@ -661,7 +812,7 @@ export default function AdminBilling() {
 
                   <div className="grid gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">
                     {sortedPlans.map((plan) => (
-                      <article key={plan.planId} className="rounded-lg border border-gray-200 bg-white p-4">
+                      <article key={plan.planId} className="flex min-h-[210px] flex-col rounded-lg border border-gray-200 bg-white p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <h4 className="font-semibold text-gray-900">{plan.name}</h4>
@@ -669,9 +820,11 @@ export default function AdminBilling() {
                           </div>
                           <PlanStatusBadge active={plan.active} />
                         </div>
-                        <p className="mt-4 text-2xl font-bold text-gray-900">{money(plan.monthlyPrice, plan.currency)}</p>
-                        <p className="mt-1 text-xs text-gray-500">Monthly plan</p>
-                        <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                        <div className="mt-4">
+                          <p className="text-2xl font-bold text-gray-900">{money(plan.monthlyPrice, plan.currency)}</p>
+                          <p className="mt-1 text-xs text-gray-500">Monthly price</p>
+                        </div>
+                        <dl className="mt-auto grid grid-cols-2 gap-2 pt-4 text-sm">
                           <PlanLimit label="Orders" value={plan.orderLimit} />
                           <PlanLimit label="Team seats" value={plan.userLimit} />
                         </dl>
@@ -1365,7 +1518,7 @@ function TenantSelector({
             <option value="ALL">All</option>
             {tenantStatuses.map((status) => (
               <option key={status} value={status}>
-                {status}
+                {tenantStatusLabel(status)}
               </option>
             ))}
           </select>
@@ -1420,19 +1573,19 @@ function TenantSummaryCard({
             <StatusBadge status={currentStatus} />
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            {detail?.usersCount ?? selectedTenant?.usersCount ?? 0} users · {detail?.ordersCount ?? selectedTenant?.ordersCount ?? 0} orders
+            {detail?.usersCount ?? selectedTenant?.usersCount ?? 0} team members · {detail?.ordersCount ?? selectedTenant?.ordersCount ?? 0} orders
           </p>
         </div>
         <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <SummaryMetric icon={<CreditCard size={16} />} label="Plan" value={detail?.plan?.name ?? selectedTenant?.plan?.name ?? 'No plan'} />
-          <SummaryMetric icon={<CalendarClock size={16} />} label="Subscription" value={detail?.subscription?.status ?? selectedTenant?.subscription?.status ?? 'None'} />
+          <SummaryMetric icon={<CalendarClock size={16} />} label="Subscription" value={subscriptionStatusLabel(detail?.subscription?.status ?? selectedTenant?.subscription?.status)} />
           <SummaryMetric icon={<Banknote size={16} />} label="Last payment" value={latestPayment ? money(latestPayment.amount, latestPayment.currency) : 'None'} />
         </div>
       </div>
       {isBlocked(currentStatus) && (
         <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 shrink-0" size={16} />
-          <p>Merchant APIs are blocked for this workspace until its status is changed to ACTIVE or TRIALING.</p>
+          <p>Merchant APIs are blocked for this workspace until its access status is changed to Active or Trial.</p>
         </div>
       )}
     </section>
@@ -1453,52 +1606,55 @@ function PaymentHistory({
   return (
     <section className="rounded-lg border border-gray-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
-        <h3 className="text-sm font-semibold uppercase text-gray-500">Payment History</h3>
-        {latestPayment && <p className="text-xs text-gray-500">Latest receipt: {latestPayment.receiptNumber}</p>}
+        <div>
+          <h3 className="text-sm font-semibold uppercase text-gray-500">Payment History</h3>
+          <p className="mt-1 text-xs text-gray-500">Review receipts without leaving the selected workspace.</p>
+        </div>
+        {latestPayment && <p className="text-xs font-medium text-gray-600">Latest receipt: {latestPayment.receiptNumber}</p>}
       </div>
-      <div className="max-h-[520px] overflow-auto">
-        <table className="w-full text-sm">
-          <thead className="sticky top-0 bg-gray-50 text-left text-xs uppercase text-gray-500">
-            <tr>
-              <th className="p-3">Receipt</th>
-              <th className="p-3">Method</th>
-              <th className="p-3">Amount</th>
-              <th className="p-3">Paid</th>
-              <th className="p-3">Collected by</th>
-              <th className="p-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {payments.map((payment) => (
-              <tr key={payment.paymentId}>
-                <td className="p-3 font-medium text-gray-900">{payment.receiptNumber}</td>
-                <td className="p-3">{payment.method}</td>
-                <td className="p-3">{money(payment.amount, payment.currency)}</td>
-                <td className="p-3">{formatDateTime(payment.paidAt)}</td>
-                <td className="p-3">{payment.collectedBy}</td>
-                <td className="p-3 text-right">
-                  <button
-                    type="button"
-                    onClick={() => onReceipt(payment.paymentId)}
-                    className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
-                  >
-                    <FileText size={14} />
-                    Receipt
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {!isLoading && !payments.length && (
-              <tr>
-                <td className="p-4 text-sm text-gray-500" colSpan={6}>
-                  No payments recorded.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="max-h-[540px] divide-y divide-gray-100 overflow-auto">
+        {payments.map((payment) => (
+          <article key={payment.paymentId} className="grid gap-3 p-4 md:grid-cols-[1fr_auto]">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="font-semibold text-gray-900">{payment.receiptNumber}</h4>
+                <PaymentMethodBadge method={payment.method} />
+              </div>
+              <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+                <PaymentFact label="Amount" value={money(payment.amount, payment.currency)} />
+                <PaymentFact label="Paid at" value={formatDateTime(payment.paidAt)} />
+                <PaymentFact label="Collected by" value={payment.collectedBy} />
+                <PaymentFact label="Billing period" value={formatPeriod(payment.periodStart, payment.periodEnd)} />
+                {payment.notes && <PaymentFact label="Notes" value={payment.notes} />}
+              </dl>
+            </div>
+            <div className="flex items-start md:justify-end">
+              <button
+                type="button"
+                onClick={() => onReceipt(payment.paymentId)}
+                className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                <FileText size={14} />
+                View receipt
+              </button>
+            </div>
+          </article>
+        ))}
+        {isLoading && <p className="p-4 text-sm text-gray-500">Loading payments...</p>}
+        {!isLoading && !payments.length && (
+          <p className="p-4 text-sm text-gray-500">No payments recorded.</p>
+        )}
       </div>
     </section>
+  );
+}
+
+function PaymentFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium uppercase text-gray-500">{label}</dt>
+      <dd className="mt-1 break-words font-medium text-gray-900">{value}</dd>
+    </div>
   );
 }
 
@@ -1541,13 +1697,13 @@ function ReceiptDocument({ receipt }: { receipt: TenantPaymentReceipt }) {
         <div>
           <p className="text-xs font-medium uppercase text-gray-500">Merchant</p>
           <p className="mt-1 text-base font-semibold">{receipt.tenantName}</p>
-          <p className="mt-1 text-xs text-gray-500">Workspace status: {receipt.tenantStatus}</p>
+          <p className="mt-1 text-xs text-gray-500">Workspace status: {tenantStatusLabel(receipt.tenantStatus)}</p>
         </div>
         <div>
           <p className="text-xs font-medium uppercase text-gray-500">Subscription</p>
           <p className="mt-1 text-base font-semibold">{receipt.plan?.name ?? 'No plan attached'}</p>
           <p className="mt-1 text-xs text-gray-500">
-            {receipt.subscriptionStatus ?? 'No subscription status'}
+            {subscriptionStatusLabel(receipt.subscriptionStatus)}
             {receipt.plan ? ` · ${money(receipt.plan.monthlyPrice, receipt.plan.currency)} / month` : ''}
           </p>
         </div>
@@ -1555,7 +1711,7 @@ function ReceiptDocument({ receipt }: { receipt: TenantPaymentReceipt }) {
 
       <div className="grid grid-cols-1 gap-4 py-5 md:grid-cols-3">
         <ReceiptField label="Amount paid" value={money(receipt.amount, receipt.currency)} emphasis />
-        <ReceiptField label="Payment method" value={receipt.method} />
+        <ReceiptField label="Payment method" value={paymentMethodLabel(receipt.method)} />
         <ReceiptField label="Paid at" value={formatDateTime(receipt.paidAt)} />
         <ReceiptField label="Billing period" value={formatPeriod(receipt.periodStart, receipt.periodEnd)} />
         <ReceiptField label="Collected by" value={receipt.collectedBy} />
@@ -1614,13 +1770,72 @@ function SummaryMetric({ icon, label, value }: { icon: ReactNode; label: string;
   );
 }
 
+function AdminInfoTile({
+  label,
+  value,
+  detail,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: 'neutral' | 'warning' | 'success';
+}) {
+  const tones = {
+    neutral: 'border-gray-200 bg-gray-50 text-gray-600',
+    warning: 'border-amber-200 bg-amber-50 text-amber-700',
+    success: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  };
+
+  return (
+    <div className={`rounded-md border p-3 ${tones[tone]}`}>
+      <p className="text-xs font-semibold uppercase">{label}</p>
+      <p className="mt-2 text-lg font-semibold text-gray-900">{value}</p>
+      <p className="mt-1 text-xs">{detail}</p>
+    </div>
+  );
+}
+
+function WorkspaceAccessPanel({ status }: { status: TenantStatus }) {
+  const copy = workspaceAccessCopy(status);
+
+  return (
+    <div className={`mt-4 rounded-md border p-3 text-sm ${copy.className}`}>
+      <p className="font-semibold">{copy.summary}</p>
+      <p className="mt-1 text-xs leading-5">{copy.detail}</p>
+    </div>
+  );
+}
+
 function StatusBadge({ status }: { status: TenantStatus }) {
   const classes = isBlocked(status)
     ? 'border-red-200 bg-red-50 text-red-700'
     : status === 'TRIALING'
       ? 'border-blue-200 bg-blue-50 text-blue-700'
       : 'border-emerald-200 bg-emerald-50 text-emerald-700';
-  return <span className={`rounded-full border px-2 py-1 text-xs font-medium ${classes}`}>{status}</span>;
+  return <span className={`rounded-full border px-2 py-1 text-xs font-medium ${classes}`}>{tenantStatusLabel(status)}</span>;
+}
+
+function SubscriptionStatusBadge({ status }: { status: SubscriptionStatus }) {
+  const classes = status === 'OVERDUE' || status === 'SUSPENDED'
+    ? 'border-amber-200 bg-amber-50 text-amber-700'
+    : status === 'CANCELED'
+      ? 'border-gray-200 bg-gray-100 text-gray-600'
+      : 'border-emerald-200 bg-emerald-50 text-emerald-700';
+
+  return (
+    <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${classes}`}>
+      {subscriptionStatusLabel(status)}
+    </span>
+  );
+}
+
+function PaymentMethodBadge({ method }: { method: PaymentMethod }) {
+  return (
+    <span className="rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-700">
+      {paymentMethodLabel(method)}
+    </span>
+  );
 }
 
 function SelectInput({
@@ -1628,11 +1843,13 @@ function SelectInput({
   value,
   onChange,
   options,
+  formatOption = (option) => option,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: string[];
+  formatOption?: (option: string) => string;
 }) {
   return (
     <label>
@@ -1644,7 +1861,7 @@ function SelectInput({
       >
         {options.map((option) => (
           <option key={option} value={option}>
-            {option}
+            {formatOption(option)}
           </option>
         ))}
       </select>
