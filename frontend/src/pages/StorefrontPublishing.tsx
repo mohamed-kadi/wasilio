@@ -67,6 +67,9 @@ export default function StorefrontPublishing() {
   const selectedProduct = selectedProductId
     ? products.find((product) => product.id === selectedProductId) ?? null
     : null;
+  const activeProductCount = products.filter((product) => product.status === 'ACTIVE').length;
+  const primaryImageCount = products.filter((product) => hasText(product.imageUrl)).length;
+  const storefrontReady = Boolean(settings?.storeSlug && settings.status === 'ACTIVE');
 
   function selectProduct(productId: string) {
     setSearchParams({ productId });
@@ -83,8 +86,8 @@ export default function StorefrontPublishing() {
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Storefront</p>
           <h2 className="mt-1 text-2xl font-bold text-gray-900">Product Publishing</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-            Move a catalog product into the public storefront workflow: confirm the product is ACTIVE, edit landing
-            content, publish the profile, preview the public page, and keep storefront orders flowing into Wasilio.
+            Prepare catalog products for landing-engine by checking catalog status, landing content, media readiness,
+            and the public preview/API links in one place.
             {productsFetching && !productsLoading ? ' Refreshing' : ''}
           </p>
         </div>
@@ -110,26 +113,53 @@ export default function StorefrontPublishing() {
         </div>
       )}
 
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <PublishingSummaryMetric
+          title="Catalog products"
+          value={String(products.length)}
+          detail={productsFetching && !productsLoading ? 'Refreshing product list' : 'Available for publishing review'}
+          tone="blue"
+        />
+        <PublishingSummaryMetric
+          title="Active catalog"
+          value={String(activeProductCount)}
+          detail="Can appear on public storefront endpoints"
+          tone={activeProductCount > 0 ? 'green' : 'amber'}
+        />
+        <PublishingSummaryMetric
+          title="Primary images"
+          value={`${primaryImageCount}/${products.length}`}
+          detail="Catalog products with dashboard media"
+          tone={products.length > 0 && primaryImageCount === products.length ? 'green' : 'amber'}
+        />
+        <PublishingSummaryMetric
+          title="Storefront"
+          value={storefrontReady ? 'Active' : 'Setup needed'}
+          detail={settings?.storeSlug ? `Store slug: ${settings.storeSlug}` : 'Configure public storefront settings'}
+          tone={storefrontReady ? 'green' : 'amber'}
+        />
+      </section>
+
       <section className="grid grid-cols-1 gap-3 lg:grid-cols-4">
         <WorkflowStep
           icon={<Package size={18} />}
           title="Catalog"
-          detail="Only ACTIVE catalog products can appear on public storefront endpoints."
+          detail="Active catalog products are eligible for public storefront pages."
         />
         <WorkflowStep
           icon={<FileText size={18} />}
           title="Landing Profile"
-          detail="The storefront profile owns headline, benefits, FAQ, trust badges, gallery, and SEO overrides."
+          detail="Landing copy, gallery, SEO, FAQ, and trust content live in the storefront profile."
         />
         <WorkflowStep
           icon={<ToggleLeft size={18} />}
           title="Draft vs Published"
-          detail="Published profile content is included in the public product API; draft content stays hidden."
+          detail="Published profile content appears in the public product API; drafts stay hidden."
         />
         <WorkflowStep
           icon={<Globe2 size={18} />}
           title="Public URL"
-          detail="Store slug identifies the store. Product slug identifies the product inside that store."
+          detail="Preview page is customer-facing. API payload is the landing-engine data contract."
         />
       </section>
 
@@ -137,27 +167,24 @@ export default function StorefrontPublishing() {
         <div className="border-b border-gray-200 px-4 py-3">
           <h3 className="text-sm font-semibold uppercase text-gray-500">Publishing table</h3>
           <p className="mt-1 text-sm text-gray-600">
-            Orders from a landing-engine product page continue through the existing Wasilio public order API and arrive
-            as storefront inbound orders.
+            Each row shows what blocks publishing, whether media is ready, and the two public links used by landing-engine.
           </p>
         </div>
         <div className="overflow-hidden" data-testid="publishing-table-scroll">
           <table className="w-full table-fixed text-left text-sm">
             <colgroup>
-              <col className="w-[22%]" />
-              <col className="w-[14%]" />
-              <col className="w-[22%]" />
-              <col className="w-[16%]" />
+              <col className="w-[24%]" />
+              <col className="w-[25%]" />
+              <col className="w-[27%]" />
               <col className="w-[15%]" />
-              <col className="w-[11%]" />
+              <col className="w-[9%]" />
             </colgroup>
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
                 <th className="px-3 py-3 font-medium">Product</th>
-                <th className="px-3 py-3 font-medium">Readiness</th>
-                <th className="px-3 py-3 font-medium">Media readiness</th>
-                <th className="px-3 py-3 font-medium">Missing items</th>
-                <th className="px-3 py-3 font-medium">Preview & API</th>
+                <th className="px-3 py-3 font-medium">Publishing status</th>
+                <th className="px-3 py-3 font-medium">Media & API</th>
+                <th className="px-3 py-3 font-medium">Public links</th>
                 <th className="px-3 py-3 font-medium">Actions</th>
               </tr>
             </thead>
@@ -173,14 +200,14 @@ export default function StorefrontPublishing() {
               ))}
               {!productsLoading && products.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                  <td colSpan={5} className="p-8 text-center text-gray-500">
                     No products found. Create catalog products before publishing storefront pages.
                   </td>
                 </tr>
               )}
               {productsLoading && (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-gray-500">
+                  <td colSpan={5} className="p-8 text-center text-gray-500">
                     Loading products...
                   </td>
                 </tr>
@@ -326,23 +353,16 @@ function PublishingProductRow({
         </div>
       </td>
       <td className="px-3 py-4 align-top">
-        <ReadinessBadge status={readiness.status} />
-        <p className="mt-2 text-xs font-medium text-gray-700">
-          {readiness.requiredComplete}/{readiness.requiredTotal} required items complete
-        </p>
+        <PublishingReadinessPanel readiness={readiness} publicDetail={publicState.detail} />
+      </td>
+      <td className="px-3 py-4 align-top">
+        <MediaReadinessPanel readiness={mediaReadiness} />
         <PublicReadinessSummary
           enabled={publicReadinessEnabled}
           isLoading={publicReadinessQuery.isLoading}
           readiness={publicReadinessQuery.data?.readiness}
           error={publicReadinessQuery.error}
         />
-        <p className="mt-2 max-w-32 text-xs text-gray-500">{publicState.detail}</p>
-      </td>
-      <td className="px-3 py-4 align-top">
-        <MediaReadinessPanel readiness={mediaReadiness} />
-      </td>
-      <td className="px-3 py-4 align-top">
-        <MissingItemsList readiness={readiness} />
       </td>
       <td className="px-3 py-4 align-top">
         <div className="space-y-2">
@@ -437,6 +457,37 @@ function WorkflowStep({ icon, title, detail }: { icon: ReactNode; title: string;
   );
 }
 
+function PublishingSummaryMetric({
+  title,
+  value,
+  detail,
+  tone,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+  tone: 'blue' | 'green' | 'amber';
+}) {
+  const tones = {
+    blue: 'border-blue-200 bg-blue-50 text-blue-700',
+    green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700',
+  };
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase text-gray-500">{title}</p>
+          <p className="mt-1 truncate text-xl font-bold text-gray-900">{value}</p>
+        </div>
+        <span className={`h-3 w-3 shrink-0 rounded-full border ${tones[tone]}`} />
+      </div>
+      <p className="mt-2 line-clamp-2 text-sm text-gray-600">{detail}</p>
+    </div>
+  );
+}
+
 function CatalogStatusBadge({ status }: { status: ProductStatus }) {
   const classes = {
     DRAFT: 'bg-amber-100 text-amber-800',
@@ -444,7 +495,13 @@ function CatalogStatusBadge({ status }: { status: ProductStatus }) {
     ARCHIVED: 'bg-gray-100 text-gray-700',
   };
 
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${classes[status]}`}>{status}</span>;
+  const labels = {
+    DRAFT: 'Draft',
+    ACTIVE: 'Active',
+    ARCHIVED: 'Archived',
+  };
+
+  return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${classes[status]}`}>{labels[status]}</span>;
 }
 
 function SmallPill({ children }: { children: ReactNode }) {
@@ -453,7 +510,7 @@ function SmallPill({ children }: { children: ReactNode }) {
 
 function ProfileStatusBadge({ profile }: { profile: StorefrontProductProfile | null }) {
   if (!profile) {
-    return <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">NO PROFILE</span>;
+    return <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">No profile</span>;
   }
 
   const published = profile.status === 'PUBLISHED';
@@ -461,7 +518,7 @@ function ProfileStatusBadge({ profile }: { profile: StorefrontProductProfile | n
     <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
       published ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'
     }`}>
-      {profile.status}
+      {published ? 'Published' : 'Draft profile'}
     </span>
   );
 }
@@ -510,8 +567,8 @@ function PublicReadinessSummary({
     const requiredMissing = readiness.items.filter((item) => item.required && !item.complete).length;
     const complete = requiredMissing === 0 && readiness.orderable;
     return (
-      <div className="mt-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
-        <p className="text-[11px] font-semibold uppercase text-gray-500">API check</p>
+      <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+        <p className="text-[11px] font-semibold uppercase text-gray-500">Public API check</p>
         <p className={`mt-1 text-xs font-medium ${complete ? 'text-emerald-700' : 'text-amber-800'}`}>
           {readiness.requiredComplete}/{readiness.requiredTotal} required complete
         </p>
@@ -542,51 +599,97 @@ interface MediaReadiness {
 
 function MediaReadinessPanel({ readiness }: { readiness: MediaReadiness }) {
   const complete = readiness.readyCount === readiness.totalCount;
+  const attentionItem = readiness.items.find((item) => item.status !== 'ready');
 
   return (
     <div className="max-w-full space-y-2">
-      <div>
-        <p className="text-xs font-semibold uppercase text-gray-500">Media readiness</p>
-        <p className={`mt-1 text-xs font-semibold ${complete ? 'text-emerald-700' : 'text-amber-800'}`}>
-          {complete ? 'All media ready' : `${readiness.readyCount}/${readiness.totalCount} ready`}
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase text-gray-500">Media readiness</p>
+          <p className={`mt-1 text-xs font-semibold ${complete ? 'text-emerald-700' : 'text-amber-800'}`}>
+            {complete ? 'All media ready' : `${readiness.readyCount}/${readiness.totalCount} ready`}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-[11px] font-semibold text-gray-600">
+          {readiness.totalCount} checks
+        </span>
       </div>
-      <ul className="space-y-1.5">
+      <div className="h-1.5 overflow-hidden rounded-full bg-gray-100">
+        <div
+          className={`h-full rounded-full ${complete ? 'bg-emerald-600' : 'bg-amber-500'}`}
+          style={{ width: `${Math.round((readiness.readyCount / readiness.totalCount) * 100)}%` }}
+        />
+      </div>
+      <ul className="flex flex-wrap gap-1.5">
         {readiness.items.map((item) => (
-          <MediaReadinessRow key={item.label} item={item} />
+          <MediaReadinessChip key={item.label} item={item} />
         ))}
       </ul>
+      <p className="line-clamp-2 text-xs text-gray-500">
+        {attentionItem
+          ? `Needs media: ${attentionItem.label} - ${attentionItem.detail}`
+          : 'Primary, gallery, SEO, public API, and preview media checks passed.'}
+      </p>
     </div>
   );
 }
 
-function MediaReadinessRow({ item }: { item: MediaReadinessItem }) {
+function MediaReadinessChip({ item }: { item: MediaReadinessItem }) {
   const Icon = item.status === 'ready'
     ? CheckCircle2
     : item.status === 'checking'
       ? AlertTriangle
       : XCircle;
   const statusClasses = {
-    ready: 'text-emerald-700',
-    missing: 'text-amber-800',
-    checking: 'text-blue-700',
-    unavailable: 'text-gray-500',
+    ready: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    missing: 'border-amber-200 bg-amber-50 text-amber-800',
+    checking: 'border-blue-200 bg-blue-50 text-blue-800',
+    unavailable: 'border-gray-200 bg-gray-50 text-gray-600',
   };
 
   return (
-    <li className="flex gap-2 text-xs">
-      <Icon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${statusClasses[item.status]}`} />
-      <span className="min-w-0">
-        <span className="font-medium text-gray-800">{item.label}</span>
-        <span className="block leading-5 text-gray-500">{item.detail}</span>
-      </span>
+    <li
+      className={`inline-flex min-h-7 items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-semibold ${statusClasses[item.status]}`}
+      title={item.detail}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span>{item.label}</span>
     </li>
+  );
+}
+
+function PublishingReadinessPanel({
+  readiness,
+  publicDetail,
+}: {
+  readiness: ProductReadiness;
+  publicDetail: string;
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <ReadinessBadge status={readiness.status} />
+        <p className="mt-2 text-xs font-medium text-gray-700">
+          {readiness.requiredComplete}/{readiness.requiredTotal} required items complete
+        </p>
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-gray-100">
+          <div
+            className={`h-full rounded-full ${readiness.status === 'READY' ? 'bg-emerald-600' : 'bg-amber-500'}`}
+            style={{ width: `${Math.round((readiness.requiredComplete / readiness.requiredTotal) * 100)}%` }}
+          />
+        </div>
+        <p className="mt-2 line-clamp-2 text-xs text-gray-500">{publicDetail}</p>
+      </div>
+      <MissingItemsList readiness={readiness} />
+    </div>
   );
 }
 
 function MissingItemsList({ readiness }: { readiness: ProductReadiness }) {
   const requiredMissing = readiness.requiredItems.filter((item) => !item.complete);
   const recommendedMissing = readiness.recommendedItems.filter((item) => !item.complete);
+  const visibleMissing = [...requiredMissing, ...recommendedMissing].slice(0, 3);
+  const hiddenMissingCount = Math.max(0, requiredMissing.length + recommendedMissing.length - visibleMissing.length);
 
   if (requiredMissing.length === 0 && recommendedMissing.length === 0) {
     return (
@@ -598,32 +701,23 @@ function MissingItemsList({ readiness }: { readiness: ProductReadiness }) {
   }
 
   return (
-    <div className="max-w-40 space-y-2">
-      {requiredMissing.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold uppercase text-gray-500">Required</p>
-          <ul className="mt-1 space-y-1 text-xs text-gray-700">
-            {requiredMissing.map((item) => (
-              <li key={item.label} className="flex gap-1.5">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                <span>{item.label}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {recommendedMissing.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold uppercase text-gray-500">Recommended</p>
-          <ul className="mt-1 space-y-1 text-xs text-gray-500">
-            {recommendedMissing.map((item) => (
-              <li key={item.label} className="flex gap-1.5">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-gray-300" />
-                <span>{item.label}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+    <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+      <p className="text-[11px] font-semibold uppercase text-gray-500">
+        Needs {requiredMissing.length} required / {recommendedMissing.length} recommended
+      </p>
+      <ul className="mt-2 space-y-1 text-xs text-gray-700">
+        {visibleMissing.map((item) => {
+          const required = requiredMissing.includes(item);
+          return (
+            <li key={item.label} className="flex gap-1.5">
+              <span className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${required ? 'bg-amber-500' : 'bg-gray-300'}`} />
+              <span className="line-clamp-1">{item.label}</span>
+            </li>
+          );
+        })}
+      </ul>
+      {hiddenMissingCount > 0 && (
+        <p className="mt-1 text-xs text-gray-500">+{hiddenMissingCount} more in the editor</p>
       )}
     </div>
   );

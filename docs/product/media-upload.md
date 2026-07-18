@@ -108,6 +108,17 @@ Use this checklist when validating media with real local services, not just mock
 
 Phase 24D does not add media domain rules. It validates that the existing authenticated upload path, public read path, and landing-engine preview cache bypass work together.
 
+## Phase 35 Publishing UX Simplification
+
+Storefront Publishing should stay useful as a readiness workspace without becoming a dense diagnostics table.
+
+- Keep the same product list, storefront settings, profile queries, public product readiness query, copy actions, preview links, and publish/unpublish mutation.
+- Show top-level workload cards for catalog products, active catalog products, primary image coverage, and storefront setup.
+- Keep row-level publishing readiness, missing content, media readiness, public API readiness, public preview URL, and API payload URL visible.
+- Present media checks as compact status chips with one attention line instead of long per-check explanations.
+- Keep Preview page and API payload copy buttons labeled by purpose, with compact URL labels instead of full wrapped URLs.
+- Verify the page and publishing table do not create horizontal overflow on a 14-inch/laptop viewport, including after refresh.
+
 ## Verification Checklist
 
 For every media contract change, verify:
