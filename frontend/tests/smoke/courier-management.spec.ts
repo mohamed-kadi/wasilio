@@ -12,6 +12,7 @@ const courier = {
 const failedOrderId = '11111111-1111-1111-1111-111111111111';
 
 test('merchant can manage courier availability and performance visibility', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await installMockApi(page);
   const token = fakeJwt({
     email: 'admin@example.com',
@@ -151,6 +152,7 @@ test('merchant can manage courier availability and performance visibility', asyn
   await expect(page.getByRole('button', { name: 'Recovery cases open' })).toBeVisible();
   await expect(page.getByText('Recovery cases for review')).toBeVisible();
   await expectPanelInViewport(page, 'courier-recovery-review');
+  await expectNoHorizontalOverflow(page, 'courier-performance-table-wrap');
   await expect(page.getByText('Amine Courier - Last 7 days - 1 record')).toBeVisible();
   await expect(page.getByText('Failed Customer')).toBeVisible();
   await expect(page.getByText('Customer did not answer at delivery')).toBeVisible();

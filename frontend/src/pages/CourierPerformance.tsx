@@ -215,14 +215,14 @@ export default function CourierPerformance() {
           <h3 className="font-semibold text-gray-900">Courier comparison</h3>
           <p className="mt-1 text-sm text-gray-500">Sorted by completed delivery outcomes, then success rate.</p>
         </div>
-        <div className="overflow-x-auto" data-testid="courier-performance-table-wrap">
-          <table className="w-full min-w-[780px] text-left text-sm">
+        <div className="overflow-x-hidden" data-testid="courier-performance-table-wrap">
+          <table className="w-full table-fixed text-left text-sm">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
-                <th className="p-4 font-medium">Courier</th>
-                <th className="p-4 font-medium">Workflow activity</th>
-                <th className="p-4 font-medium">Delivery outcome</th>
-                <th className="p-4 font-medium">Recovery action</th>
+                <th className="w-[28%] p-4 font-medium">Courier</th>
+                <th className="w-[22%] p-4 font-medium">Workflow activity</th>
+                <th className="w-[27%] p-4 font-medium">Delivery outcome</th>
+                <th className="w-[23%] p-4 font-medium">Recovery action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -234,12 +234,12 @@ export default function CourierPerformance() {
                 return (
                   <tr key={metric.courierId} className={`${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
                     <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-gray-100 text-sm font-semibold text-gray-700">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-gray-100 text-sm font-semibold text-gray-700">
                           {initials(metric.courierName)}
                         </div>
-                        <div>
-                          <p className="font-medium text-gray-900">{metric.courierName}</p>
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-gray-900">{metric.courierName}</p>
                           <p className="mt-1 text-xs text-gray-500">
                             {metric.active ? 'Active - can receive assignments' : 'Inactive - no new assignments'}
                           </p>
@@ -276,7 +276,7 @@ export default function CourierPerformance() {
                         type="button"
                         onClick={() => openFailures(metric)}
                         disabled={metric.failedOrdersCount === 0}
-                        className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
+                        className={`inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-md border px-3 py-2 text-center text-sm font-medium ${
                           metric.failedOrdersCount > 0
                             ? selected
                               ? 'border-blue-300 bg-blue-600 text-white hover:bg-blue-700'

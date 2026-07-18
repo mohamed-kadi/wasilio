@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { installMockApi, loginAs } from './helpers';
 
 const firstOrderId = '11111111-1111-1111-1111-111111111111';
@@ -6,6 +6,7 @@ const secondOrderId = '22222222-2222-2222-2222-222222222222';
 const thirdOrderId = '33333333-3333-3333-3333-333333333333';
 
 test('merchant can work open delivery follow-ups by due date', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await installMockApi(page);
 
   const followUps = [
@@ -109,11 +110,13 @@ test('merchant can work open delivery follow-ups by due date', async ({ page }) 
   await expect(page.getByRole('heading', { name: 'Delivery follow-ups' })).toBeVisible();
   await expect(page.getByText('Recovery follow-up queue')).toBeVisible();
   await expect(page.getByText('Status: Open follow-ups')).toBeVisible();
+  await expectNoHorizontalOverflow(page);
   await page.getByRole('button', { name: 'Advanced filters' }).click();
   await expect(page.getByRole('button', { name: /All open \(3\)/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Due now \(1\)/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Scheduled later \(1\)/ })).toBeVisible();
   await expect(page.getByRole('button', { name: /Needs priority \(1\)/ })).toBeVisible();
+  await expectNoHorizontalOverflow(page);
   await expect(page.locator('article')).toHaveCount(3);
   await expect(page.locator('article').first()).toContainText('Overdue');
   await expect(page.locator('article').first()).toContainText('Earlier Customer');
@@ -124,14 +127,17 @@ test('merchant can work open delivery follow-ups by due date', async ({ page }) 
   await page.getByRole('button', { name: /Due now \(1\)/ }).click();
   await expect(page.locator('article')).toHaveCount(1);
   await expect(page.locator('article')).toContainText('Earlier Customer');
+  await expectNoHorizontalOverflow(page);
 
   await page.getByRole('button', { name: /Scheduled later \(1\)/ }).click();
   await expect(page.locator('article')).toHaveCount(1);
   await expect(page.locator('article')).toContainText('Later Customer');
+  await expectNoHorizontalOverflow(page);
 
   await page.getByRole('button', { name: /Needs priority \(1\)/ }).click();
   await expect(page.locator('article')).toHaveCount(1);
   await expect(page.locator('article')).toContainText('Manual Customer');
+  await expectNoHorizontalOverflow(page);
 
   await page.getByRole('button', { name: /All open \(3\)/ }).click();
   await expect(page.locator('article')).toHaveCount(3);
@@ -144,7 +150,13 @@ test('merchant can work open delivery follow-ups by due date', async ({ page }) 
   await expect(page.getByText('Later Customer')).toBeVisible();
   await expect(page.getByText('Manual Customer')).toBeVisible();
   await expect(page.getByText('Earlier Customer')).not.toBeVisible();
+  await expectNoHorizontalOverflow(page);
 });
+
+async function expectNoHorizontalOverflow(page: Page) {
+  const pageFits = await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
+  expect(pageFits).toBe(true);
+}
 
 function followUpTask({
   taskId,
