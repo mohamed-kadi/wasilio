@@ -196,3 +196,12 @@ External landing-engine browser QA should verify:
 - `?wasilioPreview=1` refreshes recently changed Wasilio media for merchant QA without changing the normal public cache behavior.
 - Order submission returns a receipt and shows the configured landing-engine success state.
 - The Wasilio merchant dashboard shows the resulting storefront inbound order and internal intelligence score.
+
+## Phase 36 Onboarding And Settings UX
+
+Before production hardening, the merchant setup path should make the minimum Wasilio-to-landing-engine handoff visible without changing backend contracts.
+
+- Signup shows workspace, main admin, and password readiness before creating the first tenant.
+- Storefront Settings shows setup cards for store status, store identity, support contact, and checkout defaults before the editable form.
+- Developer setup remains collapsed by default and still exposes the same public product URL, public order URL, landing-engine pattern, and `.env.local` values.
+- Storefront Settings must remain stable at laptop width before and after opening Developer setup.

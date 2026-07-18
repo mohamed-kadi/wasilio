@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { ArrowLeft, UserPlus } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Circle, ShieldCheck, Store, UserPlus, UserRound } from 'lucide-react';
 import { ApiError, getErrorMessage, onboardTenant } from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import BrandLogo from '../components/BrandLogo';
@@ -18,6 +18,29 @@ export default function Signup() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  const passwordReady = STRONG_PASSWORD.test(password);
+  const passwordsMatch = Boolean(confirmPassword) && password === confirmPassword;
+  const setupSteps = [
+    {
+      label: 'Workspace',
+      detail: tenantName.trim() || 'Store name needed',
+      complete: Boolean(tenantName.trim()),
+      icon: <Store size={16} />,
+    },
+    {
+      label: 'Main admin',
+      detail: adminEmail.trim() || 'Admin email needed',
+      complete: Boolean(adminName.trim() && adminEmail.trim()),
+      icon: <UserRound size={16} />,
+    },
+    {
+      label: 'Secure password',
+      detail: passwordReady && passwordsMatch ? 'Ready' : 'Password rules pending',
+      complete: passwordReady && passwordsMatch,
+      icon: <ShieldCheck size={16} />,
+    },
+  ];
 
   if (session) {
     return <Navigate to="/app" replace />;
@@ -58,9 +81,9 @@ export default function Signup() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md space-y-6">
-        <div>
+    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
+      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]">
+        <section className="space-y-6">
           <Link to="/login" className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline">
             <ArrowLeft size={16} />
             Sign in
@@ -70,9 +93,21 @@ export default function Signup() {
           <p className="mt-2 text-sm leading-6 text-gray-600">
             The store workspace is the business account. The main admin is the person who will manage it.
           </p>
-        </div>
 
-        <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+          <div className="grid gap-3">
+            {setupSteps.map((step) => (
+              <SetupStep
+                key={step.label}
+                label={step.label}
+                detail={step.detail}
+                complete={step.complete}
+                icon={step.icon}
+              />
+            ))}
+          </div>
+        </section>
+
+        <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
               {error}
@@ -115,6 +150,7 @@ export default function Signup() {
             autoComplete="new-password"
             onChange={setPassword}
           />
+          <PasswordChecklist password={password} confirmPassword={confirmPassword} />
           <Field
             label="Confirm password"
             name="confirmPassword"
@@ -136,6 +172,68 @@ export default function Signup() {
         </form>
       </div>
     </main>
+  );
+}
+
+function SetupStep({
+  label,
+  detail,
+  complete,
+  icon,
+}: {
+  label: string;
+  detail: string;
+  complete: boolean;
+  icon: ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <div className="flex items-start gap-3">
+        <span className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
+          complete ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'
+        }`}>
+          {icon}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-gray-900">{label}</p>
+            {complete ? (
+              <CheckCircle2 size={16} className="shrink-0 text-emerald-700" />
+            ) : (
+              <Circle size={16} className="shrink-0 text-gray-300" />
+            )}
+          </div>
+          <p className="mt-1 truncate text-sm text-gray-500">{detail}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PasswordChecklist({ password, confirmPassword }: { password: string; confirmPassword: string }) {
+  const checks = [
+    { label: 'At least 12 characters', complete: password.length >= 12 },
+    { label: 'Uppercase and lowercase letters', complete: /[A-Z]/.test(password) && /[a-z]/.test(password) },
+    { label: 'Number and symbol', complete: /\d/.test(password) && /[^A-Za-z0-9]/.test(password) },
+    { label: 'Passwords match', complete: Boolean(confirmPassword) && password === confirmPassword },
+  ];
+
+  return (
+    <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+      <p className="text-xs font-semibold uppercase text-gray-500">Password readiness</p>
+      <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+        {checks.map((check) => (
+          <div key={check.label} className="flex items-center gap-2 text-xs text-gray-600">
+            {check.complete ? (
+              <CheckCircle2 size={14} className="shrink-0 text-emerald-700" />
+            ) : (
+              <Circle size={14} className="shrink-0 text-gray-300" />
+            )}
+            <span>{check.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

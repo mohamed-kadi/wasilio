@@ -1,6 +1,6 @@
 import { type FormEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, Globe2, Save, Store, ToggleLeft, ToggleRight } from 'lucide-react';
+import { CheckCircle2, Circle, ExternalLink, Globe2, Save, Store, ToggleLeft, ToggleRight } from 'lucide-react';
 import {
   fetchStorefrontSettings,
   getErrorMessage,
@@ -133,6 +133,37 @@ function StorefrontSettingsEditor({
 
   const supportValueConfig = supportValueFieldConfig(form.supportChannelType);
   const knownSupportType = SUPPORT_TYPE_OPTIONS.some((option) => option.value === form.supportChannelType);
+  const identityReady = Boolean(form.publicName.trim() && slugPreview(form.storeSlug));
+  const supportReady = form.supportChannelType === 'none' || Boolean(form.supportChannelValue.trim());
+  const checkoutReady = Boolean(
+    form.defaultCountryCode.trim() && form.defaultCurrency.trim() && form.phonePattern.trim(),
+  );
+  const setupCards = [
+    {
+      title: 'Store status',
+      value: form.status === 'ACTIVE' ? 'Active' : 'Disabled',
+      detail: form.status === 'ACTIVE' ? 'Public product pages can be served' : 'Public pages stay hidden',
+      ready: form.status === 'ACTIVE',
+    },
+    {
+      title: 'Store identity',
+      value: identityReady ? 'Ready' : 'Missing',
+      detail: slugForDisplay ? `Slug: ${slugForDisplay}` : 'Add public name and slug',
+      ready: identityReady,
+    },
+    {
+      title: 'Support contact',
+      value: supportReady ? supportTypeLabel(form.supportChannelType) : 'Needs value',
+      detail: supportReady ? supportContactDetail(form) : 'Add a contact value or choose None',
+      ready: supportReady,
+    },
+    {
+      title: 'Checkout defaults',
+      value: checkoutReady ? 'Ready' : 'Missing',
+      detail: `${form.defaultCountryCode || 'Country'} / ${form.defaultCurrency || 'Currency'}`,
+      ready: checkoutReady,
+    },
+  ];
   const submitLabel = saveMutation.isPending
     ? 'Saving'
     : hasStorefront
@@ -165,6 +196,18 @@ function StorefrontSettingsEditor({
           Storefront settings saved.
         </div>
       )}
+
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {setupCards.map((card) => (
+          <StorefrontSetupCard
+            key={card.title}
+            title={card.title}
+            value={card.value}
+            detail={card.detail}
+            ready={card.ready}
+          />
+        ))}
+      </section>
 
       <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-4">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -386,6 +429,35 @@ function StatusPill({ status }: { status: StorefrontStatus }) {
   );
 }
 
+function StorefrontSetupCard({
+  title,
+  value,
+  detail,
+  ready,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+  ready: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase text-gray-500">{title}</p>
+          <p className="mt-1 truncate text-lg font-semibold text-gray-900">{value}</p>
+        </div>
+        {ready ? (
+          <CheckCircle2 size={18} className="shrink-0 text-emerald-700" />
+        ) : (
+          <Circle size={18} className="shrink-0 text-gray-300" />
+        )}
+      </div>
+      <p className="mt-2 line-clamp-2 text-sm text-gray-600">{detail}</p>
+    </div>
+  );
+}
+
 function UrlRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -396,6 +468,17 @@ function UrlRow({ label, value }: { label: string; value: string }) {
       </div>
     </div>
   );
+}
+
+function supportTypeLabel(value: string) {
+  return SUPPORT_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value;
+}
+
+function supportContactDetail(form: StorefrontFormState) {
+  if (form.supportChannelType === 'none') {
+    return 'No public support channel shown';
+  }
+  return form.supportChannelValue || 'Support contact saved after update';
 }
 
 function payloadFromForm(form: StorefrontFormState): PublicStorefrontSettingsPayload {
