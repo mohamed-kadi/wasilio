@@ -201,7 +201,7 @@ External landing-engine browser QA should verify:
 
 Before production hardening, the merchant setup path should make the minimum Wasilio-to-landing-engine handoff visible without changing backend contracts.
 
-- Signup shows workspace, main admin, and password readiness before creating the first tenant.
+- Signup shows workspace, merchant owner, and password readiness before creating the first tenant.
 - Storefront Settings shows setup cards for store status, store identity, support contact, and checkout defaults before the editable form.
 - Developer setup remains collapsed by default and still exposes the same public product URL, public order URL, landing-engine pattern, and `.env.local` values.
 - Storefront Settings must remain stable at laptop width before and after opening Developer setup.

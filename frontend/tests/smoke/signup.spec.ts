@@ -24,13 +24,13 @@ test('merchant can create the first workspace from signup', async ({ page }) => 
 
   await expect(page.getByRole('heading', { name: 'Create store workspace' })).toBeVisible();
   await expect(page.getByText('Workspace', { exact: true })).toBeVisible();
-  await expect(page.getByText('Main admin', { exact: true })).toBeVisible();
+  await expect(page.getByText('Merchant owner', { exact: true })).toBeVisible();
   await expect(page.getByText('Password readiness')).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
   await page.getByLabel('Store / business name').fill('Atlas Shop');
-  await page.getByLabel('Main admin full name').fill('Admin User');
-  await page.getByLabel('Main admin email').fill('admin@example.com');
+  await page.getByLabel('Merchant owner full name').fill('Admin User');
+  await page.getByLabel('Merchant owner email').fill('admin@example.com');
   await page.getByRole('textbox', { name: 'Password', exact: true }).fill('Str0ng!Password2026');
   await page.getByLabel('Confirm password').fill('Str0ng!Password2026');
 
@@ -50,7 +50,7 @@ test('merchant can create the first workspace from signup', async ({ page }) => 
     password: 'Str0ng!Password2026',
   });
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByText('Workspace created. Sign in with the main admin account.')).toBeVisible();
+  await expect(page.getByText('Workspace created. Sign in with the merchant owner account.')).toBeVisible();
 });
 
 async function expectNoHorizontalOverflow(page: Page) {

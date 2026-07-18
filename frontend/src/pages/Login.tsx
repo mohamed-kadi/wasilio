@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { LogIn } from 'lucide-react';
+import { LogIn, ShieldCheck, Store } from 'lucide-react';
 import { getErrorMessage, login } from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import BrandLogo from '../components/BrandLogo';
@@ -46,14 +46,27 @@ export default function Login() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div>
-          <BrandLogo markClassName="h-10 w-10" textClassName="text-2xl" />
-          <h2 className="mt-6 text-xl font-semibold text-gray-900">Sign in</h2>
-        </div>
+    <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
+      <div className="grid w-full max-w-5xl gap-8 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)]">
+        <section className="flex flex-col justify-center">
+          <BrandLogo className="flex" markClassName="h-11 w-11" textClassName="text-3xl" />
+          <h1 className="mt-10 text-2xl font-semibold text-gray-900">Merchant operations workspace</h1>
+          <p className="mt-3 max-w-md text-sm leading-6 text-gray-600">
+            Sign in to manage confirmations, courier operations, recovery, storefront publishing, and merchant setup.
+          </p>
+          <div className="mt-6 grid gap-3">
+            <AuthCue icon={<Store size={16} />} title="Store workspace" detail="Your products, orders, and storefront setup stay together." />
+            <AuthCue icon={<ShieldCheck size={16} />} title="Operations access" detail="Use the merchant owner account or an invited team account." />
+          </div>
+        </section>
 
-        <form onSubmit={handleSubmit} className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 space-y-4">
+        <section className="space-y-6">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Sign in</h2>
+            <p className="mt-2 text-sm text-gray-600">Enter your merchant account credentials.</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
           {message && (
             <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
               {message}
@@ -111,15 +124,32 @@ export default function Login() {
             <LogIn size={18} />
             {loading ? 'Signing in' : 'Sign in'}
           </button>
-        </form>
+          </form>
 
-        <p className="text-center text-sm text-gray-600">
-          Need a tenant?{' '}
-          <Link to="/signup" className="font-medium text-blue-600 hover:underline">
-            Create one
-          </Link>
-        </p>
+          <p className="text-center text-sm text-gray-600">
+            Need a workspace?{' '}
+            <Link to="/signup" className="font-medium text-blue-600 hover:underline">
+              Create one
+            </Link>
+          </p>
+        </section>
       </div>
     </main>
+  );
+}
+
+function AuthCue({ icon, title, detail }: { icon: ReactNode; title: string; detail: string }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-50 text-emerald-700">
+          {icon}
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-gray-900">{title}</p>
+          <p className="mt-1 text-sm leading-5 text-gray-500">{detail}</p>
+        </div>
+      </div>
+    </div>
   );
 }

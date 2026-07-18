@@ -29,8 +29,8 @@ export default function Signup() {
       icon: <Store size={16} />,
     },
     {
-      label: 'Main admin',
-      detail: adminEmail.trim() || 'Admin email needed',
+      label: 'Merchant owner',
+      detail: adminEmail.trim() || 'Owner email needed',
       complete: Boolean(adminName.trim() && adminEmail.trim()),
       icon: <UserRound size={16} />,
     },
@@ -68,7 +68,7 @@ export default function Signup() {
       await onboardTenant({ tenantName, adminName, adminEmail, password });
       navigate('/login', {
         replace: true,
-        state: { message: 'Workspace created. Sign in with the main admin account.' },
+        state: { message: 'Workspace created. Sign in with the merchant owner account.' },
       });
     } catch (submitError) {
       if (submitError instanceof ApiError) {
@@ -88,10 +88,12 @@ export default function Signup() {
             <ArrowLeft size={16} />
             Sign in
           </Link>
-          <BrandLogo className="mt-6" markClassName="h-10 w-10" textClassName="text-2xl" />
-          <h2 className="mt-4 text-xl font-semibold text-gray-900">Create store workspace</h2>
+          <div className="pt-10">
+            <BrandLogo className="flex" markClassName="h-10 w-10" textClassName="text-2xl" />
+          </div>
+          <h2 className="mt-5 text-xl font-semibold text-gray-900">Create store workspace</h2>
           <p className="mt-2 text-sm leading-6 text-gray-600">
-            The store workspace is the business account. The main admin is the person who will manage it.
+            The store workspace is the business account. The merchant owner is the person who will manage it.
           </p>
 
           <div className="grid gap-3">
@@ -124,8 +126,8 @@ export default function Signup() {
             onChange={setTenantName}
           />
           <Field
-            label="Main admin full name"
-            help="This is the person who will log in and manage the workspace."
+            label="Merchant owner full name"
+            help="This is the person who will sign in and manage the workspace."
             name="adminName"
             value={adminName}
             error={fieldErrors.adminName}
@@ -133,7 +135,7 @@ export default function Signup() {
             onChange={setAdminName}
           />
           <Field
-            label="Main admin email"
+            label="Merchant owner email"
             name="adminEmail"
             type="email"
             value={adminEmail}
