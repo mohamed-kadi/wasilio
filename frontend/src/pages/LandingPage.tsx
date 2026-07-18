@@ -233,7 +233,7 @@ const copy = {
     proofCards: [
       ['Fewer forgotten orders', 'Pending callbacks and orders stay visible instead of disappearing inside WhatsApp threads.'],
       ['Less courier confusion', 'Orders move through assignment, pickup, delivered, or failed with a clear trace.'],
-      ['Better pilot follow-up', 'Manual payments, receipts, and tenant status give the business a launch-ready base.'],
+      ['Better pilot follow-up', 'Manual payments, receipts, and workspace status give the business a launch-ready base.'],
     ],
     processEyebrow: 'Confirmation workflow',
     processTitle: 'Your team stops guessing the next action.',

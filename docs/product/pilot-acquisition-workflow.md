@@ -12,13 +12,13 @@ This is the main campaign path.
 
 ```text
 Landing page demo request
--> Super-admin Leads tab
+-> Wasilio staff Demo Requests section
 -> Manual call or WhatsApp follow-up
--> Lead marked CONTACTED
--> Lead qualified
--> Convert to trial tenant
+-> Request marked Contacted
+-> Request qualified
+-> Convert to pilot merchant workspace
 -> Merchant receives guided onboarding
--> Lead marked ONBOARDED
+-> Request marked Workspace created
 ```
 
 Campaign promise:
@@ -45,48 +45,50 @@ Direct signup exists for merchants who are already approved or invited.
 
 ```text
 Approved merchant opens /signup
--> creates tenant and first admin account
+-> creates merchant workspace and merchant owner account
 -> logs in at /login
 -> starts merchant workflow
 ```
 
-In production, keep public signup controlled with `APP_ONBOARDING_ENABLED`. For a closed pilot, leave public signup disabled and use lead conversion from the super-admin workspace.
+In production, keep public signup controlled with `APP_ONBOARDING_ENABLED`. For a closed pilot, leave public signup disabled and use demo request conversion from the Wasilio staff workspace.
 
-## Lead Status Meaning
+## Demo Request Status Meaning
 
-Lead status is operational tracking. It does not send messages automatically.
+Demo request status is operational tracking. It does not send messages automatically.
 
-- `NEW`: form submitted, not reviewed yet.
-- `CONTACTED`: Wasilio has called or messaged the merchant.
-- `QUALIFIED`: merchant is a good pilot candidate.
-- `REJECTED`: not a fit, duplicate, fake, outside target, or not ready.
-- `ONBOARDED`: a tenant workspace was created from the lead.
+- `New request`: form submitted, not reviewed yet.
+- `Contacted`: Wasilio has called or messaged the merchant.
+- `Qualified`: merchant is a good pilot candidate.
+- `Not a fit`: duplicate, fake, outside target, or not ready.
+- `Workspace created`: a merchant workspace was created from the request.
 
-## Super-Admin Conversion
+The API and database still use marketing lead status values: `NEW`, `CONTACTED`, `QUALIFIED`, `REJECTED`, and `ONBOARDED`.
 
-From `/admin/billing` -> Leads, a super-admin can convert a lead into a tenant.
+## Staff Conversion
+
+From `/admin/billing?section=leads`, Wasilio staff can convert a demo request into a merchant workspace.
 
 The conversion creates:
 
-- a tenant in `TRIALING` status
-- the first merchant `ADMIN` user
-- a conversion link on the lead with converted tenant ID and timestamp
+- a merchant workspace in `TRIALING` status
+- the first merchant owner user
+- a conversion link on the request with converted tenant ID and timestamp
 - an internal note explaining the conversion
 
 The initial password must be shared manually through the agreed channel. For early pilots, this should usually happen during or immediately after a guided onboarding call.
 
 ## Recommended First Pilot Script
 
-1. Review the lead details: store, city, phone, order volume, and message.
+1. Review the request details: store, city, phone, order volume, and message.
 2. Contact the merchant by phone or WhatsApp.
-3. Add notes and mark the lead `CONTACTED`.
+3. Add notes and mark the request `Contacted`.
 4. Qualify the merchant:
    - sells COD in Morocco
    - has repeated order volume
    - currently uses WhatsApp, spreadsheets, or manual follow-up
    - agrees to test Wasilio seriously
 5. If qualified, open the conversion panel.
-6. Create the trial tenant and first admin user.
+6. Create the pilot workspace and merchant owner user.
 7. Share login instructions and initial password.
 8. Walk the merchant through creating or importing the first orders.
 9. Mark next follow-up for feedback after their first operational use.

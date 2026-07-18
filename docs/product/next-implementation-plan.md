@@ -34,7 +34,7 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 ## Near-Term Queue
 
 1. Documentation organization and handoff clarity.
-2. Super-admin cleanup and UX review for staff/admin workflows.
+2. Super-admin cleanup and UX review for staff/admin workflows. See `docs/product/staff-admin-workspace.md`.
 3. Real merchant launch-readiness pass.
 4. Intelligence calibration pilot after enough realistic confirmation evidence is available.
 
@@ -73,7 +73,7 @@ Scope:
 - Confirmation queue and attempt recording.
 - Callback follow-up queue.
 - Courier assignment, pickup, delivery outcome, and failure reason flows.
-- Admin billing/leads workspace.
+- Staff admin workspace for billing, plans, payments, and demo requests.
 - Empty states, loading states, validation messages, and error handling.
 
 Exit criteria:
@@ -81,22 +81,22 @@ Exit criteria:
 - A guided demo can run end-to-end locally without awkward gaps.
 - The operator workflow feels coherent for a real merchant use case.
 
-### 3. Lead Capture And Campaign Readiness
+### 3. Demo Request Capture And Campaign Readiness
 
 Goal: prepare for ads before spending on traffic.
 
 Scope:
 
 - Confirm Meta Pixel can be enabled through `VITE_PUBLIC_META_PIXEL_ID`.
-- Validate lead form campaign fields: `utm_*`, `fbclid`, `gclid`, and referrer.
+- Validate demo request campaign fields: `utm_*`, `fbclid`, `gclid`, and referrer.
 - Draft Facebook/Instagram ad angles and landing-page promise.
-- Define the manual follow-up process after a lead arrives.
-- Decide whether the first campaign sends users to the lead form, WhatsApp, or both.
+- Define the manual follow-up process after a demo request arrives.
+- Decide whether the first campaign sends users to the demo request form, WhatsApp, or both.
 
 Exit criteria:
 
-- A test lead from a campaign URL is captured with attribution.
-- The admin workflow for reviewing and following up with leads is clear.
+- A test demo request from a campaign URL is captured with attribution.
+- The admin workflow for reviewing and following up with demo requests is clear.
 
 ### 4. Focused Test Coverage
 
@@ -106,7 +106,7 @@ Scope:
 
 - Keep existing backend tests passing.
 - Add or expand frontend smoke/E2E coverage for the paths being polished.
-- Prefer tests around landing lead capture, auth isolation, order creation, confirmation, callbacks, and admin lead follow-up.
+- Prefer tests around landing demo request capture, auth isolation, order creation, confirmation, callbacks, and admin demo request follow-up.
 
 Exit criteria:
 

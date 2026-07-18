@@ -1,11 +1,13 @@
 import { type FormEvent, type ReactNode, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   Banknote,
   Building2,
   CalendarClock,
-  ClipboardList,
+  ChevronDown,
+  ChevronUp,
   CreditCard,
   FileText,
   Mail,
@@ -48,7 +50,8 @@ const subscriptionStatuses: SubscriptionStatus[] = ['TRIALING', 'ACTIVE', 'OVERD
 const paymentMethods: PaymentMethod[] = ['CASH', 'BANK_TRANSFER', 'CHECK', 'OTHER'];
 const marketingLeadStatuses: MarketingLeadStatus[] = ['NEW', 'CONTACTED', 'QUALIFIED', 'REJECTED', 'ONBOARDED'];
 const blockedStatuses: TenantStatus[] = ['OVERDUE', 'SUSPENDED', 'DISABLED'];
-type WorkspaceTab = 'tenants' | 'billing' | 'payments' | 'plans' | 'leads';
+const workspaceSections = ['tenants', 'billing', 'payments', 'plans', 'leads'] as const;
+type WorkspaceTab = typeof workspaceSections[number];
 type LeadFilter = MarketingLeadStatus | 'ALL' | 'CAMPAIGN';
 
 interface CampaignAttribution {
@@ -58,13 +61,36 @@ interface CampaignAttribution {
   clickIds: string[];
 }
 
-const workspaceTabs: Array<{ id: WorkspaceTab; label: string; icon: ReactNode }> = [
-  { id: 'tenants', label: 'Tenants', icon: <Building2 size={16} /> },
-  { id: 'billing', label: 'Billing', icon: <CreditCard size={16} /> },
-  { id: 'payments', label: 'Payments', icon: <Banknote size={16} /> },
-  { id: 'plans', label: 'Plans', icon: <FileText size={16} /> },
-  { id: 'leads', label: 'Leads', icon: <ClipboardList size={16} /> },
-];
+const workspaceSectionMeta: Record<WorkspaceTab, { title: string; detail: string }> = {
+  tenants: {
+    title: 'Merchant Workspaces',
+    detail: 'Review workspace health, access status, and current activity.',
+  },
+  billing: {
+    title: 'Billing',
+    detail: 'Manage the selected workspace subscription and billing period.',
+  },
+  payments: {
+    title: 'Payments',
+    detail: 'Record manual payments and generate receipts.',
+  },
+  plans: {
+    title: 'Plans',
+    detail: 'Review and create subscription plans.',
+  },
+  leads: {
+    title: 'Demo Requests',
+    detail: 'Review interested merchants before creating pilot workspaces.',
+  },
+};
+
+const leadStatusLabels: Record<MarketingLeadStatus, string> = {
+  NEW: 'New request',
+  CONTACTED: 'Contacted',
+  QUALIFIED: 'Qualified',
+  REJECTED: 'Not a fit',
+  ONBOARDED: 'Workspace created',
+};
 
 function toDateTimeLocal(value?: string) {
   return value ? value.slice(0, 16) : '';
@@ -106,8 +132,17 @@ function isBlocked(status: TenantStatus) {
   return blockedStatuses.includes(status);
 }
 
+function isWorkspaceTab(value: string | null): value is WorkspaceTab {
+  return workspaceSections.includes(value as WorkspaceTab);
+}
+
+function leadStatusLabel(status: MarketingLeadStatus) {
+  return leadStatusLabels[status];
+}
+
 export default function AdminBilling() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [tenantStatus, setTenantStatus] = useState<TenantStatus | ''>('');
   const [tenantSearch, setTenantSearch] = useState('');
@@ -131,7 +166,10 @@ export default function AdminBilling() {
   const [planOrderLimit, setPlanOrderLimit] = useState('');
   const [planUserLimit, setPlanUserLimit] = useState('');
   const [receiptPaymentId, setReceiptPaymentId] = useState('');
-  const [activeTab, setActiveTab] = useState<WorkspaceTab>('tenants');
+  const [showPlanForm, setShowPlanForm] = useState(false);
+  const sectionParam = searchParams.get('section');
+  const activeTab: WorkspaceTab = isWorkspaceTab(sectionParam) ? sectionParam : 'tenants';
+  const activeSection = workspaceSectionMeta[activeTab];
 
   const tenantsQuery = useQuery({
     queryKey: ['admin-tenants'],
@@ -151,6 +189,21 @@ export default function AdminBilling() {
   const tenants = useMemo(() => tenantsQuery.data ?? [], [tenantsQuery.data]);
   const plans = useMemo(() => plansQuery.data ?? [], [plansQuery.data]);
   const leads = useMemo(() => leadsQuery.data ?? [], [leadsQuery.data]);
+  const sortedPlans = useMemo(() => {
+    return [...plans].sort((first, second) => {
+      if (first.active !== second.active) {
+        return first.active ? -1 : 1;
+      }
+      return first.monthlyPrice - second.monthlyPrice || first.name.localeCompare(second.name);
+    });
+  }, [plans]);
+  const planStats = useMemo(() => {
+    const active = plans.filter((plan) => plan.active).length;
+    const archived = plans.length - active;
+    const entryPrice = sortedPlans.find((plan) => plan.active)?.monthlyPrice;
+    const currency = sortedPlans.find((plan) => plan.active)?.currency ?? 'MAD';
+    return { active, archived, entryPrice, currency };
+  }, [plans, sortedPlans]);
 
   const filteredTenants = useMemo(() => {
     const normalizedSearch = tenantSearch.trim().toLowerCase();
@@ -252,6 +305,7 @@ export default function AdminBilling() {
       setPlanPrice('');
       setPlanOrderLimit('');
       setPlanUserLimit('');
+      setShowPlanForm(false);
       await queryClient.invalidateQueries({ queryKey: ['subscription-plans'] });
     },
   });
@@ -344,12 +398,16 @@ export default function AdminBilling() {
     window.print();
   }
 
+  function setActiveTab(tab: WorkspaceTab) {
+    setSearchParams({ section: tab });
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Super Admin</h2>
-          <p className="text-sm text-gray-500">Tenant health, billing status, manual payments, and receipt control</p>
+          <h2 className="text-2xl font-bold text-gray-900">Wasilio Staff Workspace</h2>
+          <p className="text-sm text-gray-500">Merchant workspace health, billing status, manual payments, receipts, and demo requests</p>
         </div>
         <button
           type="button"
@@ -371,29 +429,13 @@ export default function AdminBilling() {
       )}
 
       <section className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard icon={<Building2 size={18} />} label="Tenants" value={String(kpis.totalTenants)} detail={`${kpis.activeTenants} active or trialing`} />
+        <KpiCard icon={<Building2 size={18} />} label="Merchant workspaces" value={String(kpis.totalTenants)} detail={`${kpis.activeTenants} active or trialing`} />
         <KpiCard icon={<ShieldAlert size={18} />} label="Needs action" value={String(kpis.blockedTenants)} detail="Overdue, suspended, or disabled" tone={kpis.blockedTenants ? 'warning' : 'neutral'} />
-        <KpiCard icon={<TrendingUp size={18} />} label="Projected MRR" value={money(kpis.mrr, kpis.currency)} detail={`${kpis.subscribedTenants} subscribed tenants`} />
-        <KpiCard icon={<CreditCard size={18} />} label="Orders under management" value={String(kpis.totalOrders)} detail="Across all tenants" />
+        <KpiCard icon={<TrendingUp size={18} />} label="Projected MRR" value={money(kpis.mrr, kpis.currency)} detail={`${kpis.subscribedTenants} subscribed workspaces`} />
+        <KpiCard icon={<CreditCard size={18} />} label="Orders under management" value={String(kpis.totalOrders)} detail="Across all workspaces" />
       </section>
 
       <section className="rounded-lg border border-gray-200 bg-white">
-        <div className="flex flex-wrap gap-2 border-b border-gray-200 p-3">
-          {workspaceTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium ${
-                activeTab === tab.id ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
         <div className="grid grid-cols-1 xl:grid-cols-[360px_1fr]">
           <aside className="border-b border-gray-200 xl:border-b-0 xl:border-r">
             <TenantSelector
@@ -409,12 +451,17 @@ export default function AdminBilling() {
           </aside>
 
           <main className="min-h-[580px] p-5">
+            <div className="mb-5 border-b border-gray-100 pb-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Staff section</p>
+              <h3 className="mt-1 text-lg font-semibold text-gray-900">{activeSection.title}</h3>
+              <p className="mt-1 text-sm text-gray-500">{activeSection.detail}</p>
+            </div>
             <TenantSummaryCard detail={detail} selectedTenant={selectedTenant} latestPayment={latestPayment} />
 
             {activeTab === 'tenants' && (
               <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
                 <form onSubmit={handleTenantStatus} className="rounded-lg border border-gray-200 bg-white p-5">
-                  <h3 className="mb-4 text-sm font-semibold uppercase text-gray-500">Tenant Control</h3>
+                  <h3 className="mb-4 text-sm font-semibold uppercase text-gray-500">Workspace Control</h3>
                   <label>
                     <span className="mb-1 block text-xs font-medium uppercase text-gray-500">Operational status</span>
                     <select
@@ -429,7 +476,7 @@ export default function AdminBilling() {
                       ))}
                     </select>
                   </label>
-                  <p className="mt-3 text-xs text-gray-500">ACTIVE and TRIALING tenants can use merchant workflows. OVERDUE, SUSPENDED, and DISABLED tenants are blocked.</p>
+                  <p className="mt-3 text-xs text-gray-500">ACTIVE and TRIALING workspaces can use merchant workflows. OVERDUE, SUSPENDED, and DISABLED workspaces are blocked.</p>
                   <button
                     type="submit"
                     disabled={!effectiveTenantId || statusMutation.isPending}
@@ -441,7 +488,7 @@ export default function AdminBilling() {
                 </form>
 
                 <section className="rounded-lg border border-gray-200 bg-white p-5">
-                  <h3 className="mb-4 text-sm font-semibold uppercase text-gray-500">Tenant Snapshot</h3>
+                  <h3 className="mb-4 text-sm font-semibold uppercase text-gray-500">Workspace Snapshot</h3>
                   <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
                     <ReceiptField label="Users" value={String(detail?.usersCount ?? selectedTenant?.usersCount ?? 0)} />
                     <ReceiptField label="Orders" value={String(detail?.ordersCount ?? selectedTenant?.ordersCount ?? 0)} />
@@ -552,64 +599,91 @@ export default function AdminBilling() {
             )}
 
             {activeTab === 'plans' && (
-              <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[420px_1fr]">
-                <form onSubmit={handlePlan} className="rounded-lg border border-gray-200 bg-white p-5">
-                  <h3 className="mb-4 text-sm font-semibold uppercase text-gray-500">Create Plan</h3>
-                  <div className="grid grid-cols-1 gap-3">
-                    <TextInput label="Code" value={planCode} onChange={setPlanCode} required />
-                    <TextInput label="Name" value={planName} onChange={setPlanName} required />
-                    <TextInput label="Price" value={planPrice} onChange={setPlanPrice} type="number" required />
-                    <TextInput label="Currency" value={planCurrency} onChange={setPlanCurrency} maxLength={3} required />
-                    <TextInput label="Order limit" value={planOrderLimit} onChange={setPlanOrderLimit} type="number" />
-                    <TextInput label="User limit" value={planUserLimit} onChange={setPlanUserLimit} type="number" />
+              <section className="mt-6 space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <LeadMetric label="Active plans" value={planStats.active} detail="Available for new billing" tone="success" />
+                  <LeadMetric label="Archived plans" value={planStats.archived} detail="Kept for history" />
+                  <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                    <p className="text-xs font-semibold uppercase text-gray-600">Entry price</p>
+                    <p className="mt-2 text-2xl font-bold text-gray-900">
+                      {planStats.entryPrice === undefined ? 'Not set' : money(planStats.entryPrice, planStats.currency)}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-600">Lowest active monthly plan</p>
                   </div>
-                  <button
-                    type="submit"
-                    disabled={!planCode || !planName || !planPrice || planMutation.isPending}
-                    className="mt-4 inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    <PlusCircle size={16} />
-                    Create plan
-                  </button>
-                </form>
+                </div>
 
                 <section className="rounded-lg border border-gray-200 bg-white">
-                  <div className="border-b border-gray-200 p-4">
-                    <h3 className="text-sm font-semibold uppercase text-gray-500">Plans</h3>
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 p-4">
+                    <div>
+                      <h3 className="text-sm font-semibold uppercase text-gray-500">Subscription Plans</h3>
+                      <p className="mt-1 text-xs text-gray-500">Active plans are listed first. Archived plans should remain for billing history.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPlanForm((current) => !current)}
+                      className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                    >
+                      <PlusCircle size={16} />
+                      Create plan
+                      {showPlanForm ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
-                        <tr>
-                          <th className="p-3">Plan</th>
-                          <th className="p-3">Code</th>
-                          <th className="p-3">Price</th>
-                          <th className="p-3">Limits</th>
-                          <th className="p-3">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {plans.map((plan) => (
-                          <tr key={plan.planId}>
-                            <td className="p-3 font-medium text-gray-900">{plan.name}</td>
-                            <td className="p-3">{plan.code}</td>
-                            <td className="p-3">{money(plan.monthlyPrice, plan.currency)}</td>
-                            <td className="p-3">{plan.orderLimit ?? 'Unlimited'} orders · {plan.userLimit ?? 'Unlimited'} users</td>
-                            <td className="p-3">{plan.active ? 'Active' : 'Inactive'}</td>
-                          </tr>
-                        ))}
-                        {!plansQuery.isLoading && !plans.length && (
-                          <tr>
-                            <td className="p-4 text-sm text-gray-500" colSpan={5}>
-                              No plans created.
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
+
+                  {showPlanForm && (
+                    <form onSubmit={handlePlan} className="border-b border-gray-200 bg-gray-50 p-4">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <TextInput label="Code" value={planCode} onChange={setPlanCode} required />
+                        <TextInput label="Name" value={planName} onChange={setPlanName} required />
+                        <TextInput label="Price" value={planPrice} onChange={setPlanPrice} type="number" required />
+                        <TextInput label="Currency" value={planCurrency} onChange={setPlanCurrency} maxLength={3} required />
+                        <TextInput label="Order limit" value={planOrderLimit} onChange={setPlanOrderLimit} type="number" />
+                        <TextInput label="Team seats" value={planUserLimit} onChange={setPlanUserLimit} type="number" />
+                      </div>
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <button
+                          type="submit"
+                          disabled={!planCode || !planName || !planPrice || planMutation.isPending}
+                          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          <PlusCircle size={16} />
+                          {planMutation.isPending ? 'Creating' : 'Create plan'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowPlanForm(false)}
+                          className="rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
+
+                  <div className="grid gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">
+                    {sortedPlans.map((plan) => (
+                      <article key={plan.planId} className="rounded-lg border border-gray-200 bg-white p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h4 className="font-semibold text-gray-900">{plan.name}</h4>
+                            <p className="mt-1 font-mono text-xs uppercase text-gray-500">{plan.code}</p>
+                          </div>
+                          <PlanStatusBadge active={plan.active} />
+                        </div>
+                        <p className="mt-4 text-2xl font-bold text-gray-900">{money(plan.monthlyPrice, plan.currency)}</p>
+                        <p className="mt-1 text-xs text-gray-500">Monthly plan</p>
+                        <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                          <PlanLimit label="Orders" value={plan.orderLimit} />
+                          <PlanLimit label="Team seats" value={plan.userLimit} />
+                        </dl>
+                      </article>
+                    ))}
+                    {plansQuery.isLoading && <p className="text-sm text-gray-500">Loading plans...</p>}
+                    {!plansQuery.isLoading && !plans.length && (
+                      <p className="text-sm text-gray-500">No plans created.</p>
+                    )}
                   </div>
                 </section>
-              </div>
+              </section>
             )}
 
             {activeTab === 'leads' && (
@@ -676,7 +750,7 @@ function LeadList({
               Review new demo requests, schedule follow-up, qualify serious merchants, then create pilot workspaces.
             </p>
             <p className="mt-2 text-xs font-medium text-blue-700">
-              Campaign leads and due follow-ups are shown first.
+              Campaign requests and due follow-ups are shown first.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -686,7 +760,7 @@ function LeadList({
               <LeadFilterButton
                 key={leadStatus}
                 active={statusFilter === leadStatus}
-                label={leadStatus}
+                label={leadStatusLabel(leadStatus)}
                 count={leads.filter((lead) => lead.status === leadStatus).length}
                 onClick={() => setStatusFilter(leadStatus)}
               />
@@ -694,9 +768,9 @@ function LeadList({
           </div>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <LeadMetric label="Open leads" value={stats.open} detail="Needs decision" />
+          <LeadMetric label="Open requests" value={stats.open} detail="Needs decision" />
           <LeadMetric label="Follow-up due" value={stats.due} detail="Call or message now" tone={stats.due ? 'warning' : 'neutral'} />
-          <LeadMetric label="Campaign leads" value={stats.campaign} detail={`${stats.priorityCampaign} new paid/campaign lead${stats.priorityCampaign === 1 ? '' : 's'}`} tone={stats.priorityCampaign ? 'warning' : 'neutral'} />
+          <LeadMetric label="Campaign requests" value={stats.campaign} detail={`${stats.priorityCampaign} new paid/campaign request${stats.priorityCampaign === 1 ? '' : 's'}`} tone={stats.priorityCampaign ? 'warning' : 'neutral'} />
           <LeadMetric label="Qualified" value={stats.qualified} detail="Ready to convert" tone="success" />
           <LeadMetric label="Onboarded" value={stats.onboarded} detail="Pilot created" />
         </div>
@@ -717,7 +791,7 @@ function LeadList({
               onConvert={onConvert}
             />
           ))}
-          {isLoading && <p className="p-5 text-sm text-gray-500">Loading leads...</p>}
+          {isLoading && <p className="p-5 text-sm text-gray-500">Loading demo requests...</p>}
           {!isLoading && !leads.length && <p className="p-5 text-sm text-gray-500">No demo requests captured yet.</p>}
           {!isLoading && Boolean(leads.length) && !filteredLeads.length && (
             <p className="p-5 text-sm text-gray-500">No demo requests match this status.</p>
@@ -754,6 +828,7 @@ function LeadCard({
   const waLink = whatsappHref(lead.phone);
   const attribution = parseCampaignAttribution(lead.campaignSource);
   const campaignPriority = needsCampaignFollowUp(lead);
+  const nextAction = getLeadNextAction(lead);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -786,12 +861,17 @@ function LeadCard({
           <h4 className="font-semibold text-gray-900">{lead.storeName}</h4>
           <LeadStatusBadge status={lead.status} />
           {due && <span className="rounded-md bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">FOLLOW-UP DUE</span>}
-          {attribution && <span className="rounded-md bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">CAMPAIGN LEAD</span>}
+          {attribution && <span className="rounded-md bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">CAMPAIGN REQUEST</span>}
           {campaignPriority && <span className="rounded-md bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-800">PRIORITY FOLLOW-UP</span>}
           {lead.city && <span className="rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">{lead.city}</span>}
           {lead.monthlyOrderVolume && <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">{lead.monthlyOrderVolume}</span>}
         </div>
         <p className="mt-2 text-sm text-gray-700">{lead.contactName} · {lead.phone}{lead.email ? ` · ${lead.email}` : ''}</p>
+        <div className={`mt-4 rounded-md border p-3 ${nextAction.className}`}>
+          <p className="text-xs font-semibold uppercase">Next action</p>
+          <p className="mt-1 text-sm font-semibold text-gray-900">{nextAction.label}</p>
+          <p className="mt-1 text-xs">{nextAction.detail}</p>
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <a href={`tel:${lead.phone}`} className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50">
             <PhoneCall size={14} />
@@ -811,131 +891,190 @@ function LeadCard({
           )}
         </div>
         {lead.message && <p className="mt-2 text-sm leading-6 text-gray-600">{lead.message}</p>}
-        <div className="mt-3 grid gap-1 text-xs text-gray-500 sm:grid-cols-2">
-          <p>Captured: <span className="font-medium text-gray-700">{formatDateTime(lead.createdAt)}</span></p>
-          <p>Next follow-up: <span className="font-medium text-gray-700">{formatDateTime(lead.nextFollowUpAt)}</span></p>
-          {lead.convertedAt && <p>Converted: <span className="font-medium text-gray-700">{formatDateTime(lead.convertedAt)}</span></p>}
-          {lead.convertedTenantId && <p>Workspace ID: <span className="font-medium text-gray-700">{lead.convertedTenantId}</span></p>}
+        <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+          <LeadFact label="Captured" value={formatDateTime(lead.createdAt)} />
+          <LeadFact label="Follow-up" value={formatDateTime(lead.nextFollowUpAt)} />
+          {lead.convertedAt && <LeadFact label="Converted" value={formatDateTime(lead.convertedAt)} />}
+          {lead.convertedTenantId && <LeadFact label="Workspace ID" value={lead.convertedTenantId} />}
         </div>
         {attribution && <CampaignAttributionPanel attribution={attribution} />}
       </div>
 
       <div className="space-y-3">
-      <form onSubmit={handleSubmit} className="rounded-md border border-gray-200 bg-gray-50 p-4">
-        <div className="grid gap-3">
-          <label>
-            <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Lead status</span>
-            <select
-              value={status}
-              onChange={(event) => setStatus(event.target.value as MarketingLeadStatus)}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {marketingLeadStatuses.map((leadStatus) => (
-                <option key={leadStatus} value={leadStatus}>{leadStatus}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Next follow-up</span>
-            <input
-              type="datetime-local"
-              value={nextFollowUpAt}
-              onChange={(event) => setNextFollowUpAt(event.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </label>
-          <label>
-            <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Internal notes</span>
-            <textarea
-              rows={3}
-              value={internalNotes}
-              onChange={(event) => setInternalNotes(event.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </label>
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="submit"
-            disabled={isUpdating}
-            className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
-          >
-            <Save size={16} />
-            {isUpdating ? 'Saving' : 'Save follow-up'}
-          </button>
-          {status !== 'QUALIFIED' && (
-            <button
-              type="button"
-              onClick={() => setStatus('QUALIFIED')}
-              className="inline-flex rounded-md border border-green-200 bg-white px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
-            >
-              Mark qualified
-            </button>
-          )}
-        </div>
-      </form>
-      {!isConverted && (
-        <div className="rounded-md border border-gray-200 bg-white p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h5 className="text-sm font-semibold text-gray-900">Guided pilot conversion</h5>
-              <p className="mt-1 text-xs leading-5 text-gray-600">
-                Create a pilot workspace and merchant owner from this qualified lead.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setShowConversion((current) => !current)}
-              className="rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              {showConversion ? 'Hide' : 'Convert'}
-            </button>
-          </div>
-          {showConversion && (
-            <form onSubmit={handleConvert} className="mt-4 grid gap-3">
-              <FieldInput
-                label="Store / business name"
-                help="This becomes the merchant workspace name."
-                value={tenantName}
-                onChange={setTenantName}
-              />
-              <FieldInput
-                label="Merchant owner full name"
-                help="This person will manage the merchant workspace."
-                value={adminName}
-                onChange={setAdminName}
-              />
-              <FieldInput label="Merchant owner email" value={adminEmail} onChange={setAdminEmail} type="email" />
-              <FieldInput label="Initial password" value={password} onChange={setPassword} type="password" />
-              <label>
-                <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Conversion notes</span>
-                <textarea
-                  rows={3}
-                  value={conversionNotes}
-                  onChange={(event) => setConversionNotes(event.target.value)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </label>
-              <p className="text-xs leading-5 text-gray-500">Password must be at least 12 characters and include uppercase, lowercase, number, and symbol. Share it with the merchant through your agreed channel.</p>
-              <button
-                type="submit"
-                disabled={isConverting}
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+        <form onSubmit={handleSubmit} className="rounded-md border border-gray-200 bg-gray-50 p-4">
+          <div className="grid gap-3">
+            <label>
+              <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Request status</span>
+              <select
+                value={status}
+                onChange={(event) => setStatus(event.target.value as MarketingLeadStatus)}
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <PlusCircle size={16} />
-                {isConverting ? 'Converting' : 'Create pilot workspace'}
+                {marketingLeadStatuses.map((leadStatus) => (
+                  <option key={leadStatus} value={leadStatus}>{leadStatusLabel(leadStatus)}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Next follow-up</span>
+              <input
+                type="datetime-local"
+                value={nextFollowUpAt}
+                onChange={(event) => setNextFollowUpAt(event.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Internal notes</span>
+              <textarea
+                rows={3}
+                value={internalNotes}
+                onChange={(event) => setInternalNotes(event.target.value)}
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </label>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="submit"
+              disabled={isUpdating}
+              className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+            >
+              <Save size={16} />
+              {isUpdating ? 'Saving' : 'Save follow-up'}
+            </button>
+            {status !== 'QUALIFIED' && (
+              <button
+                type="button"
+                onClick={() => setStatus('QUALIFIED')}
+                className="inline-flex rounded-md border border-green-200 bg-white px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-50"
+              >
+                Mark qualified
               </button>
-            </form>
-          )}
-        </div>
-      )}
-      {isConverted && (
-        <div className="rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-          Lead converted to a pilot workspace. Continue setup from the Tenants or Billing tab.
-        </div>
-      )}
+            )}
+          </div>
+        </form>
+        {!isConverted && (
+          <div className="rounded-md border border-gray-200 bg-white p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h5 className="text-sm font-semibold text-gray-900">Guided pilot conversion</h5>
+                <p className="mt-1 text-xs leading-5 text-gray-600">
+                  Create a pilot workspace and merchant owner from this qualified request.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowConversion((current) => !current)}
+                className="rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                {showConversion ? 'Hide' : 'Convert'}
+              </button>
+            </div>
+            {showConversion && (
+              <form onSubmit={handleConvert} className="mt-4 grid gap-3">
+                <FieldInput
+                  label="Store / business name"
+                  help="This becomes the merchant workspace name."
+                  value={tenantName}
+                  onChange={setTenantName}
+                />
+                <FieldInput
+                  label="Merchant owner full name"
+                  help="This person will manage the merchant workspace."
+                  value={adminName}
+                  onChange={setAdminName}
+                />
+                <FieldInput label="Merchant owner email" value={adminEmail} onChange={setAdminEmail} type="email" />
+                <FieldInput label="Initial password" value={password} onChange={setPassword} type="password" />
+                <label>
+                  <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Conversion notes</span>
+                  <textarea
+                    rows={3}
+                    value={conversionNotes}
+                    onChange={(event) => setConversionNotes(event.target.value)}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+                <p className="text-xs leading-5 text-gray-500">Password must be at least 12 characters and include uppercase, lowercase, number, and symbol. Share it with the merchant through your agreed channel.</p>
+                <button
+                  type="submit"
+                  disabled={isConverting}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                >
+                  <PlusCircle size={16} />
+                  {isConverting ? 'Converting' : 'Create pilot workspace'}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+        {isConverted && (
+          <div className="rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+            Demo request converted to a pilot workspace. Continue setup from Merchant Workspaces or Billing in the sidebar.
+          </div>
+        )}
       </div>
     </article>
+  );
+}
+
+function getLeadNextAction(lead: MarketingLead) {
+  if (lead.status === 'ONBOARDED') {
+    return {
+      label: 'Workspace created',
+      detail: 'Continue setup from Merchant Workspaces or Billing.',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    };
+  }
+  if (lead.status === 'REJECTED') {
+    return {
+      label: 'Closed',
+      detail: 'No pilot action is needed unless the merchant reopens interest.',
+      className: 'border-gray-200 bg-gray-50 text-gray-600',
+    };
+  }
+  if (isFollowUpDue(lead.nextFollowUpAt)) {
+    return {
+      label: 'Continue follow-up',
+      detail: 'Call or WhatsApp the merchant and update the request status.',
+      className: 'border-amber-200 bg-amber-50 text-amber-700',
+    };
+  }
+  if (needsCampaignFollowUp(lead)) {
+    return {
+      label: 'Review paid request',
+      detail: 'Campaign traffic should be checked quickly before it cools down.',
+      className: 'border-orange-200 bg-orange-50 text-orange-700',
+    };
+  }
+  if (lead.status === 'QUALIFIED') {
+    return {
+      label: 'Convert to pilot workspace',
+      detail: 'Create the merchant workspace when onboarding is agreed.',
+      className: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    };
+  }
+  if (lead.status === 'CONTACTED') {
+    return {
+      label: 'Schedule next step',
+      detail: 'Set the next follow-up time or qualify the merchant.',
+      className: 'border-blue-200 bg-blue-50 text-blue-700',
+    };
+  }
+  return {
+    label: 'Review request',
+    detail: 'Check merchant fit, then call or message the contact.',
+    className: 'border-blue-200 bg-blue-50 text-blue-700',
+  };
+}
+
+function LeadFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-gray-200 bg-white px-3 py-2">
+      <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-medium text-gray-800">{value}</p>
+    </div>
   );
 }
 
@@ -1179,7 +1318,7 @@ function LeadStatusBadge({ status }: { status: MarketingLeadStatus }) {
     ONBOARDED: 'bg-purple-50 text-purple-700',
   };
 
-  return <span className={`rounded-md px-2 py-1 text-xs font-semibold ${tones[status]}`}>{status}</span>;
+  return <span className={`rounded-md px-2 py-1 text-xs font-semibold ${tones[status]}`}>{leadStatusLabel(status)}</span>;
 }
 
 function TenantSelector({
@@ -1205,7 +1344,7 @@ function TenantSelector({
     <div>
       <div className="space-y-3 border-b border-gray-200 p-4">
         <div>
-          <h3 className="text-sm font-semibold uppercase text-gray-500">Tenants</h3>
+          <h3 className="text-sm font-semibold uppercase text-gray-500">Merchant Workspaces</h3>
           <p className="mt-1 text-xs text-gray-500">{filteredTenants.length} shown</p>
         </div>
         <div className="flex gap-2">
@@ -1215,7 +1354,7 @@ function TenantSelector({
               value={tenantSearch}
               onChange={(event) => onSearch(event.target.value)}
               className="w-full rounded-md border border-gray-300 py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Search tenants"
+              placeholder="Search workspaces"
             />
           </label>
           <select
@@ -1252,9 +1391,9 @@ function TenantSelector({
             </span>
           </button>
         ))}
-        {isLoading && <p className="p-4 text-sm text-gray-500">Loading tenants...</p>}
+        {isLoading && <p className="p-4 text-sm text-gray-500">Loading workspaces...</p>}
         {!isLoading && !filteredTenants.length && (
-          <p className="p-4 text-sm text-gray-500">No tenants match the current filters.</p>
+          <p className="p-4 text-sm text-gray-500">No workspaces match the current filters.</p>
         )}
       </div>
     </div>
@@ -1277,7 +1416,7 @@ function TenantSummaryCard({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-xl font-semibold text-gray-900">{detail?.name ?? selectedTenant?.name ?? 'Tenant'}</h3>
+            <h3 className="text-xl font-semibold text-gray-900">{detail?.name ?? selectedTenant?.name ?? 'Merchant workspace'}</h3>
             <StatusBadge status={currentStatus} />
           </div>
           <p className="mt-1 text-sm text-gray-500">
@@ -1293,7 +1432,7 @@ function TenantSummaryCard({
       {isBlocked(currentStatus) && (
         <div className="mt-4 flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 shrink-0" size={16} />
-          <p>Merchant APIs are blocked for this tenant until its status is changed to ACTIVE or TRIALING.</p>
+          <p>Merchant APIs are blocked for this workspace until its status is changed to ACTIVE or TRIALING.</p>
         </div>
       )}
     </section>
@@ -1363,6 +1502,26 @@ function PaymentHistory({
   );
 }
 
+function PlanStatusBadge({ active }: { active: boolean }) {
+  return (
+    <span className={`rounded-full border px-2 py-1 text-xs font-semibold ${
+      active ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-100 text-gray-600'
+    }`}
+    >
+      {active ? 'Active' : 'Archived'}
+    </span>
+  );
+}
+
+function PlanLimit({ label, value }: { label: string; value?: number }) {
+  return (
+    <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+      <dt className="text-xs font-semibold uppercase text-gray-500">{label}</dt>
+      <dd className="mt-1 font-medium text-gray-900">{value ?? 'Unlimited'}</dd>
+    </div>
+  );
+}
+
 function ReceiptDocument({ receipt }: { receipt: TenantPaymentReceipt }) {
   return (
     <article className="receipt-document mx-auto max-w-3xl rounded-md border border-gray-200 bg-white p-6 text-sm text-gray-900">
@@ -1382,7 +1541,7 @@ function ReceiptDocument({ receipt }: { receipt: TenantPaymentReceipt }) {
         <div>
           <p className="text-xs font-medium uppercase text-gray-500">Merchant</p>
           <p className="mt-1 text-base font-semibold">{receipt.tenantName}</p>
-          <p className="mt-1 text-xs text-gray-500">Tenant status: {receipt.tenantStatus}</p>
+          <p className="mt-1 text-xs text-gray-500">Workspace status: {receipt.tenantStatus}</p>
         </div>
         <div>
           <p className="text-xs font-medium uppercase text-gray-500">Subscription</p>

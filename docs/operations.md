@@ -62,11 +62,11 @@ Use `APP_ONBOARDING_ENABLED=true` only when public tenant signup is intentionall
 
 The local development seed remains limited to `docker-compose.override.yml` through `SPRING_FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/seed`. Production compose uses only `classpath:db/migration`, so the seeded `admin@example.com` account is not created in production.
 
-## Public Site And Trial Lead Capture
+## Public Site And Demo Request Capture
 
 The public landing page is served at `/`. Authenticated merchant workflows live under `/app`, while Wasilio staff operations live under `/admin/billing`.
 
-Current public deployment mode: the frontend is live on Cloudflare Pages at `wasilio.ma`, but a hosted backend API is intentionally deferred. Lead capture and authenticated workflows require a running backend; for now, validate those flows locally unless a backend host has been connected.
+Current public deployment mode: the frontend is live on Cloudflare Pages at `wasilio.ma`, but a hosted backend API is intentionally deferred. Demo request capture and authenticated workflows require a running backend; for now, validate those flows locally unless a backend host has been connected.
 
 Production frontend builds require public build-time values:
 
@@ -79,13 +79,13 @@ VITE_PUBLIC_META_PIXEL_ID=
 
 Only values intended for public browser exposure should use the `VITE_PUBLIC_` prefix. Do not put backend secrets, SMTP passwords, database credentials, or JWT secrets in Vite variables.
 
-Lead capture flow:
+Demo request capture flow:
 
 - Anonymous visitors submit `POST /api/marketing/leads`.
 - Campaign fields preserve `utm_*`, `fbclid`, `gclid`, `ref`, and browser referrer up to the stored field length.
-- Super-admin users review leads in the Admin Billing Leads tab.
-- Super-admin users can update lead status, next follow-up timestamp, and internal notes.
-- Super-admin users can convert qualified leads into `TRIALING` tenants with a first merchant admin account.
+- Wasilio staff users review demo requests from `/admin/billing?section=leads`.
+- Super-admin users can update request status, next follow-up timestamp, and internal notes.
+- Super-admin users can convert qualified requests into `TRIALING` merchant workspaces with a first merchant owner account.
 - Meta Pixel is loaded only when `VITE_PUBLIC_META_PIXEL_ID` is configured.
 
 Before paid traffic, confirm `frontend/public/sitemap.xml` uses the final production domain and verify that legal pages are reachable:
@@ -102,11 +102,11 @@ For the current frontend-only Cloudflare Pages deployment, run items 1, 2, 5, an
 
 1. Run `cd frontend && npm run smoke` before publishing frontend changes. On a fresh machine, run `npx playwright install chromium` once first.
 2. Open `/` and confirm the public landing page renders with the final brand, support email, WhatsApp link, and no development placeholder contact values.
-3. Submit a demo request with a test `utm_source=smoke` URL and confirm it appears in `/admin/billing` under Leads.
-4. Update that lead to `CONTACTED`, add an internal note, and confirm the change persists after refresh.
+3. Submit a demo request with a test `utm_source=smoke` URL and confirm it appears in `/admin/billing?section=leads`.
+4. Update that request to `Contacted`, add an internal note, and confirm the change persists after refresh.
 5. Open `/robots.txt` and `/sitemap.xml` and confirm they are reachable.
 6. Open `/terms`, `/privacy`, and `/payment-refund-policy`.
-7. Log in as `SUPER_ADMIN`, open `/admin/billing`, and confirm tenants, plans, payments, receipts, and leads load.
+7. Log in as `SUPER_ADMIN`, open `/admin/billing`, and confirm merchant workspaces, plans, payments, receipts, and demo requests load from the staff sidebar.
 8. Log in as a merchant, open `/app`, create a test order, request confirmation, record a confirmation attempt, and verify the order timeline.
 9. Request a password reset and confirm the email delivery mode sends or logs the expected reset link.
 10. Verify `/actuator/health/readiness` returns healthy through the production ingress.
@@ -255,7 +255,7 @@ Run a restore drill before the first trial merchant and after any migration that
 - Super-admin login works.
 - A merchant login works.
 - Existing orders and timelines load.
-- Admin billing tenants, subscriptions, payments, receipts, and leads load.
+- Staff admin merchant workspaces, subscriptions, payments, receipts, and demo requests load.
 
 ### Migration Rollback
 

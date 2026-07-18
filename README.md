@@ -1,6 +1,6 @@
 # Wasilio
 
-Wasilio is a multi-tenant COD operations platform for Moroccan e-commerce merchants. It helps teams manage order confirmation, callbacks, courier workflows, delivery outcomes, manual payments, receipts, and pilot lead follow-up.
+Wasilio is a multi-tenant COD operations platform for Moroccan e-commerce merchants. It helps teams manage order confirmation, callbacks, courier workflows, delivery outcomes, manual payments, receipts, and pilot demo request follow-up.
 
 Current public deployment status: the frontend is live on Cloudflare Pages at `wasilio.ma`. The hosted backend is intentionally deferred while product UX, acquisition readiness, and local demo workflows are polished. See [docs/product/next-implementation-plan.md](docs/product/next-implementation-plan.md).
 
@@ -180,8 +180,8 @@ kill <PID>
 
 Current smoke coverage verifies:
 
-- French-first landing lead capture with campaign source.
-- Super-admin marketing lead follow-up update.
+- French-first landing demo request capture with campaign source.
+- Super-admin demo request follow-up update.
 - Two tabs in one browser can keep different signed-in users.
 - Product media upload, stable dashboard thumbnails, storefront media previews, and public product readiness.
 - Storefront developer setup URLs for landing-engine product reads and order submits.
@@ -195,7 +195,7 @@ Current smoke coverage verifies:
 - `/app/orders`: order list and order search.
 - `/app/confirmations`: confirmation queue and scheduled callbacks.
 - `/app/couriers`: courier management and delivery queues.
-- `/admin/billing`: Wasilio staff workspace for tenants, plans, subscriptions, manual payments, receipts, and marketing lead follow-up.
+- `/admin/billing`: Wasilio staff workspace for merchant workspaces, plans, subscriptions, manual payments, receipts, and demo request follow-up.
 
 ## Password Reset In Local Docker
 
@@ -323,8 +323,8 @@ Before publishing a trial-client campaign:
 - Set `VITE_PUBLIC_META_PIXEL_ID` only if Meta Pixel is ready.
 - Set SMTP values and verify password reset.
 - Verify `/terms`, `/privacy`, and `/payment-refund-policy`.
-- Submit a test landing lead with `utm_source=smoke`.
-- Confirm the lead appears in `/admin/billing`, follow-up status can be updated, and qualified leads can be converted into trial tenants.
+- Submit a test landing demo request with `utm_source=smoke`.
+- Confirm the request appears in `/admin/billing`, follow-up status can be updated, and qualified requests can be converted into trial merchant workspaces.
 - Run `mvn test`, `npm run build`, `npm run lint`, and `npm run smoke`.
 - Capture a database backup.
 

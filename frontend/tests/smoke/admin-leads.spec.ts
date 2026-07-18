@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { installMockApi, loginAs } from './helpers';
 
-test('super admin can update marketing lead follow-up status', async ({ page }) => {
+test('super admin can update demo request follow-up status', async ({ page }) => {
   await installMockApi(page);
 
   const campaignLeadId = '11111111-1111-1111-1111-111111111111';
@@ -95,14 +95,16 @@ test('super admin can update marketing lead follow-up status', async ({ page }) 
   });
 
   await loginAs(page, 'superadmin@example.com');
-  await page.getByRole('button', { name: /leads/i }).click();
+  await page.getByRole('link', { name: /^Demo Requests$/i }).click();
 
   const leadCards = page.getByRole('article').filter({ hasText: /Casa Beauty|Organic Store/ });
   await expect(leadCards.first()).toContainText('Casa Beauty');
   const leadCard = page.getByRole('article').filter({ hasText: 'Casa Beauty' });
 
-  await expect(leadCard.getByText('CAMPAIGN LEAD')).toBeVisible();
+  await expect(leadCard.getByText('CAMPAIGN REQUEST')).toBeVisible();
   await expect(leadCard.getByText('PRIORITY FOLLOW-UP')).toBeVisible();
+  await expect(leadCard.getByText('Next action')).toBeVisible();
+  await expect(leadCard.getByText('Review paid request')).toBeVisible();
   await expect(leadCard.getByText('Campaign attribution')).toBeVisible();
   await expect(leadCard.getByText('Paid signal')).toBeVisible();
   await expect(leadCard.getByText('Source', { exact: true })).toBeVisible();
@@ -117,18 +119,18 @@ test('super admin can update marketing lead follow-up status', async ({ page }) 
   await expect(leadCard.getByText('instagram', { exact: true })).toBeVisible();
   await expect(leadCard.getByText('Referrer', { exact: true })).toBeVisible();
   await expect(leadCard.getByText('instagram.com', { exact: true })).toBeVisible();
-  await expect(page.getByText('Campaign leads and due follow-ups are shown first.')).toBeVisible();
-  await expect(page.getByText('1 new paid/campaign lead')).toBeVisible();
+  await expect(page.getByText('Campaign requests and due follow-ups are shown first.')).toBeVisible();
+  await expect(page.getByText('1 new paid/campaign request')).toBeVisible();
   await expect(page.getByRole('button', { name: /Campaign 1/i })).toBeVisible();
-  await expect(page.getByText('Open leads')).toBeVisible();
-  await expect(page.getByRole('button', { name: /NEW 2/i })).toBeVisible();
+  await expect(page.getByText('Open requests')).toBeVisible();
+  await expect(page.getByRole('button', { name: /New request 2/i })).toBeVisible();
   await expect(leadCard.getByRole('link', { name: 'WhatsApp' })).toBeVisible();
 
-  await leadCard.getByLabel('Lead status').selectOption('CONTACTED');
+  await leadCard.getByLabel('Request status').selectOption('CONTACTED');
   await leadCard.getByLabel('Internal notes').fill('Reached on WhatsApp. Interested in pilot.');
   await leadCard.getByRole('button', { name: /save follow-up/i }).click();
 
-  await expect(leadCard.locator('span').filter({ hasText: /^CONTACTED$/ })).toBeVisible();
+  await expect(leadCard.locator('span').filter({ hasText: /^Contacted$/ })).toBeVisible();
   expect(updates).toHaveLength(1);
   expect(updates[0]).toMatchObject({
     status: 'CONTACTED',
@@ -142,8 +144,8 @@ test('super admin can update marketing lead follow-up status', async ({ page }) 
   await leadCard.getByLabel('Conversion notes').fill('Free guided onboarding offered.');
   await leadCard.getByRole('button', { name: /create pilot workspace/i }).click();
 
-  await expect(leadCard.locator('span').filter({ hasText: /^ONBOARDED$/ })).toBeVisible();
-  await expect(page.getByText(/Lead converted to a pilot workspace/i)).toBeVisible();
+  await expect(leadCard.locator('span').filter({ hasText: /^Workspace created$/ })).toBeVisible();
+  await expect(page.getByText(/Demo request converted to a pilot workspace/i)).toBeVisible();
   expect(conversions).toHaveLength(1);
   expect(conversions[0]).toMatchObject({
     tenantName: 'Casa Beauty Pilot',

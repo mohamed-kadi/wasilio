@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, BarChart3, CheckCircle2, CreditCard, Inbox, LayoutDashboard, LogOut, MessageSquare, Package, PackageCheck, PhoneCall, PlusCircle, RefreshCw, ShieldCheck, ShoppingCart, Store, Truck, Users } from 'lucide-react';
+import { AlertTriangle, Banknote, BarChart3, Building2, CheckCircle2, ClipboardList, CreditCard, FileText, Inbox, LayoutDashboard, LogOut, MessageSquare, Package, PackageCheck, PhoneCall, PlusCircle, RefreshCw, ShieldCheck, ShoppingCart, Store, Truck, Users } from 'lucide-react';
 import Dashboard from './pages/Dashboard';
 import OrdersList from './pages/OrdersList';
 import InboundOrders from './pages/InboundOrders';
@@ -32,7 +32,16 @@ const queryClient = new QueryClient();
 
 function Sidebar() {
   const session = useAuthStore((state) => state.session);
+  const location = useLocation();
   const isSuperAdmin = session?.user.role === 'SUPER_ADMIN';
+  const activeAdminSection = new URLSearchParams(location.search).get('section') ?? 'tenants';
+  const adminNavItems = [
+    { section: 'tenants', label: 'Merchant Workspaces', icon: <Building2 size={20} /> },
+    { section: 'billing', label: 'Billing', icon: <CreditCard size={20} /> },
+    { section: 'payments', label: 'Payments', icon: <Banknote size={20} /> },
+    { section: 'plans', label: 'Plans', icon: <FileText size={20} /> },
+    { section: 'leads', label: 'Demo Requests', icon: <ClipboardList size={20} /> },
+  ];
 
   return (
     <div className="flex min-h-screen w-64 shrink-0 flex-col border-r bg-white">
@@ -129,10 +138,24 @@ function Sidebar() {
           </>
         )}
         {isSuperAdmin && (
-          <Link to="/admin/billing" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-md hover:bg-gray-100">
-            <CreditCard size={20} />
-            <span>Admin Billing</span>
-          </Link>
+          <div className="pt-3">
+            <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">Wasilio Staff</p>
+            {adminNavItems.map((item) => {
+              const active = location.pathname.startsWith('/admin/billing') && activeAdminSection === item.section;
+              return (
+                <Link
+                  key={item.section}
+                  to={`/admin/billing?section=${item.section}`}
+                  className={`flex items-center gap-3 rounded-md px-3 py-2 ${
+                    active ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
         )}
       </nav>
     </div>
@@ -204,7 +227,7 @@ function AccountPaused() {
             <p className="text-sm font-semibold uppercase text-amber-700">Account paused</p>
             <h1 className="mt-2 text-2xl font-bold text-gray-900">Merchant workspace is temporarily unavailable</h1>
             <p className="mt-3 text-sm leading-6 text-gray-600">
-              This tenant is currently marked as <span className="font-semibold text-gray-900">{blockedTenantStatus}</span>. Merchant workflows are paused until Wasilio operations updates the account status.
+              This merchant workspace is currently marked as <span className="font-semibold text-gray-900">{blockedTenantStatus}</span>. Merchant workflows are paused until Wasilio operations updates the account status.
             </p>
           </div>
         </div>

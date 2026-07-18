@@ -68,6 +68,7 @@ For launch, pilots, and acquisition:
 - `product/vision.md`
 - `product/launch-readiness-pivot.md`
 - `product/pilot-acquisition-workflow.md`
+- `product/staff-admin-workspace.md`
 - `product/brand-direction.md`
 
 ## Source-Of-Truth Rules
