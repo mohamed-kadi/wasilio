@@ -4,6 +4,8 @@ Wasilio is a multi-tenant COD operations platform for Moroccan e-commerce mercha
 
 Current public deployment status: the frontend is live on Cloudflare Pages at `wasilio.ma`. The hosted backend is intentionally deferred while product UX, acquisition readiness, and local demo workflows are polished. See [docs/product/next-implementation-plan.md](docs/product/next-implementation-plan.md).
 
+Documentation starts at [docs/README.md](docs/README.md). Use it as the reading guide for architecture, product workflows, landing-engine handoff, intelligence scoring, and phase history.
+
 ## Start Here
 
 For most local testing, use **Docker Compose**. It runs PostgreSQL, the Spring Boot backend, and the Vite-built frontend together.
@@ -344,7 +346,7 @@ The database name is still `nexora` internally. That is a technical identifier a
 
 ## Documentation
 
-Detailed documentation starts at [docs/phases/documentation-index.md](docs/phases/documentation-index.md).
+Detailed documentation starts at [docs/README.md](docs/README.md).
 
 Useful references:
 

@@ -880,7 +880,7 @@ function LeadCard({
             <div>
               <h5 className="text-sm font-semibold text-gray-900">Guided pilot conversion</h5>
               <p className="mt-1 text-xs leading-5 text-gray-600">
-                Create a pilot workspace and main admin from this qualified lead.
+                Create a pilot workspace and merchant owner from this qualified lead.
               </p>
             </div>
             <button
@@ -900,12 +900,12 @@ function LeadCard({
                 onChange={setTenantName}
               />
               <FieldInput
-                label="Main admin full name"
+                label="Merchant owner full name"
                 help="This person will manage the merchant workspace."
                 value={adminName}
                 onChange={setAdminName}
               />
-              <FieldInput label="Main admin email" value={adminEmail} onChange={setAdminEmail} type="email" />
+              <FieldInput label="Merchant owner email" value={adminEmail} onChange={setAdminEmail} type="email" />
               <FieldInput label="Initial password" value={password} onChange={setPassword} type="password" />
               <label>
                 <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Conversion notes</span>

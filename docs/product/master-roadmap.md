@@ -14,7 +14,7 @@ This roadmap documents Wasilio from the initial foundation through the planned p
 
 Primary supporting documents:
 
-- `docs/phases/documentation-index.md`
+- `docs/README.md`
 - `docs/architecture/system-overview.md`
 - `docs/architecture/event-sourcing.md`
 - `docs/architecture/ddd-boundaries.md`

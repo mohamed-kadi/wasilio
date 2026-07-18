@@ -31,6 +31,15 @@ Operational UX polish can continue inside Wasilio Core. Order creation now has a
 
 Do not build a Wasilio storefront as a standalone business-rule layer. Storefront should read Catalog data and submit order intent only.
 
+## Near-Term Queue
+
+1. Documentation organization and handoff clarity.
+2. Super-admin cleanup and UX review for staff/admin workflows.
+3. Real merchant launch-readiness pass.
+4. Intelligence calibration pilot after enough realistic confirmation evidence is available.
+
+Landing-engine integration is already connected locally through the public product and order-intent contracts. Any landing-engine handoff work from here should be treated as production-readiness documentation, environment verification, and QA rehearsal, not a rebuild of the connection.
+
 ## Immediate Priorities
 
 ### 1. Public Landing And Acquisition UX
