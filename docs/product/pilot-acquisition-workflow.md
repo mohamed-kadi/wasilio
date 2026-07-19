@@ -74,8 +74,11 @@ The conversion creates:
 - the first merchant owner user
 - a conversion link on the request with converted tenant ID and timestamp
 - an internal note explaining the conversion
+- an expiring account setup email for the merchant owner
 
-The initial password must be shared manually through the agreed channel. For early pilots, this should usually happen during or immediately after a guided onboarding call.
+Staff must not create, view, or share a merchant password. The backend creates the owner account with a hidden temporary password, sends an expiring setup link through the password reset/setup flow, and lets the merchant owner choose their own password.
+
+For local development, use `APP_EMAIL_MODE=log` so the setup link appears in the backend terminal. For real pilots, `APP_EMAIL_MODE=smtp` must point to a verified SMTP provider before converting a qualified request.
 
 ## Recommended First Pilot Script
 
@@ -89,6 +92,6 @@ The initial password must be shared manually through the agreed channel. For ear
    - agrees to test Wasilio seriously
 5. If qualified, open the conversion panel.
 6. Create the pilot workspace and merchant owner user.
-7. Share login instructions and initial password.
+7. Confirm the merchant owner received the setup email and chooses their password.
 8. Walk the merchant through creating or importing the first orders.
 9. Mark next follow-up for feedback after their first operational use.
