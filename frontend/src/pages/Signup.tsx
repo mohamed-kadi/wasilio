@@ -95,6 +95,9 @@ export default function Signup() {
           <p className="mt-2 text-sm leading-6 text-gray-600">
             The store workspace is the business account. The merchant owner is the person who will manage it.
           </p>
+          <p className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800">
+            Direct signup is for approved merchants or local testing. New public requests should start from the guided pilot demo flow.
+          </p>
 
           <div className="grid gap-3">
             {setupSteps.map((step) => (

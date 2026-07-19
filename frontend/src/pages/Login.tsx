@@ -127,9 +127,9 @@ export default function Login() {
           </form>
 
           <p className="text-center text-sm text-gray-600">
-            Need a workspace?{' '}
+            Approved merchant?{' '}
             <Link to="/signup" className="font-medium text-blue-600 hover:underline">
-              Create one
+              Create workspace
             </Link>
           </p>
         </section>
