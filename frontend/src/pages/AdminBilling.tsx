@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
+  Archive,
   Banknote,
   Building2,
   CalendarClock,
@@ -17,14 +18,17 @@ import {
   PlusCircle,
   Printer,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
   ShieldAlert,
+  Trash2,
   TrendingUp,
 } from 'lucide-react';
 import {
   createSubscriptionPlan,
   convertMarketingLeadToTenant,
+  deleteSubscriptionPlan,
   downloadAdminPaymentRecordsCsv,
   fetchAdminPaymentRecordsSummary,
   fetchAdminTenant,
@@ -34,6 +38,7 @@ import {
   fetchTenantPaymentReceipt,
   getErrorMessage,
   recordTenantPayment,
+  updateSubscriptionPlanStatus,
   updateMarketingLeadFollowUp,
   updateAdminTenantStatus,
   upsertTenantSubscription,
@@ -43,11 +48,13 @@ import {
   type MarketingLead,
   type MarketingLeadStatus,
   type PaymentMethod,
+  type SubscriptionPlan,
   type SubscriptionStatus,
   type TenantPayment,
   type TenantPaymentReceipt,
   type TenantStatus,
 } from '../api/client';
+import { useAuthStore } from '../store/authStore';
 
 const tenantStatuses: TenantStatus[] = ['ACTIVE', 'TRIALING', 'OVERDUE', 'SUSPENDED', 'DISABLED'];
 const subscriptionStatuses: SubscriptionStatus[] = ['TRIALING', 'ACTIVE', 'OVERDUE', 'SUSPENDED', 'CANCELED'];
@@ -174,6 +181,23 @@ function formatMonth(value: string) {
   });
 }
 
+function dateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function monthDateRange(offset: number) {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0);
+  return {
+    from: dateInputValue(start),
+    to: dateInputValue(end),
+  };
+}
+
 function saveBlob(blob: Blob, fileName: string) {
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement('a');
@@ -256,6 +280,7 @@ function workspaceAccessCopy(status: TenantStatus) {
 
 export default function AdminBilling() {
   const queryClient = useQueryClient();
+  const session = useAuthStore((state) => state.session);
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [tenantStatus, setTenantStatus] = useState<TenantStatus | ''>('');
@@ -313,6 +338,16 @@ export default function AdminBilling() {
       return first.monthlyPrice - second.monthlyPrice || first.name.localeCompare(second.name);
     });
   }, [plans]);
+  const planAssignmentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    tenants.forEach((tenant) => {
+      const assignedPlanId = tenant.subscription?.planId;
+      if (assignedPlanId) {
+        counts.set(assignedPlanId, (counts.get(assignedPlanId) ?? 0) + 1);
+      }
+    });
+    return counts;
+  }, [tenants]);
   const planStats = useMemo(() => {
     const active = plans.filter((plan) => plan.active).length;
     const archived = plans.length - active;
@@ -361,12 +396,17 @@ export default function AdminBilling() {
   });
 
   const detail = detailQuery.data;
+  const defaultPlanId = plans.find((currentPlan) => currentPlan.active)?.planId || '';
   const effectiveTenantStatus = tenantStatus || detail?.status || selectedTenant?.status || 'ACTIVE';
-  const effectivePlanId = planId || detail?.subscription?.planId || selectedTenant?.subscription?.planId || plans[0]?.planId || '';
+  const effectivePlanId = planId || detail?.subscription?.planId || selectedTenant?.subscription?.planId || defaultPlanId;
   const effectiveSubscriptionStatus = subscriptionStatus || detail?.subscription?.status || selectedTenant?.subscription?.status || 'TRIALING';
   const effectiveCurrentPeriodStart = currentPeriodStart || toDateTimeLocal(detail?.subscription?.currentPeriodStart);
   const effectiveCurrentPeriodEnd = currentPeriodEnd || toDateTimeLocal(detail?.subscription?.currentPeriodEnd);
   const effectiveTrialEndsAt = trialEndsAt || toDateTimeLocal(detail?.subscription?.trialEndsAt);
+  const assignablePlans = useMemo(() => {
+    return plans.filter((currentPlan) => currentPlan.active || currentPlan.planId === effectivePlanId);
+  }, [effectivePlanId, plans]);
+  const staffReceiptName = session?.user.name || session?.user.email || 'Staff account';
   const financialRecordsQuery = useMemo<AdminPaymentRecordsQuery>(() => ({
     paidFrom: fromDateFilterStart(financialPaidFrom),
     paidTo: fromDateFilterEnd(financialPaidTo),
@@ -430,6 +470,22 @@ export default function AdminBilling() {
     },
   });
 
+  const planStatusMutation = useMutation({
+    mutationFn: (payload: { planId: string; active: boolean }) =>
+      updateSubscriptionPlanStatus(payload.planId, payload.active),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['subscription-plans'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-tenants'] });
+    },
+  });
+
+  const planDeleteMutation = useMutation({
+    mutationFn: (targetPlanId: string) => deleteSubscriptionPlan(targetPlanId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['subscription-plans'] });
+    },
+  });
+
   const leadFollowUpMutation = useMutation({
     mutationFn: (payload: { leadId: string; status: MarketingLeadStatus; nextFollowUpAt?: string; internalNotes?: string }) =>
       updateMarketingLeadFollowUp(payload.leadId, {
@@ -465,7 +521,10 @@ export default function AdminBilling() {
   const financialExportMutation = useMutation({
     mutationFn: () => downloadAdminPaymentRecordsCsv(financialRecordsQuery),
     onSuccess: (blob) => {
-      saveBlob(blob, `wasilio-payment-records-${new Date().toISOString().slice(0, 10)}.csv`);
+      const period = financialPaidFrom || financialPaidTo
+        ? `${financialPaidFrom || 'start'}-${financialPaidTo || 'today'}`
+        : new Date().toISOString().slice(0, 10);
+      saveBlob(blob, `wasilio-payment-records-${period}.csv`);
     },
   });
 
@@ -488,6 +547,8 @@ export default function AdminBilling() {
     subscriptionMutation.error ??
     paymentMutation.error ??
     planMutation.error ??
+    planStatusMutation.error ??
+    planDeleteMutation.error ??
     leadFollowUpMutation.error ??
     leadConversionMutation.error ??
     financialSummaryQuery.error ??
@@ -537,6 +598,28 @@ export default function AdminBilling() {
 
   function handleDownloadFinancialRecords() {
     financialExportMutation.mutate();
+  }
+
+  function handleFinancialPreset(offset: number) {
+    const range = monthDateRange(offset);
+    setFinancialPaidFrom(range.from);
+    setFinancialPaidTo(range.to);
+  }
+
+  function handleClearFinancialFilters() {
+    setFinancialPaidFrom('');
+    setFinancialPaidTo('');
+  }
+
+  function handlePlanStatus(planId: string, active: boolean) {
+    planStatusMutation.mutate({ planId, active });
+  }
+
+  function handlePlanDelete(targetPlan: SubscriptionPlan) {
+    const confirmed = window.confirm(`Delete ${targetPlan.name}? Only unused archived plans should be deleted.`);
+    if (confirmed) {
+      planDeleteMutation.mutate(targetPlan.planId);
+    }
   }
 
   function setActiveTab(tab: WorkspaceTab) {
@@ -689,9 +772,9 @@ export default function AdminBilling() {
                         required
                       >
                         <option value="">Select plan</option>
-                        {plans.map((plan) => (
+                        {assignablePlans.map((plan) => (
                           <option key={plan.planId} value={plan.planId}>
-                            {plan.name} · {money(plan.monthlyPrice, plan.currency)}
+                            {plan.name} · {money(plan.monthlyPrice, plan.currency)}{plan.active ? '' : ' · archived'}
                           </option>
                         ))}
                       </select>
@@ -737,6 +820,29 @@ export default function AdminBilling() {
                       {financialExportMutation.isPending ? 'Preparing' : 'Download records'}
                     </button>
                   </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleFinancialPreset(0)}
+                      className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      This month
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFinancialPreset(-1)}
+                      className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      Previous month
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClearFinancialFilters}
+                      className="rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                      Clear dates
+                    </button>
+                  </div>
                   <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[180px_180px_minmax(0,1fr)]">
                     <TextInput label="Paid from" value={financialPaidFrom} onChange={setFinancialPaidFrom} type="date" />
                     <TextInput label="Paid to" value={financialPaidTo} onChange={setFinancialPaidTo} type="date" />
@@ -759,10 +865,11 @@ export default function AdminBilling() {
                     </div>
                   </div>
                 </div>
-                <div className="grid gap-3 md:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                   <AdminInfoTile label="Recorded payments" value={String(payments.length)} detail="Manual receipts in this workspace" />
                   <AdminInfoTile label="Latest payment" value={latestPayment ? money(latestPayment.amount, latestPayment.currency) : 'None'} detail={latestPayment ? formatDateTime(latestPayment.paidAt) : 'No payment recorded'} />
                   <AdminInfoTile label="Receipt selected" value={receiptPaymentId ? 'Ready to preview' : 'None selected'} detail="Open a receipt from payment history" />
+                  <AdminInfoTile label="Receipt identity" value={staffReceiptName} detail="Shown as collected by" />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -870,10 +977,10 @@ export default function AdminBilling() {
 
                   {showPlanForm && (
                     <form onSubmit={handlePlan} className="border-b border-gray-200 bg-gray-50 p-4">
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-[110px_minmax(180px,1fr)_120px_90px_120px_120px]">
                         <TextInput label="Code" value={planCode} onChange={setPlanCode} required />
                         <TextInput label="Name" value={planName} onChange={setPlanName} required />
-                        <TextInput label="Price" value={planPrice} onChange={setPlanPrice} type="number" required />
+                        <TextInput label="Monthly price" value={planPrice} onChange={setPlanPrice} type="number" required />
                         <TextInput label="Currency" value={planCurrency} onChange={setPlanCurrency} maxLength={3} required />
                         <TextInput label="Order limit" value={planOrderLimit} onChange={setPlanOrderLimit} type="number" />
                         <TextInput label="Team seats" value={planUserLimit} onChange={setPlanUserLimit} type="number" />
@@ -900,23 +1007,16 @@ export default function AdminBilling() {
 
                   <div className="grid gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">
                     {sortedPlans.map((plan) => (
-                      <article key={plan.planId} className="flex min-h-[210px] flex-col rounded-lg border border-gray-200 bg-white p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <h4 className="font-semibold text-gray-900">{plan.name}</h4>
-                            <p className="mt-1 font-mono text-xs uppercase text-gray-500">{plan.code}</p>
-                          </div>
-                          <PlanStatusBadge active={plan.active} />
-                        </div>
-                        <div className="mt-4">
-                          <p className="text-2xl font-bold text-gray-900">{money(plan.monthlyPrice, plan.currency)}</p>
-                          <p className="mt-1 text-xs text-gray-500">Monthly price</p>
-                        </div>
-                        <dl className="mt-auto grid grid-cols-2 gap-2 pt-4 text-sm">
-                          <PlanLimit label="Orders" value={plan.orderLimit} />
-                          <PlanLimit label="Team seats" value={plan.userLimit} />
-                        </dl>
-                      </article>
+                      <PlanCard
+                        key={plan.planId}
+                        plan={plan}
+                        assignedWorkspaces={planAssignmentCounts.get(plan.planId) ?? 0}
+                        isUpdating={planStatusMutation.variables?.planId === plan.planId && planStatusMutation.isPending}
+                        isDeleting={planDeleteMutation.variables === plan.planId && planDeleteMutation.isPending}
+                        onArchive={() => handlePlanStatus(plan.planId, false)}
+                        onRestore={() => handlePlanStatus(plan.planId, true)}
+                        onDelete={() => handlePlanDelete(plan)}
+                      />
                     ))}
                     {plansQuery.isLoading && <p className="text-sm text-gray-500">Loading plans...</p>}
                     {!plansQuery.isLoading && !plans.length && (
@@ -1737,6 +1837,99 @@ function PaymentFact({ label, value, wide = false }: { label: string; value: str
       <dt className="text-xs font-medium uppercase text-gray-500">{label}</dt>
       <dd className="mt-1 break-words font-medium text-gray-900">{value}</dd>
     </div>
+  );
+}
+
+function PlanCard({
+  plan,
+  assignedWorkspaces,
+  isUpdating,
+  isDeleting,
+  onArchive,
+  onRestore,
+  onDelete,
+}: {
+  plan: SubscriptionPlan;
+  assignedWorkspaces: number;
+  isUpdating: boolean;
+  isDeleting: boolean;
+  onArchive: () => void;
+  onRestore: () => void;
+  onDelete: () => void;
+}) {
+  const canDelete = !plan.active && assignedWorkspaces === 0;
+  const usageLabel = `${assignedWorkspaces} workspace${assignedWorkspaces === 1 ? '' : 's'}`;
+  const deleteTitle = plan.active
+    ? 'Archive this plan before deleting it'
+    : assignedWorkspaces > 0
+      ? 'Plans assigned to workspaces are kept for billing history'
+      : 'Delete unused archived plan';
+
+  return (
+    <article className="flex min-h-[190px] flex-col rounded-lg border border-gray-200 bg-white p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h4 className="truncate font-semibold text-gray-900">{plan.name}</h4>
+          <p className="mt-1 font-mono text-xs uppercase text-gray-500">{plan.code}</p>
+        </div>
+        <PlanStatusBadge active={plan.active} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
+        <div>
+          <p className="text-2xl font-bold text-gray-900">{money(plan.monthlyPrice, plan.currency)}</p>
+          <p className="mt-1 text-xs text-gray-500">Monthly price</p>
+        </div>
+        <div className="rounded-md border border-gray-200 bg-gray-50 p-3 text-sm">
+          <p className="text-xs font-semibold uppercase text-gray-500">In use</p>
+          <p className="mt-1 font-medium text-gray-900">{usageLabel}</p>
+        </div>
+      </div>
+
+      <dl className="mt-3 grid grid-cols-2 gap-2 text-sm">
+        <PlanLimit label="Orders" value={plan.orderLimit} />
+        <PlanLimit label="Team seats" value={plan.userLimit} />
+      </dl>
+
+      <div className="mt-auto flex flex-wrap gap-2 border-t border-gray-100 pt-4">
+        {plan.active ? (
+          <button
+            type="button"
+            onClick={onArchive}
+            disabled={isUpdating}
+            className="inline-flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+          >
+            <Archive size={14} />
+            {isUpdating ? 'Archiving' : 'Archive'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onRestore}
+            disabled={isUpdating}
+            className="inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+          >
+            <RotateCcw size={14} />
+            {isUpdating ? 'Restoring' : 'Restore'}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onDelete}
+          disabled={!canDelete || isDeleting}
+          title={deleteTitle}
+          className="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Trash2 size={14} />
+          {isDeleting ? 'Deleting' : 'Delete'}
+        </button>
+        {!canDelete && (
+          <p className="flex min-h-8 items-center text-xs text-gray-500">
+            {plan.active ? 'Archive before deleting.' : 'Assigned plans stay for billing history.'}
+          </p>
+        )}
+      </div>
+    </article>
   );
 }
 

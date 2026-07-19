@@ -21,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -294,6 +295,8 @@ public class AdminController {
             Integer userLimit
     ) {}
 
+    public record UpdatePlanStatusRequest(@NotNull Boolean active) {}
+
     public record UpsertSubscriptionRequest(
             @NotNull UUID planId,
             @NotNull SubscriptionStatus status,
@@ -374,6 +377,22 @@ public class AdminController {
                         request.userLimit()
                 )
         )));
+    }
+
+    @PatchMapping("/plans/{planId}/status")
+    public ResponseEntity<SubscriptionPlanResponse> updatePlanStatus(
+            @PathVariable UUID planId,
+            @Valid @RequestBody UpdatePlanStatusRequest request
+    ) {
+        return ResponseEntity.ok(SubscriptionPlanResponse.from(
+                adminBillingService.updatePlanStatus(planId, request.active())
+        ));
+    }
+
+    @DeleteMapping("/plans/{planId}")
+    public ResponseEntity<Void> deletePlan(@PathVariable UUID planId) {
+        adminBillingService.deleteUnusedPlan(planId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/tenants/{tenantId}/subscription")

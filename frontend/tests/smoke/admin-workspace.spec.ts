@@ -18,6 +18,19 @@ test('staff workspace keeps access billing payments and receipts clear', async (
     createdAt: '2026-07-01T10:00:00Z',
     updatedAt: '2026-07-01T10:00:00Z',
   };
+  const cleanupPlan = {
+    planId: '30000000-0000-0000-0000-000000000002',
+    code: 'cleanup',
+    name: 'Cleanup',
+    monthlyPrice: 10,
+    currency: 'MAD',
+    orderLimit: 10,
+    userLimit: 1,
+    active: true,
+    createdAt: '2026-07-01T10:00:00Z',
+    updatedAt: '2026-07-01T10:00:00Z',
+  };
+  let plans = [plan, cleanupPlan];
   const payment = {
     paymentId: '40000000-0000-0000-0000-000000000001',
     tenantId,
@@ -70,13 +83,68 @@ test('staff workspace keeps access billing payments and receipts clear', async (
   const statusUpdates: string[] = [];
   const subscriptionUpdates: Record<string, unknown>[] = [];
   const paymentPosts: Record<string, unknown>[] = [];
+  const planStatusUpdates: Record<string, unknown>[] = [];
+  const deletedPlans: string[] = [];
 
   await page.route('**/api/admin/plans', async (route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON() as {
+        code: string;
+        name: string;
+        monthlyPrice: number;
+        currency: string;
+        orderLimit?: number;
+        userLimit?: number;
+      };
+      const createdPlan = {
+        ...cleanupPlan,
+        planId: '30000000-0000-0000-0000-000000000003',
+        code: body.code,
+        name: body.name,
+        monthlyPrice: body.monthlyPrice,
+        currency: body.currency,
+        orderLimit: body.orderLimit,
+        userLimit: body.userLimit,
+        active: true,
+      };
+      plans = [...plans, createdPlan];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(createdPlan),
+      });
+      return;
+    }
+
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify([plan]),
+      body: JSON.stringify(plans),
     });
+  });
+
+  await page.route('**/api/admin/plans/*/status', async (route) => {
+    const planId = new URL(route.request().url()).pathname.split('/plans/')[1]?.split('/')[0] ?? '';
+    const body = route.request().postDataJSON() as { active: boolean };
+    planStatusUpdates.push({ planId, active: body.active });
+    plans = plans.map((currentPlan) => (
+      currentPlan.planId === planId
+        ? { ...currentPlan, active: body.active, updatedAt: '2026-07-18T10:00:00Z' }
+        : currentPlan
+    ));
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(plans.find((currentPlan) => currentPlan.planId === planId)),
+    });
+  });
+
+  await page.route('**/api/admin/plans/*', async (route) => {
+    expect(route.request().method()).toBe('DELETE');
+    const planId = new URL(route.request().url()).pathname.split('/plans/')[1] ?? '';
+    deletedPlans.push(planId);
+    plans = plans.filter((currentPlan) => currentPlan.planId !== planId);
+    await route.fulfill({ status: 204 });
   });
 
   await page.route('**/api/admin/payments/export**', async (route) => {
@@ -244,4 +312,23 @@ test('staff workspace keeps access billing payments and receipts clear', async (
   );
   await page.getByRole('button', { name: /download records/i }).click();
   await exportResponse;
+
+  await page.getByRole('link', { name: /^Plans$/i }).click();
+  await expect(page.getByRole('heading', { name: 'Subscription Plans' })).toBeVisible();
+  const starterPlanCard = page.getByRole('article').filter({ hasText: 'Starter' });
+  await expect(starterPlanCard.getByText('1 workspace')).toBeVisible();
+  await expect(starterPlanCard.getByRole('button', { name: /^delete$/i })).toBeDisabled();
+
+  const cleanupPlanCard = page.getByRole('article').filter({ hasText: 'Cleanup' });
+  await expect(cleanupPlanCard.getByText('0 workspaces')).toBeVisible();
+  await cleanupPlanCard.getByRole('button', { name: /^archive$/i }).click();
+  await expect(cleanupPlanCard.getByText('Archived')).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await cleanupPlanCard.getByRole('button', { name: /^delete$/i }).click();
+  await expect(page.getByText('Cleanup', { exact: true })).toHaveCount(0);
+  expect(planStatusUpdates).toContainEqual({
+    planId: cleanupPlan.planId,
+    active: false,
+  });
+  expect(deletedPlans).toEqual([cleanupPlan.planId]);
 });

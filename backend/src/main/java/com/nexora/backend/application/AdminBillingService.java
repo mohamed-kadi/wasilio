@@ -97,6 +97,26 @@ public class AdminBillingService {
     }
 
     @Transactional
+    public SubscriptionPlan updatePlanStatus(UUID planId, boolean active) {
+        SubscriptionPlan plan = getPlanOrThrow(planId);
+        plan.setActive(active);
+        plan.setUpdatedAt(Instant.now(clock));
+        return planRepository.save(plan);
+    }
+
+    @Transactional
+    public void deleteUnusedPlan(UUID planId) {
+        SubscriptionPlan plan = getPlanOrThrow(planId);
+        if (plan.isActive()) {
+            throw new IllegalStateException("Archive the plan before deleting it");
+        }
+        if (subscriptionRepository.countByPlanId(planId) > 0) {
+            throw new ResourceConflictException("Plan is assigned to merchant workspaces and cannot be deleted");
+        }
+        planRepository.delete(plan);
+    }
+
+    @Transactional
     public TenantDetail upsertSubscription(UUID tenantId, UpsertSubscriptionCommand command) {
         getTenantOrThrow(tenantId);
         SubscriptionPlan plan = planRepository.findById(command.planId())
@@ -292,6 +312,11 @@ public class AdminBillingService {
     private Tenant getTenantOrThrow(UUID tenantId) {
         return tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new IllegalArgumentException("tenantId does not exist"));
+    }
+
+    private SubscriptionPlan getPlanOrThrow(UUID planId) {
+        return planRepository.findById(planId)
+                .orElseThrow(() -> new IllegalArgumentException("planId does not exist"));
     }
 
     private String receiptNumber(Instant timestamp) {

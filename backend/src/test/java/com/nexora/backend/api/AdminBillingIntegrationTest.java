@@ -23,6 +23,7 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -208,24 +209,73 @@ class AdminBillingIntegrationTest {
                 .andExpect(content().string(containsString("Atlas Shop")))
                 .andExpect(content().string(containsString("Wasilio Super Admin")))
                 .andExpect(content().string(not(containsString("superadmin@example.com"))));
+
+        mockMvc.perform(patch("/api/admin/plans/" + planId + "/status")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "active": false
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+
+        mockMvc.perform(delete("/api/admin/plans/" + planId)
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
+    void superAdminCanDeleteUnusedArchivedPlan() throws Exception {
+        String token = login("superadmin@example.com");
+        String planId = createPlan(token, "cleanup", "Cleanup");
+
+        mockMvc.perform(delete("/api/admin/plans/" + planId)
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isConflict());
+
+        mockMvc.perform(patch("/api/admin/plans/" + planId + "/status")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "active": false
+                        }
+                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.active").value(false));
+
+        mockMvc.perform(delete("/api/admin/plans/" + planId)
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/admin/plans")
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("cleanup"))));
     }
 
     private String createPlan(String token) throws Exception {
+        return createPlan(token, "pilot", "Pilot");
+    }
+
+    private String createPlan(String token, String code, String name) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/admin/plans")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
                         {
-                          "code": "pilot",
-                          "name": "Pilot",
+                          "code": "%s",
+                          "name": "%s",
                           "monthlyPrice": 300.00,
                           "currency": "MAD",
                           "orderLimit": 300,
                           "userLimit": 3
                         }
-                        """))
+                        """.formatted(code, name)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value("pilot"))
+                .andExpect(jsonPath("$.code").value(code))
                 .andReturn();
 
         return objectMapper.readTree(result.getResponse().getContentAsString()).get("planId").asText();

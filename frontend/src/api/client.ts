@@ -1092,6 +1092,19 @@ export async function createSubscriptionPlan(payload: CreateSubscriptionPlanPayl
   });
 }
 
+export async function updateSubscriptionPlanStatus(planId: string, active: boolean): Promise<SubscriptionPlan> {
+  return apiRequest<SubscriptionPlan>(`/admin/plans/${planId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ active }),
+  });
+}
+
+export async function deleteSubscriptionPlan(planId: string): Promise<void> {
+  await apiRequest<void>(`/admin/plans/${planId}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function upsertTenantSubscription(
   tenantId: string,
   payload: UpsertTenantSubscriptionPayload,

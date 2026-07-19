@@ -24,8 +24,12 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.startsWith;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -155,6 +159,53 @@ class MarketingLeadIntegrationTest {
                 any()
         );
         verify(passwordResetNotifier, never()).sendPasswordResetLink(any(), any(), any());
+    }
+
+    @Test
+    void convertLeadFailsWhenAccountSetupNotificationFails() throws Exception {
+        MvcResult leadResult = mockMvc.perform(post("/api/marketing/leads")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "contactName": "Sara Admin",
+                          "storeName": "Casa Beauty",
+                          "phone": "+212600000001",
+                          "email": "sara@example.com"
+                        }
+                        """))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        String token = login("superadmin@example.com");
+        String leadId = objectMapper.readTree(leadResult.getResponse().getContentAsString()).get("leadId").asText();
+
+        doThrow(new RuntimeException("SMTP failed"))
+                .when(passwordResetNotifier)
+                .sendAccountSetupLink(eq("sara.admin@example.com"), any(), any());
+
+        mockMvc.perform(post("/api/marketing/leads/{leadId}/convert-to-tenant", leadId)
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {
+                          "tenantName": "Casa Beauty Pilot",
+                          "adminName": "Sara Admin",
+                          "adminEmail": "sara.admin@example.com",
+                          "internalNotes": "Converted after qualification call."
+                        }
+                        """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("Account setup notification failed"));
+
+        mockMvc.perform(get("/api/marketing/leads")
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("NEW"));
+
+        mockMvc.perform(get("/api/admin/tenants")
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(content().string(not(containsString("Casa Beauty Pilot"))));
     }
 
     private String login(String email) throws Exception {

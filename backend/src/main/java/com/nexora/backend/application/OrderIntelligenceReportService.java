@@ -1,7 +1,6 @@
 package com.nexora.backend.application;
 
 import com.nexora.backend.domain.model.Customer;
-import com.nexora.backend.domain.model.Order;
 import com.nexora.backend.domain.model.OrderIntelligenceAuditEvent;
 import com.nexora.backend.domain.model.OrderIntelligenceLevel;
 import com.nexora.backend.domain.model.OrderIntelligenceSignal;

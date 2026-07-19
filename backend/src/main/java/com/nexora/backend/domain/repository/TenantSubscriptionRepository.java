@@ -8,4 +8,6 @@ import java.util.UUID;
 
 public interface TenantSubscriptionRepository extends JpaRepository<TenantSubscription, UUID> {
     Optional<TenantSubscription> findByTenantId(UUID tenantId);
+
+    long countByPlanId(UUID planId);
 }

@@ -46,7 +46,7 @@ public class PasswordResetService {
     public void requestPasswordReset(String email, String remoteIp) {
         String normalizedEmail = normalizeEmail(email);
         userRepository.findByEmailIgnoreCase(normalizedEmail)
-                .ifPresent(user -> createResetToken(user, remoteIp, ResetTokenPurpose.PASSWORD_RESET));
+                .ifPresent(user -> createResetToken(user, remoteIp, ResetTokenPurpose.PASSWORD_RESET, true));
     }
 
     @Transactional
@@ -54,7 +54,7 @@ public class PasswordResetService {
         String normalizedEmail = normalizeEmail(email);
         User user = userRepository.findByEmailIgnoreCase(normalizedEmail)
                 .orElseThrow(() -> new IllegalArgumentException("Account setup user not found"));
-        createResetToken(user, remoteIp, ResetTokenPurpose.ACCOUNT_SETUP);
+        createResetToken(user, remoteIp, ResetTokenPurpose.ACCOUNT_SETUP, false);
     }
 
     @Transactional
@@ -81,7 +81,7 @@ public class PasswordResetService {
         resetToken.setUsedAt(current);
     }
 
-    private void createResetToken(User user, String remoteIp, ResetTokenPurpose purpose) {
+    private void createResetToken(User user, String remoteIp, ResetTokenPurpose purpose, boolean suppressNotificationFailure) {
         Instant current = now();
         List<PasswordResetToken> existingTokens = tokenRepository.findByUserIdAndUsedAtIsNull(user.getId());
         existingTokens.forEach(token -> token.setUsedAt(current));
@@ -106,7 +106,17 @@ public class PasswordResetService {
                 notifier.sendPasswordResetLink(user.getEmail(), resetUrl, resetToken.getExpiresAt());
             }
         } catch (RuntimeException ex) {
-            log.error("{} notification failed for user {}", purpose.logLabel(), user.getId(), ex);
+            if (suppressNotificationFailure) {
+                log.warn(
+                        "{} notification failed for user {}: {}",
+                        purpose.logLabel(),
+                        user.getId(),
+                        ex.getMessage()
+                );
+            } else {
+                log.error("{} notification failed for user {}", purpose.logLabel(), user.getId(), ex);
+                throw new IllegalStateException(purpose.logLabel() + " notification failed", ex);
+            }
         }
     }
 

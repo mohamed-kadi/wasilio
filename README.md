@@ -123,6 +123,8 @@ export SPRING_DATASOURCE_USERNAME="postgres"
 export SPRING_DATASOURCE_PASSWORD="password"
 export SPRING_FLYWAY_LOCATIONS="classpath:db/migration,classpath:db/seed"
 export SPRING_FLYWAY_OUT_OF_ORDER="true"
+export APP_FRONTEND_BASE_URL="http://localhost:5173"
+export APP_EMAIL_MODE="log"
 export APP_ONBOARDING_ENABLED="true"
 export APP_SECURITY_THROTTLING_ENABLED="true"
 mvn spring-boot:run
@@ -201,11 +203,15 @@ Current smoke coverage verifies:
 
 Password reset is available at http://localhost/forgot-password.
 
-Local Docker uses `APP_EMAIL_MODE=log`, so reset links appear in backend logs:
+Local Docker uses `APP_EMAIL_MODE=log` by default, so reset links appear in backend logs:
 
 ```bash
 docker compose logs -f backend
 ```
+
+If `.env` sets `APP_EMAIL_MODE=smtp`, Docker will send through the configured SMTP provider instead. `MailAuthenticationException: Authentication failed` means the provider rejected `SMTP_USERNAME` / `SMTP_PASSWORD`; switch local `.env` back to `APP_EMAIL_MODE=log` for local reset-link testing or use valid SMTP credentials.
+
+Reset links are built from `APP_FRONTEND_BASE_URL`. For local development, keep it set to `http://localhost`; production should use `https://wasilio.ma`.
 
 ## API Overview
 
