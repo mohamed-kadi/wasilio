@@ -230,6 +230,10 @@ function leadStatusLabel(status: MarketingLeadStatus) {
   return leadStatusLabels[status];
 }
 
+function leadFilterLabel(status: MarketingLeadStatus) {
+  return status === 'ONBOARDED' ? 'Created' : leadStatusLabel(status);
+}
+
 function tenantStatusLabel(status: TenantStatus) {
   return tenantStatusLabels[status];
 }
@@ -311,6 +315,7 @@ export default function AdminBilling() {
   const sectionParam = searchParams.get('section');
   const activeTab: WorkspaceTab = isWorkspaceTab(sectionParam) ? sectionParam : 'tenants';
   const activeSection = workspaceSectionMeta[activeTab];
+  const showWorkspaceContext = activeTab === 'tenants' || activeTab === 'billing' || activeTab === 'payments';
 
   const tenantsQuery = useQuery({
     queryKey: ['admin-tenants'],
@@ -680,7 +685,9 @@ export default function AdminBilling() {
               <h3 className="mt-1 text-lg font-semibold text-gray-900">{activeSection.title}</h3>
               <p className="mt-1 text-sm text-gray-500">{activeSection.detail}</p>
             </div>
-            <TenantSummaryCard detail={detail} selectedTenant={selectedTenant} latestPayment={latestPayment} />
+            {showWorkspaceContext && (
+              <TenantSummaryCard detail={detail} selectedTenant={selectedTenant} latestPayment={latestPayment} />
+            )}
 
             {activeTab === 'tenants' && (
               <section className="mt-6 space-y-4">
@@ -865,11 +872,11 @@ export default function AdminBilling() {
                     </div>
                   </div>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <AdminInfoTile label="Recorded payments" value={String(payments.length)} detail="Manual receipts in this workspace" />
-                  <AdminInfoTile label="Latest payment" value={latestPayment ? money(latestPayment.amount, latestPayment.currency) : 'None'} detail={latestPayment ? formatDateTime(latestPayment.paidAt) : 'No payment recorded'} />
-                  <AdminInfoTile label="Receipt selected" value={receiptPaymentId ? 'Ready to preview' : 'None selected'} detail="Open a receipt from payment history" />
-                  <AdminInfoTile label="Receipt identity" value={staffReceiptName} detail="Shown as collected by" />
+                <div className="grid gap-3 rounded-md border border-gray-200 bg-white p-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <CompactMetric label="Recorded payments" value={String(payments.length)} detail="Manual receipts in this workspace" />
+                  <CompactMetric label="Latest payment" value={latestPayment ? money(latestPayment.amount, latestPayment.currency) : 'None'} detail={latestPayment ? formatDateTime(latestPayment.paidAt) : 'No payment recorded'} />
+                  <CompactMetric label="Receipt selected" value={receiptPaymentId ? 'Ready to preview' : 'None selected'} detail="Open a receipt from payment history" />
+                  <CompactMetric label="Collector name" value={staffReceiptName} detail="Shown as collected by" />
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-[340px_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -1094,14 +1101,14 @@ function LeadList({
               Campaign requests and due follow-ups are shown first.
             </p>
           </div>
-          <div className="flex max-w-full flex-nowrap gap-2 overflow-x-auto pb-1">
+          <div className="flex w-full max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-1 lg:w-auto">
             <LeadFilterButton active={statusFilter === 'ALL'} label="All" count={leads.length} onClick={() => setStatusFilter('ALL')} />
             <LeadFilterButton active={statusFilter === 'CAMPAIGN'} label="Campaign" count={stats.campaign} onClick={() => setStatusFilter('CAMPAIGN')} />
             {marketingLeadStatuses.map((leadStatus) => (
               <LeadFilterButton
                 key={leadStatus}
                 active={statusFilter === leadStatus}
-                label={leadStatusLabel(leadStatus)}
+                label={leadFilterLabel(leadStatus)}
                 count={leads.filter((lead) => lead.status === leadStatus).length}
                 onClick={() => setStatusFilter(leadStatus)}
               />
@@ -1431,7 +1438,7 @@ function LeadFilterButton({
     <button
       type="button"
       onClick={onClick}
-      className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-md border px-2.5 py-2 text-xs font-semibold ${
+      className={`inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-1.5 text-xs font-semibold ${
         active ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
       }`}
     >
@@ -1750,18 +1757,18 @@ function TenantSummaryCard({
   const currentStatus = detail?.status ?? selectedTenant?.status ?? 'ACTIVE';
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
+    <section className="rounded-md border border-gray-200 bg-white px-4 py-3">
+      <div className="grid gap-3 lg:grid-cols-[minmax(220px,1.1fr)_minmax(0,2fr)] lg:items-center">
+        <div className="min-w-0 border-b border-gray-100 pb-3 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-4">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-lg font-semibold text-gray-900">{detail?.name ?? selectedTenant?.name ?? 'Merchant workspace'}</h3>
+            <h3 className="truncate text-base font-semibold text-gray-900">{detail?.name ?? selectedTenant?.name ?? 'Merchant workspace'}</h3>
             <StatusBadge status={currentStatus} />
           </div>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-xs text-gray-500">
             {detail?.usersCount ?? selectedTenant?.usersCount ?? 0} team members · {detail?.ordersCount ?? selectedTenant?.ordersCount ?? 0} orders
           </p>
         </div>
-        <div className="grid min-w-0 flex-1 grid-cols-1 gap-2 text-sm sm:grid-cols-3 lg:max-w-2xl">
+        <div className="grid min-w-0 grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <SummaryMetric icon={<CreditCard size={16} />} label="Plan" value={detail?.plan?.name ?? selectedTenant?.plan?.name ?? 'No plan'} />
           <SummaryMetric icon={<CalendarClock size={16} />} label="Subscription" value={subscriptionStatusLabel(detail?.subscription?.status ?? selectedTenant?.subscription?.status)} />
           <SummaryMetric icon={<Banknote size={16} />} label="Last payment" value={latestPayment ? money(latestPayment.amount, latestPayment.currency) : 'None'} />
@@ -1788,38 +1795,50 @@ function PaymentHistory({
 }) {
   return (
     <section className="rounded-lg border border-gray-200 bg-white">
-      <div className="border-b border-gray-200 p-4">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 p-4">
+        <div className="min-w-0">
           <h3 className="text-sm font-semibold uppercase text-gray-500">Payment History</h3>
-          <p className="mt-1 text-xs text-gray-500">Receipts, collection details, and covered billing periods.</p>
+          <p className="mt-1 text-xs text-gray-500">Receipts, collection details, and covered billing periods in one ledger.</p>
         </div>
+        <span className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-600">
+          {payments.length} recorded
+        </span>
       </div>
-      <div className="max-h-[540px] divide-y divide-gray-100 overflow-auto">
+      <div className="hidden grid-cols-[minmax(150px,1.2fr)_minmax(90px,0.7fr)_minmax(120px,0.9fr)_minmax(150px,1fr)_minmax(120px,0.8fr)_110px] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-2 text-xs font-semibold uppercase text-gray-500 2xl:grid">
+        <span>Receipt</span>
+        <span>Amount</span>
+        <span>Paid</span>
+        <span>Billing period</span>
+        <span>Collected by</span>
+        <span className="text-right">Action</span>
+      </div>
+      <div className="max-h-[560px] divide-y divide-gray-100 overflow-auto">
         {payments.map((payment) => (
-          <article key={payment.paymentId} className="p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="break-all text-base font-semibold text-gray-900">{payment.receiptNumber}</h4>
-                  <PaymentMethodBadge method={payment.method} />
-                </div>
-                <p className="mt-1 text-sm font-semibold text-gray-900">{money(payment.amount, payment.currency)}</p>
-                <p className="mt-1 text-xs text-gray-500">Paid {formatDateTime(payment.paidAt)}</p>
+          <article
+            key={payment.paymentId}
+            className="grid gap-3 p-4 text-sm 2xl:grid-cols-[minmax(150px,1.2fr)_minmax(90px,0.7fr)_minmax(120px,0.9fr)_minmax(150px,1fr)_minmax(120px,0.8fr)_110px] 2xl:items-center"
+          >
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h4 className="break-all text-base font-semibold text-gray-900">{payment.receiptNumber}</h4>
+                <PaymentMethodBadge method={payment.method} />
               </div>
+              {payment.notes && <p className="mt-1 truncate text-xs text-gray-500">{payment.notes}</p>}
+            </div>
+            <LedgerFact label="Amount" value={money(payment.amount, payment.currency)} strong />
+            <LedgerFact label="Paid" value={formatDateTime(payment.paidAt)} />
+            <LedgerFact label="Billing period" value={formatPeriod(payment.periodStart, payment.periodEnd)} />
+            <LedgerFact label="Collected by" value={payment.collectedBy} truncate />
+            <div className="2xl:text-right">
               <button
                 type="button"
                 onClick={() => onReceipt(payment.paymentId)}
-                className="inline-flex shrink-0 items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
               >
                 <FileText size={14} />
                 View receipt
               </button>
             </div>
-            <dl className="mt-3 grid gap-3 rounded-md bg-gray-50 p-3 text-sm md:grid-cols-2">
-              <PaymentFact label="Collected by" value={payment.collectedBy} />
-              <PaymentFact label="Billing period" value={formatPeriod(payment.periodStart, payment.periodEnd)} />
-              {payment.notes && <PaymentFact label="Notes" value={payment.notes} wide />}
-            </dl>
           </article>
         ))}
         {isLoading && <p className="p-4 text-sm text-gray-500">Loading payments...</p>}
@@ -1831,11 +1850,26 @@ function PaymentHistory({
   );
 }
 
-function PaymentFact({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+function LedgerFact({
+  label,
+  value,
+  strong = false,
+  truncate = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  truncate?: boolean;
+}) {
   return (
-    <div className={wide ? 'md:col-span-2' : undefined}>
-      <dt className="text-xs font-medium uppercase text-gray-500">{label}</dt>
-      <dd className="mt-1 break-words font-medium text-gray-900">{value}</dd>
+    <div className="min-w-0">
+      <p className="text-xs font-medium uppercase text-gray-500 2xl:hidden">{label}</p>
+      <p
+        className={`${truncate ? 'truncate' : 'break-words'} ${strong ? 'font-semibold' : 'font-medium'} text-gray-900`}
+        title={truncate ? value : undefined}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -2035,7 +2069,7 @@ function KpiCard({
 
 function SummaryMetric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="min-w-0 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+    <div className="min-w-0">
       <div className="mb-1 flex items-center gap-2 text-xs font-medium uppercase text-gray-500">
         {icon}
         {label}
@@ -2067,6 +2101,16 @@ function AdminInfoTile({
       <p className="text-xs font-semibold uppercase">{label}</p>
       <p className="mt-2 text-lg font-semibold text-gray-900">{value}</p>
       <p className="mt-1 text-xs">{detail}</p>
+    </div>
+  );
+}
+
+function CompactMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="min-w-0 rounded-md bg-gray-50 px-3 py-2">
+      <p className="text-xs font-semibold uppercase text-gray-500">{label}</p>
+      <p className="mt-1 truncate text-base font-semibold text-gray-900">{value}</p>
+      <p className="mt-1 truncate text-xs text-gray-500" title={detail}>{detail}</p>
     </div>
   );
 }
