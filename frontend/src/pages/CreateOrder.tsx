@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { useState, type ChangeEvent, type SyntheticEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, CheckCircle2, ClipboardList, PackagePlus, PhoneCall, Plus, Trash2, Truck } from 'lucide-react';
@@ -205,7 +205,7 @@ export default function CreateOrder() {
     });
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 

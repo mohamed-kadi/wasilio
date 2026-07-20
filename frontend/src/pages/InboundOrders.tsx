@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react';
+import { type SyntheticEvent, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ChevronLeft, ChevronRight, ExternalLink, Inbox, Search, X } from 'lucide-react';
@@ -73,7 +73,7 @@ export default function InboundOrders() {
   const pageStorefrontCount = inboundOrders.filter((inboundOrder) => inboundOrder.source === STOREFRONT_SOURCE).length;
   const pageStorefrontReadyCount = inboundOrders.filter(isReadyForConfirmation).length;
 
-  function applySearch(event: FormEvent<HTMLFormElement>) {
+  function applySearch(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setPage(0);
     setSearch(searchInput.trim());

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type SyntheticEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, KeyRound } from 'lucide-react';
 import { confirmPasswordReset, getErrorMessage } from '../api/client';
@@ -19,7 +19,7 @@ export default function ResetPassword() {
     return <Navigate to="/app" replace />;
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
 

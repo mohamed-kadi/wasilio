@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode, useMemo, useState } from 'react';
+import { type SyntheticEvent, type ReactNode, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -565,7 +565,7 @@ export default function AdminBilling() {
     await queryClient.invalidateQueries({ queryKey: ['admin-tenant', effectiveTenantId] });
   }
 
-  function handleTenantStatus(event: FormEvent<HTMLFormElement>) {
+  function handleTenantStatus(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     statusMutation.mutate();
   }
@@ -582,17 +582,17 @@ export default function AdminBilling() {
     setReceiptPaymentId('');
   }
 
-  function handleSubscription(event: FormEvent<HTMLFormElement>) {
+  function handleSubscription(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     subscriptionMutation.mutate();
   }
 
-  function handlePayment(event: FormEvent<HTMLFormElement>) {
+  function handlePayment(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     paymentMutation.mutate();
   }
 
-  function handlePlan(event: FormEvent<HTMLFormElement>) {
+  function handlePlan(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     planMutation.mutate();
   }
@@ -1177,7 +1177,7 @@ function LeadCard({
   const campaignPriority = needsCampaignFollowUp(lead);
   const nextAction = getLeadNextAction(lead);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     onUpdate({
       leadId: lead.leadId,
@@ -1187,7 +1187,7 @@ function LeadCard({
     });
   }
 
-  function handleConvert(event: FormEvent<HTMLFormElement>) {
+  function handleConvert(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     onConvert({
       leadId: lead.leadId,

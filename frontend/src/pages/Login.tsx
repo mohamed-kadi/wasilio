@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type SyntheticEvent, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { LogIn, ShieldCheck, Store } from 'lucide-react';
 import { getErrorMessage, login } from '../api/client';
@@ -29,7 +29,7 @@ export default function Login() {
   const from = (location.state as LocationState | null)?.from?.pathname ?? '/app';
   const message = (location.state as LocationState | null)?.message;
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setLoading(true);
@@ -56,17 +56,17 @@ export default function Login() {
           </p>
           <div className="mt-6 grid gap-3">
             <AuthCue icon={<Store size={16} />} title="Store workspace" detail="Your products, orders, and storefront setup stay together." />
-            <AuthCue icon={<ShieldCheck size={16} />} title="Operations access" detail="Use the merchant owner account or an invited team account." />
+            <AuthCue icon={<ShieldCheck size={16} />} title="Operations access" detail="Use your owner or team login." />
           </div>
         </section>
 
-        <section className="space-y-6">
+        <section className="flex flex-col justify-center space-y-6">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Sign in</h2>
             <p className="mt-2 text-sm text-gray-600">Enter your merchant account credentials.</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4 rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+          <form onSubmit={handleSubmit} className="flex min-h-[23rem] flex-col justify-center space-y-5 rounded-lg border border-gray-200 bg-white p-7 shadow-sm sm:p-8">
           {message && (
             <div className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
               {message}
@@ -91,7 +91,7 @@ export default function Login() {
               required
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-3 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
           </div>
 
@@ -112,18 +112,30 @@ export default function Login() {
               required
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              className="w-full px-3 py-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 focus:ring-4 focus:ring-blue-100 disabled:opacity-50"
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 focus:ring-4 focus:ring-blue-100 disabled:opacity-50"
           >
             <LogIn size={18} />
             {loading ? 'Signing in' : 'Sign in'}
           </button>
+
+          <p className="border-t border-gray-100 pt-4 text-center text-xs leading-5 text-gray-500">
+            By signing in, you agree to the{' '}
+            <Link to="/terms" className="font-medium text-blue-600 hover:underline">
+              Terms
+            </Link>{' '}
+            and{' '}
+            <Link to="/privacy" className="font-medium text-blue-600 hover:underline">
+              Privacy Policy
+            </Link>
+            .
+          </p>
           </form>
 
           <p className="text-center text-sm text-gray-600">

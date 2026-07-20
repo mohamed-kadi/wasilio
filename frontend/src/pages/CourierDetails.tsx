@@ -1,4 +1,4 @@
-import { type FormEvent, type ReactNode } from 'react';
+import { type SyntheticEvent, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowRight, CalendarDays, Phone, Save, ToggleLeft, ToggleRight, Truck } from 'lucide-react';
@@ -34,7 +34,7 @@ export default function CourierDetails() {
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     updateMutation.mutate({

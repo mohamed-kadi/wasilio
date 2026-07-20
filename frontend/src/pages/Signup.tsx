@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useState, type ReactNode, type SyntheticEvent } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, Circle, ShieldCheck, Store, UserPlus, UserRound } from 'lucide-react';
 import { ApiError, getErrorMessage, onboardTenant } from '../api/client';
@@ -18,26 +18,23 @@ export default function Signup() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
-
-  const passwordReady = STRONG_PASSWORD.test(password);
-  const passwordsMatch = Boolean(confirmPassword) && password === confirmPassword;
-  const setupSteps = [
+  const accountBlocks = [
     {
       label: 'Workspace',
-      detail: tenantName.trim() || 'Store name needed',
+      detail: 'Name the store your team will manage.',
       complete: Boolean(tenantName.trim()),
       icon: <Store size={16} />,
     },
     {
-      label: 'Merchant owner',
-      detail: adminEmail.trim() || 'Owner email needed',
+      label: 'Contact',
+      detail: 'Add the person who signs in first.',
       complete: Boolean(adminName.trim() && adminEmail.trim()),
       icon: <UserRound size={16} />,
     },
     {
-      label: 'Secure password',
-      detail: passwordReady && passwordsMatch ? 'Ready' : 'Password rules pending',
-      complete: passwordReady && passwordsMatch,
+      label: 'Security',
+      detail: 'Create a strong password for this account.',
+      complete: STRONG_PASSWORD.test(password) && Boolean(confirmPassword) && password === confirmPassword,
       icon: <ShieldCheck size={16} />,
     },
   ];
@@ -46,7 +43,7 @@ export default function Signup() {
     return <Navigate to="/app" replace />;
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
     setFieldErrors({});
@@ -68,7 +65,7 @@ export default function Signup() {
       await onboardTenant({ tenantName, adminName, adminEmail, password });
       navigate('/login', {
         replace: true,
-        state: { message: 'Workspace created. Sign in with the merchant owner account.' },
+        state: { message: 'Account created. Sign in to continue.' },
       });
     } catch (submitError) {
       if (submitError instanceof ApiError) {
@@ -82,31 +79,27 @@ export default function Signup() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-10">
-      <div className="grid w-full max-w-5xl gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)]">
-        <section className="space-y-6">
+      <div className="grid w-full max-w-5xl gap-8 lg:grid-cols-[minmax(0,0.78fr)_minmax(0,1fr)] lg:items-center">
+        <section>
           <Link to="/login" className="inline-flex items-center gap-2 text-sm text-blue-600 hover:underline">
             <ArrowLeft size={16} />
             Sign in
           </Link>
-          <div className="pt-10">
+          <div className="mt-12">
             <BrandLogo className="flex" markClassName="h-10 w-10" textClassName="text-2xl" />
           </div>
-          <h2 className="mt-5 text-xl font-semibold text-gray-900">Create store workspace</h2>
-          <p className="mt-2 text-sm leading-6 text-gray-600">
-            The store workspace is the business account. The merchant owner is the person who will manage it.
+          <h1 className="mt-6 text-3xl font-bold tracking-tight text-gray-950">Create merchant account</h1>
+          <p className="mt-3 max-w-md text-sm leading-6 text-gray-600">
+            Set up Wasilio access for your store operations.
           </p>
-          <p className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800">
-            Direct signup is for approved merchants or local testing. New public requests should start from the guided pilot demo flow.
-          </p>
-
-          <div className="grid gap-3">
-            {setupSteps.map((step) => (
-              <SetupStep
-                key={step.label}
-                label={step.label}
-                detail={step.detail}
-                complete={step.complete}
-                icon={step.icon}
+          <div className="mt-8 grid gap-3">
+            {accountBlocks.map((block) => (
+              <SetupBlock
+                key={block.label}
+                label={block.label}
+                detail={block.detail}
+                complete={block.complete}
+                icon={block.icon}
               />
             ))}
           </div>
@@ -129,7 +122,7 @@ export default function Signup() {
             onChange={setTenantName}
           />
           <Field
-            label="Merchant owner full name"
+            label="Merchant full name"
             help="This is the person who will sign in and manage the workspace."
             name="adminName"
             value={adminName}
@@ -138,7 +131,7 @@ export default function Signup() {
             onChange={setAdminName}
           />
           <Field
-            label="Merchant owner email"
+            label="Merchant email"
             name="adminEmail"
             type="email"
             value={adminEmail}
@@ -172,7 +165,7 @@ export default function Signup() {
             className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 focus:ring-4 focus:ring-blue-100 disabled:opacity-50"
           >
             <UserPlus size={18} />
-            {loading ? 'Creating workspace' : 'Create workspace'}
+            {loading ? 'Creating account' : 'Create account'}
           </button>
         </form>
       </div>
@@ -180,7 +173,7 @@ export default function Signup() {
   );
 }
 
-function SetupStep({
+function SetupBlock({
   label,
   detail,
   complete,
@@ -200,16 +193,14 @@ function SetupStep({
           {icon}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm font-semibold text-gray-900">{label}</p>
-            {complete ? (
-              <CheckCircle2 size={16} className="shrink-0 text-emerald-700" />
-            ) : (
-              <Circle size={16} className="shrink-0 text-gray-300" />
-            )}
-          </div>
-          <p className="mt-1 truncate text-sm text-gray-500">{detail}</p>
+          <p className="text-sm font-semibold text-gray-900">{label}</p>
+          <p className="mt-1 text-sm leading-5 text-gray-500">{detail}</p>
         </div>
+        {complete ? (
+          <CheckCircle2 size={16} className="mt-1 shrink-0 text-emerald-700" />
+        ) : (
+          <Circle size={16} className="mt-1 shrink-0 text-gray-300" />
+        )}
       </div>
     </div>
   );
@@ -225,7 +216,7 @@ function PasswordChecklist({ password, confirmPassword }: { password: string; co
 
   return (
     <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-      <p className="text-xs font-semibold uppercase text-gray-500">Password readiness</p>
+      <p className="text-xs font-semibold uppercase text-gray-500">Password requirements</p>
       <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
         {checks.map((check) => (
           <div key={check.label} className="flex items-center gap-2 text-xs text-gray-600">

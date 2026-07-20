@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from 'react';
+import { type SyntheticEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Save, Upload } from 'lucide-react';
 import {
@@ -76,7 +76,7 @@ function StorefrontProfileEditorForm({
     },
   });
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     saveMutation.mutate(profilePayloadFromFormData(new FormData(event.currentTarget)));
   }

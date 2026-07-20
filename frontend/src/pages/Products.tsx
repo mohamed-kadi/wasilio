@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react';
+import { type SyntheticEvent, useState } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -171,7 +171,7 @@ export default function Products() {
   });
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     const payload = payloadFromForm(form);
     if (editingProduct) {
@@ -559,7 +559,7 @@ function ProductEditorPanel({
   imageUploadPending: boolean;
   imageUploadError: unknown;
   onClose: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
   onNameChange: (name: string) => void;
   onSlugChange: (slug: string) => void;
   onFormChange: (nextForm: ProductFormState | ((current: ProductFormState) => ProductFormState)) => void;

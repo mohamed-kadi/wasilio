@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from 'react';
+import { type SyntheticEvent, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, Circle, ExternalLink, Globe2, Save, Store, ToggleLeft, ToggleRight } from 'lucide-react';
 import {
@@ -114,7 +114,7 @@ function StorefrontSettingsEditor({
   const landingEnginePattern = landingEngineProductPattern();
   const envSnippet = useMemo(() => landingEngineEnvSnippet(slugForDisplay), [slugForDisplay]);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     saveMutation.mutate(payloadFromForm(form));
   }

@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from 'react';
+import { type SyntheticEvent, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, PlusCircle, Search, ToggleLeft, ToggleRight, X } from 'lucide-react';
@@ -54,7 +54,7 @@ export default function Couriers() {
   const canGoBack = page > 0;
   const canGoForward = totalPages > 0 && page + 1 < totalPages;
 
-  function handleCreate(event: FormEvent<HTMLFormElement>) {
+  function handleCreate(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
     createMutation.mutate();
   }
@@ -288,7 +288,7 @@ function CourierCreatePanel({
   onNameChange: (value: string) => void;
   onPhoneChange: (value: string) => void;
   onClose: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
 }) {
   return (
     <div className="fixed inset-0 z-40">

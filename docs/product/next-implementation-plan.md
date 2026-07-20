@@ -27,6 +27,31 @@ Do not treat the online frontend as a complete production SaaS until the backend
 
 Use `docs/deployment/testing-and-deployment-runbook.md` when choosing between local demo, local landing-engine rehearsal, frontend-only public mode, hosted backend pilot mode, and paid SaaS production gates.
 
+## Current Phase Queue
+
+### Phase 35: Public Landing Page And Acquisition Funnel Cleanup
+
+This is the active next product phase. It should make Wasilio's public site explain the product clearly, especially the order-intelligence and fraud/risk detection value for Moroccan COD merchants.
+
+Scope:
+
+- Clean public landing page layout, copy, and mobile readability.
+- Add a clear intelligence/fraud-risk section without exposing scoring weights or internal rules.
+- Explain how merchant orders can enter Wasilio through manual entry, product landing pages, WhatsApp-assisted operations, Facebook/Instagram traffic, and Google Ads traffic.
+- Keep Wasilio sales leads separate from merchant customer orders in the copy and internal documentation.
+- Keep CTA paths clear: request demo, contact on WhatsApp, or create workspace only when the onboarding decision supports it.
+
+### Phase 36: Hosted Backend Pilot Preparation
+
+Keep this phase parked until the public landing/acquisition story is stable enough to justify a hosted pilot.
+
+Scope:
+
+- Add or organize live-backend smoke checks for login, lead capture, lead conversion, setup/reset email, merchant login, order creation, confirmation, and media upload.
+- Finalize pilot deployment environment inventory for backend host secrets, Cloudflare Pages variables, and local-only `.env` values.
+- Document scheduled database backups, off-host encrypted storage, restore drills, and media volume backup.
+- Confirm SMTP, production CORS, media URLs, super-admin bootstrap disablement, and onboarding policy before real pilot merchants use the hosted backend.
+
 ## Architecture Direction Note
 
 Operational UX polish can continue inside Wasilio Core. Order creation now has a minimal Order Ingestion/source metadata foundation. Any work that captures orders from public storefronts, CSV, ecommerce platforms, WhatsApp, marketplace sources, or campaign flows should extend that boundary instead of calling order lifecycle directly.
@@ -35,10 +60,10 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 
 ## Near-Term Queue
 
-1. Documentation organization and handoff clarity.
-2. Super-admin cleanup and UX review for staff/admin workflows. See `docs/product/staff-admin-workspace.md`.
+1. Phase 35 public landing page and acquisition funnel cleanup.
+2. Super-admin cleanup and UX review for staff/admin workflows as needed. See `docs/product/staff-admin-workspace.md`.
 3. Secure merchant account setup email after demo request conversion.
-4. Real merchant launch-readiness pass.
+4. Phase 36 hosted backend pilot preparation when the public story and pilot target are ready.
 5. Intelligence calibration pilot after enough realistic confirmation evidence is available.
 
 Landing-engine integration is already connected locally through the public product and order-intent contracts. Any landing-engine handoff work from here should be treated as production-readiness documentation, environment verification, and QA rehearsal, not a rebuild of the connection.
@@ -137,14 +162,16 @@ When ready, the backend deployment path is:
 
 ## Next Recommended Batch
 
-Start with **Landing And Acquisition UX** when working on the public site because it is already public and does not require backend hosting.
+Start with **Phase 35: Public Landing Page And Acquisition Funnel Cleanup** because the public site is already live and the fraud/intelligence positioning is one of Wasilio's strongest merchant-facing differentiators.
 
-When working inside the app, keep prioritizing core workflow polish and smoke coverage. If the next app feature touches external order capture or source tracking, extend Order Ingestion before storefront, integrations, or campaign analytics.
+Keep **Phase 36: Hosted Backend Pilot Preparation** parked until the public acquisition story is stable and there is a controlled pilot target. If the next app feature touches external order capture or source tracking, extend Order Ingestion before storefront, integrations, or campaign analytics.
 
 Suggested first tasks:
 
 1. Review `wasilio.ma` on mobile and desktop.
 2. Identify copy, layout, and trust gaps on the landing page.
-3. Improve demo request CTA and mobile form flow.
-4. Validate SEO/social metadata for the live domain.
-5. Add smoke coverage if the updated public flow changes behavior.
+3. Add a business-friendly intelligence/fraud-risk section.
+4. Explain manual, landing-page, WhatsApp-assisted, Facebook/Instagram, and Google Ads order paths without blurring Wasilio sales leads with merchant customer orders.
+5. Improve demo request CTA and mobile form flow.
+6. Validate SEO/social metadata for the live domain.
+7. Add smoke coverage if the updated public flow changes behavior.

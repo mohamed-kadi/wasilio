@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-test('merchant can create the first workspace from signup', async ({ page }) => {
+test('merchant can create an account from signup', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   const onboardingRequests: Array<Record<string, unknown>> = [];
 
@@ -22,15 +22,25 @@ test('merchant can create the first workspace from signup', async ({ page }) => 
 
   await page.goto('/signup');
 
-  await expect(page.getByRole('heading', { name: 'Create store workspace' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Create merchant account' })).toBeVisible();
+  await expect(page.getByText('Set up Wasilio access for your store operations.')).toBeVisible();
   await expect(page.getByText('Workspace', { exact: true })).toBeVisible();
-  await expect(page.getByText('Merchant owner', { exact: true })).toBeVisible();
-  await expect(page.getByText('Password readiness')).toBeVisible();
+  await expect(page.getByText('Contact', { exact: true })).toBeVisible();
+  await expect(page.getByText('Security', { exact: true })).toBeVisible();
+  await expect(page.getByText('Name the store your team will manage.')).toBeVisible();
+  await expect(page.getByText('Add the person who signs in first.')).toBeVisible();
+  await expect(page.getByText('Create a strong password for this account.')).toBeVisible();
+  await expect(page.getByText('Merchant owner', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Store name needed')).toHaveCount(0);
+  await expect(page.getByText('Owner email needed')).toHaveCount(0);
+  await expect(page.getByText('Password rules pending')).toHaveCount(0);
+  await expect(page.getByText('Direct signup is for approved merchants')).toHaveCount(0);
+  await expect(page.getByText('Password requirements')).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
   await page.getByLabel('Store / business name').fill('Atlas Shop');
-  await page.getByLabel('Merchant owner full name').fill('Admin User');
-  await page.getByLabel('Merchant owner email').fill('admin@example.com');
+  await page.getByLabel('Merchant full name').fill('Admin User');
+  await page.getByLabel('Merchant email').fill('admin@example.com');
   await page.getByRole('textbox', { name: 'Password', exact: true }).fill('Str0ng!Password2026');
   await page.getByLabel('Confirm password').fill('Str0ng!Password2026');
 
@@ -40,7 +50,7 @@ test('merchant can create the first workspace from signup', async ({ page }) => 
   await expect(page.getByText('Passwords match')).toBeVisible();
   await expectNoHorizontalOverflow(page);
 
-  await page.getByRole('button', { name: /create workspace/i }).click();
+  await page.getByRole('button', { name: /create account/i }).click();
 
   await expect.poll(() => onboardingRequests.length).toBe(1);
   expect(onboardingRequests[0]).toMatchObject({
@@ -50,7 +60,7 @@ test('merchant can create the first workspace from signup', async ({ page }) => 
     password: 'Str0ng!Password2026',
   });
   await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByText('Workspace created. Sign in with the merchant owner account.')).toBeVisible();
+  await expect(page.getByText('Account created. Sign in to continue.')).toBeVisible();
 });
 
 async function expectNoHorizontalOverflow(page: Page) {
