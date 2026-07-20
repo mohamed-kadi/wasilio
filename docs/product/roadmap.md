@@ -58,6 +58,7 @@ For the current tactical sequence after the public frontend launch, use `docs/pr
 
 - Keep the public frontend live on Cloudflare Pages.
 - Keep backend hosting deferred until there is pilot/client demand or a card-verified hosting account is acceptable.
+- Stabilize production-readiness documentation and deployment checks so local testing, landing-engine rehearsal, frontend-only public mode, and future hosted backend pilot mode are not confused.
 - Prioritize landing-page/acquisition UX, core workflow polish, lead-capture readiness, and focused frontend smoke coverage.
 
 ## Phase 3 Candidate: Business Layer

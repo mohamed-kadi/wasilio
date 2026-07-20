@@ -23,6 +23,7 @@ services:
       APP_EMAIL_MODE: ${APP_EMAIL_MODE:-log}
       APP_EMAIL_FROM: ${APP_EMAIL_FROM:-Wasilio <no-reply@wasilio.local>}
       APP_SUPPORT_CONTACT: ${APP_SUPPORT_CONTACT:-support@wasilio.local}
+      APP_MEDIA_PUBLIC_BASE_URL: ${APP_MEDIA_PUBLIC_BASE_URL:-http://localhost:8080}
       SMTP_HOST: ${SMTP_HOST:-localhost}
       SMTP_PORT: ${SMTP_PORT:-1025}
       SMTP_USERNAME: ${SMTP_USERNAME:-}

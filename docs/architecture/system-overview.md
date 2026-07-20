@@ -55,7 +55,7 @@ The base `docker-compose.yml` defines the services and defaults to Flyway migrat
 - permissive local CORS origins
 - default local JWT secret
 
-The production overlay, `docker-compose.prod.yml`, requires explicit database credentials, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS`, and `APP_ONBOARDING_ENABLED`. It excludes `db/seed`, keeping seeded development users out of production.
+The production overlay, `docker-compose.prod.yml`, requires explicit database credentials, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS`, email settings, media public URL, browser API URL, landing-engine URL, and `APP_ONBOARDING_ENABLED`. It excludes `db/seed`, keeping seeded development users out of production.
 
 ## Current Capability Map
 
@@ -68,28 +68,33 @@ The production overlay, `docker-compose.prod.yml`, requires explicit database cr
 - COD confirmation queue, attempts, and callback scheduling.
 - Courier management, assignment, pickup, delivery, and failure operations.
 - Advanced order search, saved views, and unified order timeline.
+- Tenant product catalog, product media upload, storefront settings, and public product readiness.
+- Public storefront product and order-intent endpoints for landing-engine.
+- Order intelligence snapshots, score reasons, and append-only score audit history.
+- Staff workspace for merchant workspaces, subscription plans, manual payments, receipts, financial export, and demo request conversion.
+- Public landing page, demo request capture, campaign attribution fields, and legal pages.
 - Basic in-memory throttling for login and onboarding.
 - Correlation IDs carried into logs, responses, errors, and domain events.
 
 ## Target Capability Map
 
-- Catalog context for merchant-owned products, media, product FAQs, testimonials, and storefront-ready offer data.
-- Storefront presentation layer that reads Catalog data and submits order intent.
-- Order Ingestion boundary for manual, storefront, CSV, ecommerce platform, marketplace, WhatsApp, and lead-form sources.
+- Richer Catalog context for variants, product FAQs, testimonials, video, and deeper storefront-ready offer data.
+- Storefront presentation layer that continues to read Catalog data and submit order intent.
+- Order Ingestion boundary for CSV, ecommerce platform, marketplace, WhatsApp, and lead-form sources beyond the implemented manual and Wasilio storefront sources.
 - Integration adapters that preserve raw external payloads and translate them into Wasilio-owned commands.
 - Marketing Attribution context for campaign, channel, UTM, referrer, click, lead source, and conversion linkage data.
 - Customer Profile context for reusable customer identity and address history across orders.
-- Customer Intelligence context for explainable repeat-customer, risk, delivery, and segmentation signals.
+- Customer Intelligence context for broader explainable repeat-customer, risk, delivery, and segmentation signals beyond the current order intelligence slice.
 - Analytics and reporting over lifecycle events, projections, operational records, attribution, and intelligence snapshots.
 - Notifications context for internal reminders and future SMS, WhatsApp, email, or push workflows.
 
 ## Current Limits
 
 - Public frontend is live, but online app/API workflows are not production-complete until a hosted backend and production database connection are deployed.
-- Catalog, Wasilio Storefront, source-specific integration adapters, Marketing Attribution, Customer Profile, and Customer Intelligence are architecture targets, not implemented runtime contexts yet.
-- Order Ingestion exists as a foundation, but it does not yet implement storefront capture, CSV imports, external ecommerce adapters, WhatsApp intake, or lead-form intake.
+- Product media is stored through the local filesystem implementation with Docker volume persistence. Object storage, CDN behavior, and backup policy for media remain production hardening items.
+- Source-specific integration adapters for CSV imports, ecommerce platforms, marketplaces, WhatsApp intake, and lead-form order intake remain future work.
 - No distributed outbox or retry worker for projection/event dispatch failures.
 - No refresh-token model or token revocation store.
 - Abuse throttling is process-local and must be replaced or backed by Redis before multi-node deployment.
 - Event payloads are versioned but there are no event upcasters yet.
-- External courier integrations, billing, analytics dashboards, notifications, and risk scoring are planned but not implemented.
+- External courier integrations, accounting-grade billing, analytics dashboards, notification workers, and broader customer intelligence remain future work.

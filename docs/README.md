@@ -5,10 +5,11 @@ This is the main documentation entry point for Wasilio. Use it to decide which d
 ## Start Here
 
 1. `../README.md`: local setup, Docker Compose, seeded users, smoke tests, and API overview.
-2. `architecture/system-overview.md`: system shape, backend layers, source of truth, and runtime split.
-3. `architecture/implementation-guardrails.md`: rules for changing workflows without breaking domain boundaries.
-4. `product/next-implementation-plan.md`: current tactical sequence and near-term product priorities.
-5. `product/master-roadmap.md`: full project history, completed phases, remaining phases, and audit gate.
+2. `deployment/testing-and-deployment-runbook.md`: operator-safe testing and deployment modes.
+3. `architecture/system-overview.md`: system shape, backend layers, source of truth, and runtime split.
+4. `architecture/implementation-guardrails.md`: rules for changing workflows without breaking domain boundaries.
+5. `product/next-implementation-plan.md`: current tactical sequence and near-term product priorities.
+6. `product/master-roadmap.md`: full project history, completed phases, remaining phases, and audit gate.
 
 ## Current Work
 
@@ -27,6 +28,7 @@ Current near-term direction:
 For local setup and verification:
 
 - `../README.md`
+- `deployment/testing-and-deployment-runbook.md`
 - `operations.md`
 - `product/next-implementation-plan.md`
 
@@ -65,6 +67,7 @@ For architecture changes:
 
 For launch, pilots, and acquisition:
 
+- `deployment/testing-and-deployment-runbook.md`
 - `product/vision.md`
 - `product/launch-readiness-pivot.md`
 - `product/pilot-acquisition-workflow.md`

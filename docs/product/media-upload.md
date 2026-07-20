@@ -53,6 +53,8 @@ The default storage location is `storage/media`, configurable with `APP_MEDIA_ST
 
 This is intentionally local-first. A future object-storage implementation should keep the application contract stable and swap only the storage implementation/public URL generation.
 
+Docker deployments mount `/app/storage/media` as a named backend media volume. Production must set `APP_MEDIA_PUBLIC_BASE_URL` to the externally reachable origin that serves `/media`, and the media volume must be included in backup or host-migration procedures until object storage exists.
+
 The Phase 22 rehearsal seed references SVG placeholders in `backend/storage/media/demo/first-store/` so landing-engine browser QA can render product, gallery, and SEO media locally. Local Docker compose mounts that demo directory read-only into the backend container. Those files are not uploaded media records and do not change upload validation, supported upload content types, or production media storage expectations.
 
 ## Landing Engine Boundary

@@ -10,9 +10,12 @@ services:
       dockerfile: docker/backend.Dockerfile
     ports:
       - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - backend_media:/app/storage/media
     environment:
       SPRING_JPA_HIBERNATE_DDL_AUTO: validate
       SPRING_FLYWAY_LOCATIONS: classpath:db/migration
+      APP_MEDIA_STORAGE_DIR: /app/storage/media
     depends_on:
       - postgres
 
@@ -21,6 +24,8 @@ services:
       context: .
       dockerfile: docker/frontend.Dockerfile
       args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+        VITE_LANDING_ENGINE_URL: ${VITE_LANDING_ENGINE_URL:-http://localhost:3000}
         VITE_PUBLIC_SITE_URL: ${VITE_PUBLIC_SITE_URL:-http://localhost}
         VITE_PUBLIC_SUPPORT_EMAIL: ${VITE_PUBLIC_SUPPORT_EMAIL:-support@wasilio.local}
         VITE_PUBLIC_WHATSAPP_URL: ${VITE_PUBLIC_WHATSAPP_URL:-}
@@ -32,3 +37,4 @@ services:
 
 volumes:
   postgres_data:
+  backend_media:

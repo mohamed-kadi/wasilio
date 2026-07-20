@@ -98,6 +98,8 @@ Before paid traffic, confirm `frontend/public/sitemap.xml` uses the final produc
 
 Run this checklist after every production deployment and before sending paid traffic to the public landing page.
 
+Use `docs/deployment/testing-and-deployment-runbook.md` first to choose the correct operating mode. The checklist below is the technical smoke subset after a deployment has been selected.
+
 For the current frontend-only Cloudflare Pages deployment, run items 1, 2, 5, and 6. Run the backend-dependent items only after a hosted backend API is deployed and `VITE_API_BASE_URL` points to it.
 
 1. Run `cd frontend && npm run smoke` before publishing frontend changes. On a fresh machine, run `npx playwright install chromium` once first.
@@ -111,7 +113,8 @@ For the current frontend-only Cloudflare Pages deployment, run items 1, 2, 5, an
 9. Request a password reset and confirm the email delivery mode sends or logs the expected reset link.
 10. Verify `/actuator/health/readiness` returns healthy through the production ingress.
 11. Confirm production compose uses only `classpath:db/migration` and that seed accounts are not present.
-12. Capture a fresh database backup and record the backup artifact name for the deployment.
+12. Upload product media and confirm the returned public URL resolves through `/media`.
+13. Capture a fresh database backup and record the backup artifact name for the deployment.
 
 ## Abuse Protection And Security Audit Logs
 
@@ -207,6 +210,7 @@ Authenticated merchant/admin users can manage the minimal tenant-scoped product 
 - Products support create, list, detail, update, and archive operations through `/api/products`.
 - Product status is operational: `DRAFT` for incomplete records, `ACTIVE` for products ready for future order/storefront use, and `ARCHIVED` for retained records not intended for new use.
 - Product media supports authenticated primary image uploads through `/api/products/{productId}/media`; gallery and SEO uploads can populate existing storefront profile fields.
+- Docker deployments mount `/app/storage/media` as a named volume so uploaded media survives container replacement. Production must set `APP_MEDIA_PUBLIC_BASE_URL` to the public origin that serves `/media`.
 - Public product responses include readiness checks for landing-engine review. These checks are informational and do not mutate order lifecycle.
 - Local seed loading adds a `first-store`/`coolair-mini` landing-engine rehearsal product when `classpath:db/seed` is enabled. Local Docker compose mounts the matching demo media read-only; production compose excludes this seed path.
 - Existing order creation remains stable. Product-referenced orders use stable order-line snapshots so historical orders remain readable after catalog edits.

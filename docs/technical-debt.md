@@ -46,6 +46,14 @@ Risk: missed backups, host-local backup loss, and untested restores if productio
 
 Target: scheduled encrypted backups, off-host storage, alerts, restore drills, and documented RPO/RTO updates.
 
+### Media Storage Operations
+
+Current state: Docker deployments persist uploaded media in a named backend media volume and require a production media public base URL. The implementation is still local-filesystem based.
+
+Risk: product images can be lost if the media volume is not backed up or if the deployment moves hosts without migrating media files.
+
+Target: include media volume backups in the production backup process, then move to object storage/CDN when merchant media volume or hosting topology requires it.
+
 ### Event Upcasters
 
 Current state: events have `event_schema_version`, but no upcaster pipeline.

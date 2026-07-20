@@ -18,6 +18,7 @@ services:
       APP_EMAIL_MODE: ${APP_EMAIL_MODE:?APP_EMAIL_MODE must be set for production compose}
       APP_EMAIL_FROM: ${APP_EMAIL_FROM:?APP_EMAIL_FROM must be set for production compose}
       APP_SUPPORT_CONTACT: ${APP_SUPPORT_CONTACT:?APP_SUPPORT_CONTACT must be set for production compose}
+      APP_MEDIA_PUBLIC_BASE_URL: ${APP_MEDIA_PUBLIC_BASE_URL:?APP_MEDIA_PUBLIC_BASE_URL must be set for production compose}
       SMTP_HOST: ${SMTP_HOST:?SMTP_HOST must be set for production compose}
       SMTP_PORT: ${SMTP_PORT:?SMTP_PORT must be set for production compose}
       SMTP_USERNAME: ${SMTP_USERNAME:?SMTP_USERNAME must be set for production compose}
@@ -44,6 +45,8 @@ services:
   frontend:
     build:
       args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:?VITE_API_BASE_URL must be set for production compose}
+        VITE_LANDING_ENGINE_URL: ${VITE_LANDING_ENGINE_URL:?VITE_LANDING_ENGINE_URL must be set for production compose}
         VITE_PUBLIC_SITE_URL: ${VITE_PUBLIC_SITE_URL:?VITE_PUBLIC_SITE_URL must be set for production compose}
         VITE_PUBLIC_SUPPORT_EMAIL: ${VITE_PUBLIC_SUPPORT_EMAIL:?VITE_PUBLIC_SUPPORT_EMAIL must be set for production compose}
         VITE_PUBLIC_WHATSAPP_URL: ${VITE_PUBLIC_WHATSAPP_URL:-}

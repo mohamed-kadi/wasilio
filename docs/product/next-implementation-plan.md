@@ -25,6 +25,8 @@ Reason:
 
 Do not treat the online frontend as a complete production SaaS until the backend is deployed and connected.
 
+Use `docs/deployment/testing-and-deployment-runbook.md` when choosing between local demo, local landing-engine rehearsal, frontend-only public mode, hosted backend pilot mode, and paid SaaS production gates.
+
 ## Architecture Direction Note
 
 Operational UX polish can continue inside Wasilio Core. Order creation now has a minimal Order Ingestion/source metadata foundation. Any work that captures orders from public storefronts, CSV, ecommerce platforms, WhatsApp, marketplace sources, or campaign flows should extend that boundary instead of calling order lifecycle directly.

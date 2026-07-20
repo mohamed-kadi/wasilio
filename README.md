@@ -282,9 +282,11 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
 
 Production compose:
 
-- requires database credentials, JWT secret, CORS origins, frontend URL, email settings, and public Vite values
+- requires database credentials, JWT secret, CORS origins, frontend URL, email settings, media public URL, API URL, landing-engine URL, and public Vite values
 - runs only `db/migration`
 - excludes `db/seed`, so `admin@example.com` and `superadmin@example.com` are not created
+
+For the full non-programmer testing and deployment sequence, use [docs/deployment/testing-and-deployment-runbook.md](docs/deployment/testing-and-deployment-runbook.md).
 
 For the first production deployment, create the initial Wasilio staff account with explicit bootstrap variables:
 
@@ -294,6 +296,9 @@ POSTGRES_PASSWORD="<production-password>" \
 JWT_SECRET="<production-jwt-secret>" \
 CORS_ALLOWED_ORIGINS="https://wasilio.ma" \
 APP_FRONTEND_BASE_URL="https://wasilio.ma" \
+APP_MEDIA_PUBLIC_BASE_URL="https://wasilio.ma" \
+VITE_API_BASE_URL="https://wasilio.ma/api" \
+VITE_LANDING_ENGINE_URL="https://landing.wasilio.ma" \
 VITE_PUBLIC_SITE_URL="https://wasilio.ma" \
 VITE_PUBLIC_SUPPORT_EMAIL="support@wasilio.ma" \
 VITE_PUBLIC_WHATSAPP_URL="https://wa.me/212600000000" \
@@ -328,6 +333,8 @@ Before publishing a trial-client campaign:
 - Set real `VITE_PUBLIC_WHATSAPP_URL`.
 - Set `VITE_PUBLIC_META_PIXEL_ID` only if Meta Pixel is ready.
 - Set SMTP values and verify password reset.
+- Set `APP_MEDIA_PUBLIC_BASE_URL` to the public origin that serves `/media`.
+- Set `VITE_API_BASE_URL` to the hosted backend `/api` URL.
 - Verify `/terms`, `/privacy`, and `/payment-refund-policy`.
 - Submit a test landing demo request with `utm_source=smoke`.
 - Confirm the request appears in `/admin/billing`, follow-up status can be updated, and qualified requests can be converted into trial merchant workspaces.
@@ -356,6 +363,7 @@ Detailed documentation starts at [docs/README.md](docs/README.md).
 
 Useful references:
 
+- [Testing and deployment runbook](docs/deployment/testing-and-deployment-runbook.md)
 - [Operations runbook](docs/operations.md)
 - [System overview](docs/architecture/system-overview.md)
 - [Security](docs/architecture/security.md)
