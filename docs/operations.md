@@ -297,7 +297,17 @@ After each successful run, sync the new `.dump` artifact to encrypted off-host s
 
 ### Restore
 
-Restore into a fresh database or isolated environment first, then promote after verification:
+Always restore into a fresh database or isolated environment first. For controlled merchant trials, use the rehearsal helper:
+
+```bash
+POSTGRES_USER="<production-user>" \
+POSTGRES_DB="nexora" \
+./scripts/trial-restore-rehearsal.sh /var/backups/wasilio/wasilio-YYYYMMDDTHHMMSSZ.dump
+```
+
+The helper creates a temporary restore database, restores the dump there, verifies required tables, prints row counts, and drops the temporary database unless `KEEP_RESTORE_DB=true`.
+
+Emergency restore over the live database is allowed only after an isolated restore has passed, live writes are stopped, and the restore target is confirmed:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres \
@@ -305,7 +315,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres
   < backups/wasilio-YYYYMMDDTHHMMSSZ.dump
 ```
 
-After restore, run the backend with Flyway enabled and Hibernate set to `validate`. Verify `/actuator/health/readiness`, login, order list, and event timelines before accepting traffic.
+After any promoted restore, run the backend with Flyway enabled and Hibernate set to `validate`. Verify `/actuator/health/readiness`, login, order list, and event timelines before accepting traffic.
 
 Run a restore drill before the first trial merchant and after any migration that changes order, tenant, billing, or event tables. The drill should restore the latest backup into an isolated database, start one backend instance against it, and verify:
 
@@ -314,6 +324,12 @@ Run a restore drill before the first trial merchant and after any migration that
 - A merchant login works.
 - Existing orders and timelines load.
 - Staff admin merchant workspaces, subscriptions, payments, receipts, and demo requests load.
+
+### Media Backup
+
+Database dumps do not include uploaded product image bytes. Docker Compose deployments store uploaded files in the `backend_media` volume. Include that volume in backup and host-migration procedures until object storage exists.
+
+For the full media-volume backup procedure, use `docs/deployment/backup-restore-rehearsal.md`.
 
 ### Migration Rollback
 

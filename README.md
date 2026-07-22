@@ -334,6 +334,16 @@ BACKUP_RETENTION_DAYS="14" \
 ./scripts/backup-postgres.sh
 ```
 
+Before a real merchant trial, prove that the dump can restore into an isolated database:
+
+```bash
+POSTGRES_USER="<production-user>" \
+POSTGRES_DB="nexora" \
+./scripts/trial-restore-rehearsal.sh /var/backups/wasilio/wasilio-YYYYMMDDTHHMMSSZ.dump
+```
+
+Use [docs/deployment/backup-restore-rehearsal.md](docs/deployment/backup-restore-rehearsal.md) for the full database restore, media-volume backup, and off-host storage procedure.
+
 The database name is still `nexora` internally. That is a technical identifier and does not affect public Wasilio branding.
 
 ## Documentation

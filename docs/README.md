@@ -7,10 +7,11 @@ This is the main documentation entry point for Wasilio. Use it to decide which d
 1. `../README.md`: local setup, Docker Compose, seeded users, smoke tests, and API overview.
 2. `deployment/testing-and-deployment-runbook.md`: operator-safe testing and deployment modes.
 3. `deployment/environment-inventory.md`: where local, hosted backend, Cloudflare Pages, SMTP, media, and smoke-test variables belong.
-4. `architecture/system-overview.md`: system shape, backend layers, source of truth, and runtime split.
-5. `architecture/implementation-guardrails.md`: rules for changing workflows without breaking domain boundaries.
-6. `product/next-implementation-plan.md`: current tactical sequence and near-term product priorities.
-7. `product/master-roadmap.md`: full project history, completed phases, remaining phases, and audit gate.
+4. `deployment/backup-restore-rehearsal.md`: database restore rehearsal, media backup, off-host storage, and merchant export boundary.
+5. `architecture/system-overview.md`: system shape, backend layers, source of truth, and runtime split.
+6. `architecture/implementation-guardrails.md`: rules for changing workflows without breaking domain boundaries.
+7. `product/next-implementation-plan.md`: current tactical sequence and near-term product priorities.
+8. `product/master-roadmap.md`: full project history, completed phases, remaining phases, and audit gate.
 
 ## Current Work
 
@@ -71,6 +72,7 @@ For launch, controlled merchant trials, and acquisition:
 
 - `deployment/testing-and-deployment-runbook.md`
 - `deployment/environment-inventory.md`
+- `deployment/backup-restore-rehearsal.md`
 - `product/vision.md`
 - `product/launch-readiness-pivot.md`
 - `product/pilot-acquisition-workflow.md`

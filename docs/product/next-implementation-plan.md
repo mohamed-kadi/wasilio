@@ -57,6 +57,7 @@ Completed in Phase 36 so far:
 
 - Phase 36A added `scripts/trial-account-audit.sh` and `scripts/live-backend-smoke.mjs`.
 - Phase 36B added `docs/deployment/environment-inventory.md` and `scripts/trial-env-check.sh`.
+- Phase 36C added `docs/deployment/backup-restore-rehearsal.md` and `scripts/trial-restore-rehearsal.sh`.
 
 ## Architecture Direction Note
 
@@ -69,8 +70,9 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 1. Phase 36 controlled merchant trial preparation.
 2. Super-admin cleanup and UX review for staff/admin workflows as needed. See `docs/product/staff-admin-workspace.md`.
 3. Secure merchant account setup email after demo request conversion.
-4. Hosted backend trial rehearsal with one intended merchant owner account.
-5. Intelligence calibration trial after enough realistic confirmation evidence is available.
+4. Merchant-facing order export/download after platform backup and restore is proven.
+5. Hosted backend trial rehearsal with one intended merchant owner account.
+6. Intelligence calibration trial after enough realistic confirmation evidence is available.
 
 Landing-engine integration is already connected locally through the public product and order-intent contracts. Any landing-engine handoff work from here should be treated as production-readiness documentation, environment verification, and QA rehearsal, not a rebuild of the connection.
 
@@ -172,8 +174,8 @@ Continue **Phase 36: Controlled Merchant Trial Preparation**.
 
 Suggested first tasks:
 
-1. Run the controlled trial environment check against a host-only env file.
-2. Run production compose config validation using the same env file.
+1. Run `scripts/trial-restore-rehearsal.sh` against a fresh local backup.
+2. Document the media-volume backup artifact name beside each database dump.
 3. Run the read-only trial account audit against local/prod-like data.
 4. Run the live backend smoke helper against local Docker, then against the hosted backend when available.
-5. Capture a database backup and perform an isolated restore drill before the first real trial merchant.
+5. Keep merchant-facing order export/download as the next product safety feature after platform restore is proven.

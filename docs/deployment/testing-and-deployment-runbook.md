@@ -19,8 +19,10 @@ This runbook is the operator-facing path for testing and deploying Wasilio safel
 | `docker-compose.override.yml` | Local Docker defaults: seeds, local CORS, local email logging, local media URL. |
 | `docker-compose.prod.yml` | Production overlay: required secrets, migrations only, no seed data. |
 | `docs/deployment/environment-inventory.md` | Controlled merchant trial environment ownership, variable placement, and pre-handoff checklist. |
+| `docs/deployment/backup-restore-rehearsal.md` | Database restore rehearsal, media backup, off-host storage, and merchant export boundary. |
 | `scripts/trial-env-check.sh` | Checks controlled trial environment values without printing secrets. |
 | `scripts/trial-account-audit.sh` | Read-only database audit for workspace/user ownership before merchant handoff. |
+| `scripts/trial-restore-rehearsal.sh` | Restores a dump into an isolated temporary database and checks required tables. |
 | `scripts/live-backend-smoke.mjs` | Live backend smoke checks for controlled trial deployments. |
 | `docs/operations.md` | Technical operations details, backup and restore, projection recovery. |
 | `docs/product/landing-engine-integration-rehearsal.md` | Local Wasilio plus landing-engine rehearsal. |
@@ -195,6 +197,28 @@ Trial smoke checklist:
 8. Merchant can create an order, request confirmation, and record an attempt.
 9. Merchant can upload product media and public media URLs resolve from `/media`.
 10. A database backup is captured and the artifact name is recorded.
+11. The database dump restores into an isolated database through `scripts/trial-restore-rehearsal.sh`.
+12. Media volume backup or media host-migration procedure is documented.
+
+Backup and restore rehearsal:
+
+```bash
+POSTGRES_USER="<production-user>" \
+POSTGRES_DB="nexora" \
+BACKUP_DIR="/var/backups/wasilio" \
+BACKUP_PREFIX="wasilio" \
+./scripts/backup-postgres.sh
+```
+
+Then restore the printed `.dump` artifact into an isolated temporary database:
+
+```bash
+POSTGRES_USER="<production-user>" \
+POSTGRES_DB="nexora" \
+./scripts/trial-restore-rehearsal.sh /var/backups/wasilio/wasilio-YYYYMMDDTHHMMSSZ.dump
+```
+
+Use `docs/deployment/backup-restore-rehearsal.md` for the full local and hosted trial procedure, including media volume backup.
 
 Live backend smoke command:
 

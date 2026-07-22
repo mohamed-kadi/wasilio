@@ -170,4 +170,5 @@ Before a real merchant receives access:
 8. Product media upload returns public URLs that resolve.
 9. `scripts/trial-account-audit.sh` shows no review flags.
 10. `scripts/live-backend-smoke.mjs` passes against the hosted backend.
-11. A database backup has been captured and a restore drill is scheduled or complete.
+11. A database backup has been captured and restored into an isolated database.
+12. Media volume backup or media host-migration procedure is documented.
