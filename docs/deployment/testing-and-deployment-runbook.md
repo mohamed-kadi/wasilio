@@ -1,6 +1,6 @@
 # Testing And Deployment Runbook
 
-This runbook is the operator-facing path for testing and deploying Wasilio safely. Use it before changing environment values, starting a local rehearsal, or preparing a hosted backend pilot.
+This runbook is the operator-facing path for testing and deploying Wasilio safely. Use it before changing environment values, starting a local rehearsal, or preparing a controlled merchant trial.
 
 ## Golden Rules
 
@@ -18,8 +18,10 @@ This runbook is the operator-facing path for testing and deploying Wasilio safel
 | `docker-compose.yml` | Shared Docker service definitions. |
 | `docker-compose.override.yml` | Local Docker defaults: seeds, local CORS, local email logging, local media URL. |
 | `docker-compose.prod.yml` | Production overlay: required secrets, migrations only, no seed data. |
-| `scripts/pilot-account-audit.sh` | Read-only database audit for workspace/user ownership before merchant handoff. |
-| `scripts/live-backend-smoke.mjs` | Live backend smoke checks for hosted pilot deployments. |
+| `docs/deployment/environment-inventory.md` | Controlled merchant trial environment ownership, variable placement, and pre-handoff checklist. |
+| `scripts/trial-env-check.sh` | Checks controlled trial environment values without printing secrets. |
+| `scripts/trial-account-audit.sh` | Read-only database audit for workspace/user ownership before merchant handoff. |
+| `scripts/live-backend-smoke.mjs` | Live backend smoke checks for controlled trial deployments. |
 | `docs/operations.md` | Technical operations details, backup and restore, projection recovery. |
 | `docs/product/landing-engine-integration-rehearsal.md` | Local Wasilio plus landing-engine rehearsal. |
 | `docs/technical-debt.md` | Hardening debt that blocks wider SaaS production. |
@@ -113,7 +115,7 @@ Safe checks:
 2. Verify the hero, offer, support email, WhatsApp link, legal links, `robots.txt`, and `sitemap.xml`.
 3. Do not run backend-dependent smoke steps unless `VITE_API_BASE_URL` points to a hosted backend.
 
-## Mode 4: Hosted Backend Pilot
+## Mode 4: Controlled Merchant Trial
 
 Use this for the first real backend deployment with selected merchants.
 
@@ -146,6 +148,13 @@ Production Compose requires these values:
 | `VITE_LANDING_ENGINE_URL` | Landing-engine product preview origin. |
 | `VITE_PUBLIC_SITE_URL`, `VITE_PUBLIC_SUPPORT_EMAIL` | Public browser-safe values. |
 
+Use `docs/deployment/environment-inventory.md` for the full ownership table before setting these values. To validate a host-only env file without printing secrets:
+
+```bash
+./scripts/trial-env-check.sh /etc/wasilio/trial.env
+docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml config
+```
+
 First production bootstrap:
 
 1. Set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=true`.
@@ -155,15 +164,15 @@ First production bootstrap:
 5. Set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false`.
 6. Redeploy and confirm the same super-admin can still log in.
 
-Pilot account ownership audit:
+Trial account ownership audit:
 
-Run this after bootstrap, after lead conversion, and before handing access to a pilot merchant:
+Run this after bootstrap, after lead conversion, and before handing access to a trial merchant:
 
 ```bash
 POSTGRES_USER="<production-user>" \
 POSTGRES_DB="nexora" \
 COMPOSE_FILES="-f docker-compose.yml -f docker-compose.prod.yml" \
-./scripts/pilot-account-audit.sh
+./scripts/trial-account-audit.sh
 ```
 
 The audit is read-only. It prints the workspace/user matrix and flags issues to review:
@@ -174,7 +183,7 @@ The audit is read-only. It prints the workspace/user matrix and flags issues to 
 - merchant workspaces with multiple logins while team management is still basic
 - users without display names
 
-Pilot smoke checklist:
+Trial smoke checklist:
 
 1. `/actuator/health/readiness` is healthy through the production ingress.
 2. Seed users are not present.
@@ -198,7 +207,7 @@ WASILIO_SUPER_ADMIN_PASSWORD="<staff-password>" \
 node scripts/live-backend-smoke.mjs
 ```
 
-To include controlled test records during a pilot rehearsal:
+To include controlled test records during a trial rehearsal:
 
 ```bash
 WASILIO_API_BASE_URL="https://<backend-origin>" \
@@ -217,7 +226,7 @@ Only use the mutating flags when the created lead/order can remain as an explici
 
 ## Mode 5: Paid SaaS Production Gate
 
-Do not move beyond selected pilots until these are true:
+Do not move beyond selected controlled merchant trials until these are true:
 
 - Scheduled database backups run automatically.
 - Backups are copied to encrypted off-host storage.
@@ -254,4 +263,4 @@ For projection drift:
 
 ## Current Recommendation
 
-The next real deployment step is Mode 4 only when Wasilio is ready to host the backend for selected pilot merchants. Until then, use Mode 1 and Mode 2 for product QA, and Mode 3 for the public frontend/acquisition presence.
+The next real deployment step is Mode 4 only when Wasilio is ready to host the backend for selected trial merchants. Until then, use Mode 1 and Mode 2 for product QA, and Mode 3 for the public frontend/acquisition presence.

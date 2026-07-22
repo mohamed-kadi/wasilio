@@ -1,6 +1,6 @@
 # Wasilio
 
-Wasilio is a multi-tenant COD operations platform for Moroccan e-commerce merchants. It helps teams manage order confirmation, callbacks, courier workflows, delivery outcomes, manual payments, receipts, and pilot demo request follow-up.
+Wasilio is a multi-tenant COD operations platform for Moroccan e-commerce merchants. It helps teams manage order confirmation, callbacks, courier workflows, delivery outcomes, manual payments, receipts, and demo request follow-up.
 
 Current public deployment status: the frontend is live on Cloudflare Pages at `wasilio.ma`. The hosted backend is intentionally deferred while product UX, acquisition readiness, and local demo workflows are polished. See [docs/product/next-implementation-plan.md](docs/product/next-implementation-plan.md).
 
@@ -220,7 +220,7 @@ Base URL: `/api`
 Public:
 
 - `POST /api/onboarding/tenants` - create a tenant and first admin when onboarding is enabled.
-- `POST /api/marketing/leads` - capture a public pilot/demo request.
+- `POST /api/marketing/leads` - capture a public demo request.
 - `POST /api/auth/login` - login.
 - `POST /api/auth/password-reset/request` - request password reset.
 - `POST /api/auth/password-reset/confirm` - confirm password reset.
@@ -288,39 +288,17 @@ Production compose:
 
 For the full non-programmer testing and deployment sequence, use [docs/deployment/testing-and-deployment-runbook.md](docs/deployment/testing-and-deployment-runbook.md).
 
-For the first production deployment, create the initial Wasilio staff account with explicit bootstrap variables:
+For the first controlled merchant trial deployment, do not paste production-like secrets into the root `.env`. Use the environment inventory at [docs/deployment/environment-inventory.md](docs/deployment/environment-inventory.md).
+
+If the trial uses Docker Compose on a VPS, keep a host-only env file outside the repository, for example `/etc/wasilio/trial.env`, then validate it without printing secrets:
 
 ```bash
-POSTGRES_USER="<production-user>" \
-POSTGRES_PASSWORD="<production-password>" \
-JWT_SECRET="<production-jwt-secret>" \
-CORS_ALLOWED_ORIGINS="https://wasilio.ma" \
-APP_FRONTEND_BASE_URL="https://wasilio.ma" \
-APP_MEDIA_PUBLIC_BASE_URL="https://wasilio.ma" \
-VITE_API_BASE_URL="https://wasilio.ma/api" \
-VITE_LANDING_ENGINE_URL="https://landing.wasilio.ma" \
-VITE_PUBLIC_SITE_URL="https://wasilio.ma" \
-VITE_PUBLIC_SUPPORT_EMAIL="support@wasilio.ma" \
-VITE_PUBLIC_WHATSAPP_URL="https://wa.me/212600000000" \
-VITE_PUBLIC_META_PIXEL_ID="" \
-APP_EMAIL_MODE="smtp" \
-APP_EMAIL_FROM="Wasilio <no-reply@wasilio.ma>" \
-APP_SUPPORT_CONTACT="support@wasilio.ma" \
-SMTP_HOST="smtp.example.com" \
-SMTP_PORT="587" \
-SMTP_USERNAME="<smtp-user>" \
-SMTP_PASSWORD="<smtp-password>" \
-SMTP_AUTH="true" \
-SMTP_STARTTLS_ENABLE="true" \
-APP_ONBOARDING_ENABLED="false" \
-APP_SUPER_ADMIN_BOOTSTRAP_ENABLED="true" \
-APP_SUPER_ADMIN_EMAIL="owner@example.com" \
-APP_SUPER_ADMIN_PASSWORD="<strong-password>" \
-APP_SUPER_ADMIN_TENANT_NAME="Wasilio Internal" \
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+./scripts/trial-env-check.sh /etc/wasilio/trial.env
+docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml config
+docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-After the first successful staff login, set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false` and redeploy.
+Create the initial Wasilio staff account with `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=true`, `APP_SUPER_ADMIN_EMAIL`, and `APP_SUPER_ADMIN_PASSWORD` only during the first deployment. After the first successful staff login, set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false`, remove the bootstrap password from the host secret set, and redeploy.
 
 ## Production Checklist
 
@@ -335,6 +313,7 @@ Before publishing a trial-client campaign:
 - Set SMTP values and verify password reset.
 - Set `APP_MEDIA_PUBLIC_BASE_URL` to the public origin that serves `/media`.
 - Set `VITE_API_BASE_URL` to the hosted backend `/api` URL.
+- Run `./scripts/trial-env-check.sh` against the host-only trial env.
 - Verify `/terms`, `/privacy`, and `/payment-refund-policy`.
 - Submit a test landing demo request with `utm_source=smoke`.
 - Confirm the request appears in `/admin/billing`, follow-up status can be updated, and qualified requests can be converted into trial merchant workspaces.
@@ -370,6 +349,6 @@ Useful references:
 - [Frontend architecture](docs/architecture/frontend-architecture.md)
 - [Launch readiness pivot](docs/product/launch-readiness-pivot.md)
 - [Next implementation plan](docs/product/next-implementation-plan.md)
-- [Pilot acquisition workflow](docs/product/pilot-acquisition-workflow.md)
+- [Acquisition workflow](docs/product/pilot-acquisition-workflow.md)
 - [Technical debt register](docs/technical-debt.md)
 - [Brand direction](docs/product/brand-direction.md)

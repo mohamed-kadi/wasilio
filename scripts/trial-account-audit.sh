@@ -7,7 +7,7 @@ POSTGRES_DB=${POSTGRES_DB:-nexora}
 POSTGRES_USER=${POSTGRES_USER:?POSTGRES_USER must be set}
 INTERNAL_TENANT_NAME=${INTERNAL_TENANT_NAME:-Wasilio Internal}
 
-echo "Pilot account audit"
+echo "Controlled merchant trial account audit"
 echo "Database: ${POSTGRES_DB}"
 echo "Internal tenant: ${INTERNAL_TENANT_NAME}"
 echo
@@ -33,7 +33,7 @@ GROUP BY t.id, t.name, t.status
 ORDER BY LOWER(t.name);
 
 \echo ''
-\echo 'Pilot review flags'
+\echo 'Trial review flags'
 WITH workspace_user_counts AS (
     SELECT
         t.id AS tenant_id,
@@ -71,7 +71,7 @@ SELECT
     'WORKSPACE_WITHOUT_MERCHANT_LOGIN' AS flag,
     NULL AS email,
     w.workspace,
-    'Each pilot merchant workspace needs one intended owner login before handoff.' AS action
+    'Each trial merchant workspace needs one intended owner login before handoff.' AS action
 FROM workspace_user_counts w
 WHERE LOWER(w.workspace) <> LOWER(:'internal_tenant_name')
   AND w.merchant_login_count = 0
@@ -82,7 +82,7 @@ SELECT
     'MULTIPLE_MERCHANT_LOGINS_REVIEW' AS flag,
     NULL AS email,
     w.workspace,
-    'Team management is not fully implemented; review extra logins before pilot handoff.' AS action
+    'Team management is not fully implemented; review extra logins before trial handoff.' AS action
 FROM workspace_user_counts w
 WHERE LOWER(w.workspace) <> LOWER(:'internal_tenant_name')
   AND w.merchant_login_count > 1
@@ -102,4 +102,4 @@ ORDER BY flag, workspace, email;
 SQL
 
 echo
-echo "Audit complete. Any rows under 'Pilot review flags' should be reviewed before real merchant handoff."
+echo "Audit complete. Any rows under 'Trial review flags' should be reviewed before real merchant handoff."

@@ -54,6 +54,28 @@ http://localhost,http://127.0.0.1,http://localhost:5173,http://127.0.0.1:5173
 
 Production compose requires `CORS_ALLOWED_ORIGINS` and fails configuration if it is missing.
 
+## Controlled Merchant Trial Environment Inventory
+
+Use `docs/deployment/environment-inventory.md` before preparing a controlled merchant trial. That inventory separates:
+
+- local `.env` values used only by developer Docker Compose
+- backend host secrets and config
+- Cloudflare Pages public build variables
+- one-time super-admin bootstrap values
+- smoke-test-only operator variables
+
+Validate a host-only trial env file without printing secret values:
+
+```bash
+./scripts/trial-env-check.sh /etc/wasilio/trial.env
+```
+
+Then run production Compose config validation with the same env file before deploy:
+
+```bash
+docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml config
+```
+
 ## Tenant Onboarding
 
 Tenant onboarding is controlled by `APP_ONBOARDING_ENABLED`. The backend default is `false`, local Docker Compose development enables it, and production compose requires the variable to be set explicitly.
@@ -62,9 +84,9 @@ Use `APP_ONBOARDING_ENABLED=true` only when public tenant signup is intentionall
 
 The local development seed remains limited to `docker-compose.override.yml` through `SPRING_FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/seed`. Production compose uses only `classpath:db/migration`, so the seeded `admin@example.com` account is not created in production.
 
-## Pilot Account Ownership Audit
+## Trial Account Ownership Audit
 
-Before a hosted pilot merchant receives access, confirm users are attached to the intended workspaces. Wasilio currently uses `users.tenant_id` as the workspace membership link. There is no full team-invite management flow yet, so each pilot workspace should normally have one intended owner/admin login.
+Before a trial merchant receives access, confirm users are attached to the intended workspaces. Wasilio currently uses `users.tenant_id` as the workspace membership link. There is no full team-invite management flow yet, so each trial workspace should normally have one intended owner/admin login.
 
 Run the read-only audit from the deployment host:
 
@@ -72,14 +94,14 @@ Run the read-only audit from the deployment host:
 POSTGRES_USER="<production-user>" \
 POSTGRES_DB="nexora" \
 COMPOSE_FILES="-f docker-compose.yml -f docker-compose.prod.yml" \
-./scripts/pilot-account-audit.sh
+./scripts/trial-account-audit.sh
 ```
 
-Review every row under `Pilot review flags` before merchant handoff. The expected early-pilot shape is:
+Review every row under `Trial review flags` before merchant handoff. The expected early-trial shape is:
 
 - `SUPER_ADMIN` users belong to the internal staff workspace.
 - Merchant `ADMIN` or `MERCHANT` users belong to merchant workspaces only.
-- Each pilot merchant workspace has an intended owner/admin login.
+- Each trial merchant workspace has an intended owner/admin login.
 - Extra merchant logins are deliberate and documented until team management is implemented.
 - Users that appear in headers, receipts, and audit screens have display names.
 
@@ -265,7 +287,7 @@ BACKUP_RETENTION_DAYS="14" \
 
 The script writes `BACKUP_DIR/BACKUP_PREFIX-YYYYMMDDTHHMMSSZ.dump` using PostgreSQL custom format and verifies the dump catalog with `pg_restore --list`. `BACKUP_RETENTION_DAYS` is optional; when set, only local files matching the configured prefix are pruned.
 
-Store backup artifacts outside the application host with encryption at rest. For early-stage production, take at least daily full logical backups and keep enough history to recover from accidental data corruption discovered after a delay. A simple daily cron entry on the deployment host is acceptable for the first pilots:
+Store backup artifacts outside the application host with encryption at rest. For early-stage production, take at least daily full logical backups and keep enough history to recover from accidental data corruption discovered after a delay. A simple daily cron entry on the deployment host is acceptable for the first controlled trials:
 
 ```cron
 17 2 * * * cd /srv/wasilio && POSTGRES_USER=postgres POSTGRES_DB=nexora BACKUP_DIR=/var/backups/wasilio BACKUP_RETENTION_DAYS=14 ./scripts/backup-postgres.sh >> /var/log/wasilio-backup.log 2>&1

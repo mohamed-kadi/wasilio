@@ -4,7 +4,7 @@ This document is the current tactical plan for Wasilio after the public frontend
 
 ## Current Decision
 
-Prepare for a hosted backend pilot without turning the public frontend into a full SaaS yet. Keep `wasilio.ma` live, keep local demos available, and make the backend pilot path repeatable before real merchant handoff.
+Prepare for a controlled merchant trial without turning the public frontend into a full SaaS yet. Keep `wasilio.ma` live, keep local demos available, and make the hosted backend trial path repeatable before real merchant handoff.
 
 Reason:
 
@@ -12,12 +12,12 @@ Reason:
 - Brevo sender authentication and password-reset email sending are working.
 - Neon Postgres is available for a later backend deployment.
 - Free backend hosts tested so far require a credit card for activation.
-- Phase 35 improved public acquisition clarity, so Phase 36 can now focus on hosted pilot readiness checks instead of more landing-page restructuring.
+- Phase 35 improved public acquisition clarity, so Phase 36 can now focus on controlled trial readiness checks instead of more landing-page restructuring.
 
 ## Current Operating Mode
 
 - Public frontend: Cloudflare Pages.
-- Backend: local development by default; hosted pilot path being prepared.
+- Backend: local development by default; controlled trial path being prepared.
 - Database for local work: local PostgreSQL through Docker Compose.
 - Production database candidate: Neon Postgres, retained for later backend deployment.
 - Email sending: Brevo SMTP.
@@ -25,7 +25,7 @@ Reason:
 
 Do not treat the online frontend as a complete production SaaS until the backend is deployed and connected.
 
-Use `docs/deployment/testing-and-deployment-runbook.md` when choosing between local demo, local landing-engine rehearsal, frontend-only public mode, hosted backend pilot mode, and paid SaaS production gates.
+Use `docs/deployment/testing-and-deployment-runbook.md` when choosing between local demo, local landing-engine rehearsal, frontend-only public mode, controlled merchant trial mode, and paid SaaS production gates.
 
 ## Current Phase Queue
 
@@ -41,17 +41,22 @@ Scope:
 - Keep Wasilio sales leads separate from merchant customer orders in the copy and internal documentation.
 - Keep CTA paths clear: request demo, contact on WhatsApp, or create workspace only when the onboarding decision supports it.
 
-### Phase 36: Hosted Backend Pilot Preparation
+### Phase 36: Controlled Merchant Trial Preparation
 
-Status: active preparation phase. This phase should make a hosted backend pilot auditable and repeatable before selected merchants receive access.
+Status: active preparation phase. This phase should make a controlled merchant trial auditable and repeatable before selected merchants receive access.
 
 Scope:
 
-- Add or organize live-backend smoke checks for login, lead capture, lead conversion, setup/reset email, merchant login, order creation, confirmation, and media upload.
-- Add a read-only account ownership audit so Wasilio can verify that super-admin, merchant owner, and pilot workspace users are attached to the right accounts.
-- Finalize pilot deployment environment inventory for backend host secrets, Cloudflare Pages variables, and local-only `.env` values.
+- Live-backend smoke checks for login, lead capture, lead conversion, setup/reset email, merchant login, order creation, confirmation, and media upload.
+- Read-only account ownership audit so Wasilio can verify that super-admin, merchant owner, and trial workspace users are attached to the right accounts.
+- Trial deployment environment inventory for backend host secrets, Cloudflare Pages variables, and local-only `.env` values.
 - Document scheduled database backups, off-host encrypted storage, restore drills, and media volume backup.
-- Confirm SMTP, production CORS, media URLs, super-admin bootstrap disablement, and onboarding policy before real pilot merchants use the hosted backend.
+- Confirm SMTP, production CORS, media URLs, super-admin bootstrap disablement, and onboarding policy before real trial merchants use the hosted backend.
+
+Completed in Phase 36 so far:
+
+- Phase 36A added `scripts/trial-account-audit.sh` and `scripts/live-backend-smoke.mjs`.
+- Phase 36B added `docs/deployment/environment-inventory.md` and `scripts/trial-env-check.sh`.
 
 ## Architecture Direction Note
 
@@ -61,11 +66,11 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 
 ## Near-Term Queue
 
-1. Phase 36 hosted backend pilot preparation.
+1. Phase 36 controlled merchant trial preparation.
 2. Super-admin cleanup and UX review for staff/admin workflows as needed. See `docs/product/staff-admin-workspace.md`.
 3. Secure merchant account setup email after demo request conversion.
-4. Hosted backend pilot rehearsal with one intended merchant owner account.
-5. Intelligence calibration pilot after enough realistic confirmation evidence is available.
+4. Hosted backend trial rehearsal with one intended merchant owner account.
+5. Intelligence calibration trial after enough realistic confirmation evidence is available.
 
 Landing-engine integration is already connected locally through the public product and order-intent contracts. Any landing-engine handoff work from here should be treated as production-readiness documentation, environment verification, and QA rehearsal, not a rebuild of the connection.
 
@@ -144,7 +149,7 @@ Exit criteria:
 
 ## Deferred Until Backend Hosting Is Worth Funding
 
-Defer these until there is a pilot/client reason to pay for hosting or use a card-verified free tier:
+Defer these until there is a trial/client reason to pay for hosting or use a card-verified free tier:
 
 - Render/Koyeb/AWS/Azure backend deployment.
 - Production backend URL wiring in Cloudflare Pages.
@@ -163,12 +168,12 @@ When ready, the backend deployment path is:
 
 ## Next Recommended Batch
 
-Continue **Phase 36: Hosted Backend Pilot Preparation**.
+Continue **Phase 36: Controlled Merchant Trial Preparation**.
 
 Suggested first tasks:
 
-1. Run production compose config validation from CI and locally.
-2. Run the read-only pilot account audit against local/prod-like data.
-3. Run the live backend smoke helper against local Docker, then against the hosted backend when available.
-4. Confirm SMTP, media URL, CORS, onboarding, and super-admin bootstrap values before merchant handoff.
-5. Capture a database backup and perform an isolated restore drill before the first real pilot merchant.
+1. Run the controlled trial environment check against a host-only env file.
+2. Run production compose config validation using the same env file.
+3. Run the read-only trial account audit against local/prod-like data.
+4. Run the live backend smoke helper against local Docker, then against the hosted backend when available.
+5. Capture a database backup and perform an isolated restore drill before the first real trial merchant.
