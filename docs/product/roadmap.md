@@ -59,8 +59,8 @@ For the current tactical sequence after the public frontend launch, use `docs/pr
 - Keep the public frontend live on Cloudflare Pages.
 - Keep backend hosting deferred until there is pilot/client demand or a card-verified hosting account is acceptable.
 - Stabilize production-readiness documentation and deployment checks so local testing, landing-engine rehearsal, frontend-only public mode, and future hosted backend pilot mode are not confused.
-- Phase 35 is the public landing page and acquisition funnel cleanup, with fraud/intelligence positioning made clear for merchants without exposing internal scoring rules.
-- Keep hosted backend pilot preparation parked as the following readiness phase, after the public acquisition story is stable enough for controlled merchant pilots.
+- Phase 35 completed the first public landing page and acquisition funnel cleanup, with fraud/intelligence positioning made clearer for merchants without exposing internal scoring rules.
+- Phase 36 is now the hosted backend pilot preparation track: account ownership audit, live backend smoke checks, production environment inventory, backup rehearsal, SMTP/media/CORS validation, and super-admin bootstrap controls.
 - Prioritize landing-page/acquisition UX, core workflow polish, lead-capture readiness, and focused frontend smoke coverage.
 
 ## Phase 3 Candidate: Business Layer

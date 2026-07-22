@@ -20,6 +20,7 @@ Current near-term direction:
 - Keep Wasilio Core stable while product UX cleanup continues.
 - Keep landing-engine connected through the public product and public order-intent contracts.
 - Use the landing-engine handoff docs as production-readiness checklists, not as a request to rebuild the integration.
+- Prepare the hosted backend pilot path with account ownership audit, live backend smoke checks, production environment inventory, and backup rehearsal.
 - Keep refining staff/admin UX, then move demo request conversion to a secure merchant account setup email.
 - Continue intelligence calibration after enough realistic confirmation evidence exists.
 

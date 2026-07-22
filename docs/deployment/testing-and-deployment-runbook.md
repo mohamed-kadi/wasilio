@@ -18,6 +18,8 @@ This runbook is the operator-facing path for testing and deploying Wasilio safel
 | `docker-compose.yml` | Shared Docker service definitions. |
 | `docker-compose.override.yml` | Local Docker defaults: seeds, local CORS, local email logging, local media URL. |
 | `docker-compose.prod.yml` | Production overlay: required secrets, migrations only, no seed data. |
+| `scripts/pilot-account-audit.sh` | Read-only database audit for workspace/user ownership before merchant handoff. |
+| `scripts/live-backend-smoke.mjs` | Live backend smoke checks for hosted pilot deployments. |
 | `docs/operations.md` | Technical operations details, backup and restore, projection recovery. |
 | `docs/product/landing-engine-integration-rehearsal.md` | Local Wasilio plus landing-engine rehearsal. |
 | `docs/technical-debt.md` | Hardening debt that blocks wider SaaS production. |
@@ -153,6 +155,25 @@ First production bootstrap:
 5. Set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false`.
 6. Redeploy and confirm the same super-admin can still log in.
 
+Pilot account ownership audit:
+
+Run this after bootstrap, after lead conversion, and before handing access to a pilot merchant:
+
+```bash
+POSTGRES_USER="<production-user>" \
+POSTGRES_DB="nexora" \
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.prod.yml" \
+./scripts/pilot-account-audit.sh
+```
+
+The audit is read-only. It prints the workspace/user matrix and flags issues to review:
+
+- super-admin users outside the internal staff workspace
+- merchant users attached to the internal staff workspace
+- merchant workspaces with no owner/admin login
+- merchant workspaces with multiple logins while team management is still basic
+- users without display names
+
 Pilot smoke checklist:
 
 1. `/actuator/health/readiness` is healthy through the production ingress.
@@ -165,6 +186,34 @@ Pilot smoke checklist:
 8. Merchant can create an order, request confirmation, and record an attempt.
 9. Merchant can upload product media and public media URLs resolve from `/media`.
 10. A database backup is captured and the artifact name is recorded.
+
+Live backend smoke command:
+
+Use this after deploy for executable checks. The default checks are non-mutating unless the optional flags are set.
+
+```bash
+WASILIO_API_BASE_URL="https://<backend-origin>" \
+WASILIO_SUPER_ADMIN_EMAIL="<staff-email>" \
+WASILIO_SUPER_ADMIN_PASSWORD="<staff-password>" \
+node scripts/live-backend-smoke.mjs
+```
+
+To include controlled test records during a pilot rehearsal:
+
+```bash
+WASILIO_API_BASE_URL="https://<backend-origin>" \
+WASILIO_SUPER_ADMIN_EMAIL="<staff-email>" \
+WASILIO_SUPER_ADMIN_PASSWORD="<staff-password>" \
+WASILIO_SMOKE_CAPTURE_LEAD=true \
+WASILIO_SMOKE_PASSWORD_RESET_EMAIL="<merchant-owner-email>" \
+WASILIO_MERCHANT_EMAIL="<merchant-owner-email>" \
+WASILIO_MERCHANT_PASSWORD="<merchant-owner-password>" \
+WASILIO_SMOKE_CREATE_ORDER=true \
+WASILIO_SMOKE_RECORD_CONFIRMATION_ATTEMPT=true \
+node scripts/live-backend-smoke.mjs
+```
+
+Only use the mutating flags when the created lead/order can remain as an explicit smoke record or be cleaned through the normal product workflow.
 
 ## Mode 5: Paid SaaS Production Gate
 

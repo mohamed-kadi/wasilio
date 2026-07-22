@@ -4,7 +4,7 @@ This document is the current tactical plan for Wasilio after the public frontend
 
 ## Current Decision
 
-Pause paid or card-required backend hosting setup for now. Keep the public frontend live and focus the next implementation work on product UX, acquisition readiness, and the highest-value local app workflows.
+Prepare for a hosted backend pilot without turning the public frontend into a full SaaS yet. Keep `wasilio.ma` live, keep local demos available, and make the backend pilot path repeatable before real merchant handoff.
 
 Reason:
 
@@ -12,12 +12,12 @@ Reason:
 - Brevo sender authentication and password-reset email sending are working.
 - Neon Postgres is available for a later backend deployment.
 - Free backend hosts tested so far require a credit card for activation.
-- The product still benefits more from UX, landing-page clarity, workflow polish, and ad-readiness than from forcing production backend hosting before there is pilot demand.
+- Phase 35 improved public acquisition clarity, so Phase 36 can now focus on hosted pilot readiness checks instead of more landing-page restructuring.
 
 ## Current Operating Mode
 
 - Public frontend: Cloudflare Pages.
-- Backend: local development only.
+- Backend: local development by default; hosted pilot path being prepared.
 - Database for local work: local PostgreSQL through Docker Compose.
 - Production database candidate: Neon Postgres, retained for later backend deployment.
 - Email sending: Brevo SMTP.
@@ -31,7 +31,7 @@ Use `docs/deployment/testing-and-deployment-runbook.md` when choosing between lo
 
 ### Phase 35: Public Landing Page And Acquisition Funnel Cleanup
 
-This is the active next product phase. It should make Wasilio's public site explain the product clearly, especially the order-intelligence and fraud/risk detection value for Moroccan COD merchants.
+Status: completed initial cleanup batch. Continue small copy/layout fixes only when they block acquisition clarity.
 
 Scope:
 
@@ -43,11 +43,12 @@ Scope:
 
 ### Phase 36: Hosted Backend Pilot Preparation
 
-Keep this phase parked until the public landing/acquisition story is stable enough to justify a hosted pilot.
+Status: active preparation phase. This phase should make a hosted backend pilot auditable and repeatable before selected merchants receive access.
 
 Scope:
 
 - Add or organize live-backend smoke checks for login, lead capture, lead conversion, setup/reset email, merchant login, order creation, confirmation, and media upload.
+- Add a read-only account ownership audit so Wasilio can verify that super-admin, merchant owner, and pilot workspace users are attached to the right accounts.
 - Finalize pilot deployment environment inventory for backend host secrets, Cloudflare Pages variables, and local-only `.env` values.
 - Document scheduled database backups, off-host encrypted storage, restore drills, and media volume backup.
 - Confirm SMTP, production CORS, media URLs, super-admin bootstrap disablement, and onboarding policy before real pilot merchants use the hosted backend.
@@ -60,10 +61,10 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 
 ## Near-Term Queue
 
-1. Phase 35 public landing page and acquisition funnel cleanup.
+1. Phase 36 hosted backend pilot preparation.
 2. Super-admin cleanup and UX review for staff/admin workflows as needed. See `docs/product/staff-admin-workspace.md`.
 3. Secure merchant account setup email after demo request conversion.
-4. Phase 36 hosted backend pilot preparation when the public story and pilot target are ready.
+4. Hosted backend pilot rehearsal with one intended merchant owner account.
 5. Intelligence calibration pilot after enough realistic confirmation evidence is available.
 
 Landing-engine integration is already connected locally through the public product and order-intent contracts. Any landing-engine handoff work from here should be treated as production-readiness documentation, environment verification, and QA rehearsal, not a rebuild of the connection.
@@ -162,16 +163,12 @@ When ready, the backend deployment path is:
 
 ## Next Recommended Batch
 
-Start with **Phase 35: Public Landing Page And Acquisition Funnel Cleanup** because the public site is already live and the fraud/intelligence positioning is one of Wasilio's strongest merchant-facing differentiators.
-
-Keep **Phase 36: Hosted Backend Pilot Preparation** parked until the public acquisition story is stable and there is a controlled pilot target. If the next app feature touches external order capture or source tracking, extend Order Ingestion before storefront, integrations, or campaign analytics.
+Continue **Phase 36: Hosted Backend Pilot Preparation**.
 
 Suggested first tasks:
 
-1. Review `wasilio.ma` on mobile and desktop.
-2. Identify copy, layout, and trust gaps on the landing page.
-3. Add a business-friendly intelligence/fraud-risk section.
-4. Explain manual, landing-page, WhatsApp-assisted, Facebook/Instagram, and Google Ads order paths without blurring Wasilio sales leads with merchant customer orders.
-5. Improve demo request CTA and mobile form flow.
-6. Validate SEO/social metadata for the live domain.
-7. Add smoke coverage if the updated public flow changes behavior.
+1. Run production compose config validation from CI and locally.
+2. Run the read-only pilot account audit against local/prod-like data.
+3. Run the live backend smoke helper against local Docker, then against the hosted backend when available.
+4. Confirm SMTP, media URL, CORS, onboarding, and super-admin bootstrap values before merchant handoff.
+5. Capture a database backup and perform an isolated restore drill before the first real pilot merchant.

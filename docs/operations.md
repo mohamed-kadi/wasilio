@@ -62,6 +62,27 @@ Use `APP_ONBOARDING_ENABLED=true` only when public tenant signup is intentionall
 
 The local development seed remains limited to `docker-compose.override.yml` through `SPRING_FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/seed`. Production compose uses only `classpath:db/migration`, so the seeded `admin@example.com` account is not created in production.
 
+## Pilot Account Ownership Audit
+
+Before a hosted pilot merchant receives access, confirm users are attached to the intended workspaces. Wasilio currently uses `users.tenant_id` as the workspace membership link. There is no full team-invite management flow yet, so each pilot workspace should normally have one intended owner/admin login.
+
+Run the read-only audit from the deployment host:
+
+```bash
+POSTGRES_USER="<production-user>" \
+POSTGRES_DB="nexora" \
+COMPOSE_FILES="-f docker-compose.yml -f docker-compose.prod.yml" \
+./scripts/pilot-account-audit.sh
+```
+
+Review every row under `Pilot review flags` before merchant handoff. The expected early-pilot shape is:
+
+- `SUPER_ADMIN` users belong to the internal staff workspace.
+- Merchant `ADMIN` or `MERCHANT` users belong to merchant workspaces only.
+- Each pilot merchant workspace has an intended owner/admin login.
+- Extra merchant logins are deliberate and documented until team management is implemented.
+- Users that appear in headers, receipts, and audit screens have display names.
+
 ## Public Site And Demo Request Capture
 
 The public landing page is served at `/`. Authenticated merchant workflows live under `/app`, while Wasilio staff operations live under `/admin/billing`.
@@ -115,6 +136,17 @@ For the current frontend-only Cloudflare Pages deployment, run items 1, 2, 5, an
 11. Confirm production compose uses only `classpath:db/migration` and that seed accounts are not present.
 12. Upload product media and confirm the returned public URL resolves through `/media`.
 13. Capture a fresh database backup and record the backup artifact name for the deployment.
+
+The live backend smoke helper covers the executable subset of these checks:
+
+```bash
+WASILIO_API_BASE_URL="https://<backend-origin>" \
+WASILIO_SUPER_ADMIN_EMAIL="<staff-email>" \
+WASILIO_SUPER_ADMIN_PASSWORD="<staff-password>" \
+node scripts/live-backend-smoke.mjs
+```
+
+Lead capture, password reset, merchant order creation, and non-final confirmation attempts are opt-in through environment flags documented in `docs/deployment/testing-and-deployment-runbook.md`.
 
 ## Abuse Protection And Security Audit Logs
 
