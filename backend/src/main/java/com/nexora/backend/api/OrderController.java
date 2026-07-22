@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexora.backend.application.CourierService;
+import com.nexora.backend.application.OrderExportService;
 import com.nexora.backend.application.OrderIngestionService;
 import com.nexora.backend.application.OrderIntelligenceScoringService;
 import com.nexora.backend.application.OrderLifecycleService;
@@ -33,6 +34,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -40,6 +43,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +56,7 @@ import java.util.UUID;
 public class OrderController {
 
     private final OrderLifecycleService orderLifecycleService;
+    private final OrderExportService orderExportService;
     private final OrderIngestionService orderIngestionService;
     private final ProductService productService;
     private final CourierService courierService;
@@ -321,6 +326,37 @@ public class OrderController {
                 pageRequest
         );
         return ResponseEntity.ok(OrdersPageResponse.from(orders));
+    }
+
+    @GetMapping(value = "/export", produces = "text/csv")
+    public ResponseEntity<String> exportOrders(
+            @RequestParam(required = false) List<OrderStatus> status,
+            @RequestParam(required = false) @Size(max = 50) String phone,
+            @RequestParam(required = false) @Size(max = 200) String customerName,
+            @RequestParam(required = false) @Size(max = 36) String orderId,
+            @RequestParam(required = false) UUID courierId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo
+    ) {
+        if (createdFrom != null && createdTo != null && !createdFrom.isBefore(createdTo)) {
+            throw new IllegalArgumentException("createdFrom must be before createdTo");
+        }
+
+        String csv = orderExportService.exportOrdersCsv(
+                getCurrentTenantId(),
+                status == null ? List.of() : status,
+                phone,
+                customerName,
+                orderId,
+                courierId,
+                createdFrom,
+                createdTo
+        );
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"wasilio-orders.csv\"")
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(csv);
     }
 
     @GetMapping("/search-views")

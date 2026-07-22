@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
@@ -27,6 +28,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -606,6 +609,41 @@ class OrderIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(otherTenantOrderId));
+    }
+
+    @Test
+    void exportOrdersCsv_usesCurrentFiltersAndBusinessFieldsOnly() throws Exception {
+        String courierId = createCourier("Atlas Courier");
+        String aliceOrderId = createOrder("Alice", "Atlas", "alice@example.com", "0600000001");
+        String bobOrderId = createOrder("Bob", "Beldi", "bob@example.com", "0600000002");
+        String otherTenantOrderId = createOtherTenantOrder("Alice");
+
+        requestConfirmation(aliceOrderId);
+        confirmOrder(aliceOrderId);
+        assignCourier(aliceOrderId, courierId);
+
+        MvcResult result = mockMvc.perform(get("/api/orders/export")
+                .param("customerName", "alice atlas")
+                .header("Authorization", bearer(jwtToken)))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"wasilio-orders.csv\""))
+                .andReturn();
+
+        String csv = result.getResponse().getContentAsString();
+
+        assertTrue(csv.startsWith("Order ID,Created At,Customer,Phone,Email,City,Address,Products,Amount,Currency"));
+        assertTrue(csv.contains(aliceOrderId));
+        assertTrue(csv.contains("Alice Atlas"));
+        assertTrue(csv.contains("Atlas Courier"));
+        assertTrue(csv.contains("Waiting pickup"));
+        assertTrue(csv.contains("Pickup"));
+        assertTrue(csv.contains("Confirmed"));
+        assertFalse(csv.contains(bobOrderId));
+        assertFalse(csv.contains(otherTenantOrderId));
+        assertFalse(csv.contains("tenantId"));
+        assertFalse(csv.contains("inboundOrderId"));
+        assertFalse(csv.contains("intelligence"));
+        assertFalse(csv.contains("confidence"));
     }
 
     @Test

@@ -143,13 +143,13 @@ If a full emergency restore is ever needed, restore into an isolated database fi
 
 ## Merchant Exports
 
-Merchant exports are a future product feature and should be scoped separately from backups.
+Merchant exports are product features and should stay scoped separately from backups.
 
-Recommended first export:
+First implemented export:
 
 - Orders CSV from the Orders workspace
 - use current filters
 - include business fields only
 - exclude internal IDs, intelligence formulas, raw audit tables, and staff-only notes
 
-Merchant export helps trust and accounting. Platform backup and restore protects business continuity.
+Merchant export helps trust, accounting, and operational handoff. Platform backup and restore protects business continuity.

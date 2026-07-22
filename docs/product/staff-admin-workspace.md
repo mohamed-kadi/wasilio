@@ -60,7 +60,7 @@ Recommended pilot flow:
 1. Merchant submits a demo request.
 2. Wasilio staff reviews and qualifies the merchant.
 3. Staff converts the request into a pilot merchant workspace.
-4. Merchant signs in with the merchant owner account created during guided onboarding.
+4. Merchant opens the setup email, chooses their own password, then signs in as the merchant owner.
 
 Future option:
 

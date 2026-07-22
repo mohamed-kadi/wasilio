@@ -41,7 +41,7 @@ For the current tactical sequence after the public frontend launch, use `docs/pr
 ## Phase 2 Remaining
 
 - Customer notes.
-- CSV and filtered exports.
+- Additional exports beyond the first filtered Orders CSV, such as courier, delivery, and finance-ready variants.
 - Add frontend E2E coverage for login, signup, order creation, confirmation, and callbacks.
 
 ## Launch Readiness Pivot

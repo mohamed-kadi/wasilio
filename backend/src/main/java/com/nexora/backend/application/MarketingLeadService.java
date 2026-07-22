@@ -44,7 +44,6 @@ public class MarketingLeadService {
             String tenantName,
             String adminName,
             String adminEmail,
-            String password,
             String internalNotes,
             String remoteIp
     ) {}
@@ -97,17 +96,12 @@ public class MarketingLeadService {
             throw new IllegalStateException("Marketing lead is already converted to a tenant");
         }
 
-        String initialPassword = command.password();
-        if (initialPassword == null || initialPassword.isBlank()) {
-            initialPassword = generateTemporaryPassword();
-        }
-
         TenantOnboardingService.TenantOnboardingResult tenant = tenantOnboardingService.onboardTenantFromStaff(
                 new TenantOnboardingService.TenantOnboardingCommand(
                         command.tenantName(),
                         command.adminName(),
                         command.adminEmail(),
-                        initialPassword
+                        generateTemporaryPassword()
                 )
         );
 

@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
-import { AlertCircle, Bookmark, CheckCircle2, ChevronLeft, ChevronRight, PackageCheck, PhoneCall, PlusCircle, Save, Trash2, Truck, X } from 'lucide-react';
+import { AlertCircle, Bookmark, CheckCircle2, ChevronLeft, ChevronRight, Download, PackageCheck, PhoneCall, PlusCircle, Save, Trash2, Truck, X } from 'lucide-react';
 import {
   createOrderSearchSavedView,
   deleteOrderSearchSavedView,
+  downloadOrdersCsv,
   fetchCouriers,
   fetchFailedOrderRecoveryQueue,
   fetchFailedOrderRecoverySummaries,
@@ -166,6 +167,21 @@ function savedPayloadToFilters(payload: Record<string, string>): OrderFilters {
 function toInstantFromDate(date: string, endOfDay = false) {
   if (!date) return undefined;
   return `${date}T${endOfDay ? '23:59:59' : '00:00:00'}Z`;
+}
+
+function saveBlob(blob: Blob, fileName: string) {
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+function ordersExportFileName() {
+  return `wasilio-orders-${new Date().toISOString().slice(0, 10)}.csv`;
 }
 
 function countByStatus(orders: Order[], status: OrderStatus) {
@@ -538,6 +554,20 @@ export default function OrdersList() {
     },
   });
 
+  const exportOrdersMutation = useMutation({
+    mutationFn: () =>
+      downloadOrdersCsv({
+        status: filters.statuses,
+        phone: filters.phone,
+        customerName: filters.customerName,
+        orderId: filters.orderId,
+        courierId: filters.courierId,
+        createdFrom: toInstantFromDate(filters.createdFrom),
+        createdTo: toInstantFromDate(filters.createdTo, true),
+      }),
+    onSuccess: (blob) => saveBlob(blob, ordersExportFileName()),
+  });
+
   const standardOrders = ordersPage?.content ?? [];
   const failedRecoveryItems = failedRecoveryQueuePage?.content ?? [];
   const orders = isFailureRecoveryView ? failedRecoveryItems.map((item) => item.order) : standardOrders;
@@ -739,13 +769,24 @@ export default function OrdersList() {
             {isFetching && !isLoading ? ' - Refreshing' : ''}
           </p>
         </div>
-        <Link
-          to="/app/orders/new"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium"
-        >
-          <PlusCircle size={18} />
-          New order
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => exportOrdersMutation.mutate()}
+            disabled={exportOrdersMutation.isPending || totalElements === 0}
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download size={18} />
+            {exportOrdersMutation.isPending ? 'Preparing' : 'Download CSV'}
+          </button>
+          <Link
+            to="/app/orders/new"
+            className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            <PlusCircle size={18} />
+            New order
+          </Link>
+        </div>
       </div>
 
       <section className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:grid-cols-6" aria-label="Orders workflow scan">
@@ -1186,6 +1227,11 @@ export default function OrdersList() {
       {quickRetryMutation.error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {getErrorMessage(quickRetryMutation.error)}
+        </div>
+      )}
+      {exportOrdersMutation.error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {getErrorMessage(exportOrdersMutation.error)}
         </div>
       )}
 

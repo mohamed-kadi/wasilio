@@ -158,7 +158,7 @@ export default function Dashboard() {
         </div>
         <Link
           to="/app/orders/new"
-          className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="inline-flex h-10 items-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700"
         >
           Create order
           <ArrowRight size={16} />
@@ -170,7 +170,6 @@ export default function Dashboard() {
           {getErrorMessage(error)}
         </div>
       )}
-
       <section className={`rounded-lg border p-5 ${nextActionTone(priorityTone)}`} aria-label="Next dashboard action">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex gap-4">

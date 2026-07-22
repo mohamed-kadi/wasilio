@@ -1142,31 +1142,15 @@ export async function downloadAdminPaymentRecordsCsv(query: AdminPaymentRecordsQ
 }
 
 export async function fetchOrders(query: OrdersQuery = {}): Promise<OrdersPageResponse> {
-  const params = new URLSearchParams();
-  params.set('page', String(query.page ?? 0));
-  params.set('size', String(query.size ?? 20));
-  const statuses = Array.isArray(query.status) ? query.status : query.status ? [query.status] : [];
-  statuses.forEach((status) => params.append('status', status));
-  if (query.phone) {
-    params.set('phone', query.phone);
-  }
-  if (query.customerName) {
-    params.set('customerName', query.customerName);
-  }
-  if (query.orderId) {
-    params.set('orderId', query.orderId);
-  }
-  if (query.courierId) {
-    params.set('courierId', query.courierId);
-  }
-  if (query.createdFrom) {
-    params.set('createdFrom', query.createdFrom);
-  }
-  if (query.createdTo) {
-    params.set('createdTo', query.createdTo);
-  }
+  const params = orderQueryParams(query, true);
 
   return apiRequest<OrdersPageResponse>(`/orders?${params.toString()}`);
+}
+
+export async function downloadOrdersCsv(query: OrdersQuery = {}): Promise<Blob> {
+  const params = orderQueryParams(query, false);
+  const text = params.toString();
+  return apiBlobRequest(`/orders/export${text ? `?${text}` : ''}`);
 }
 
 export async function fetchInboundOrders(query: InboundOrdersQuery = {}): Promise<InboundOrdersPageResponse> {
@@ -1725,6 +1709,35 @@ function adminPaymentRecordsParams(query: AdminPaymentRecordsQuery) {
   }
   const text = params.toString();
   return text ? `?${text}` : '';
+}
+
+function orderQueryParams(query: OrdersQuery, includePagination: boolean) {
+  const params = new URLSearchParams();
+  if (includePagination) {
+    params.set('page', String(query.page ?? 0));
+    params.set('size', String(query.size ?? 20));
+  }
+  const statuses = Array.isArray(query.status) ? query.status : query.status ? [query.status] : [];
+  statuses.forEach((status) => params.append('status', status));
+  if (query.phone) {
+    params.set('phone', query.phone);
+  }
+  if (query.customerName) {
+    params.set('customerName', query.customerName);
+  }
+  if (query.orderId) {
+    params.set('orderId', query.orderId);
+  }
+  if (query.courierId) {
+    params.set('courierId', query.courierId);
+  }
+  if (query.createdFrom) {
+    params.set('createdFrom', query.createdFrom);
+  }
+  if (query.createdTo) {
+    params.set('createdTo', query.createdTo);
+  }
+  return params;
 }
 
 function isBlockedTenantError(error: ApiError): boolean {

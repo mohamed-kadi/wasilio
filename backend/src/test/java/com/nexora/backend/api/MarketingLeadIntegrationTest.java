@@ -138,6 +138,7 @@ class MarketingLeadIntegrationTest {
                           "tenantName": "Casa Beauty Pilot",
                           "adminName": "Sara Admin",
                           "adminEmail": "sara.admin@example.com",
+                          "password": "Known-password-123!",
                           "internalNotes": "Converted after qualification call. Free guided onboarding offered."
                         }
                         """))
@@ -159,6 +160,14 @@ class MarketingLeadIntegrationTest {
                 any()
         );
         verify(passwordResetNotifier, never()).sendPasswordResetLink(any(), any(), any());
+
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new AuthController.LoginRequest(
+                        "sara.admin@example.com",
+                        "Known-password-123!"
+                ))))
+                .andExpect(status().isUnauthorized());
     }
 
     @Test

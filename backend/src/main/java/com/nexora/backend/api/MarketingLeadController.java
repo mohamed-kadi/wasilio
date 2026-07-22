@@ -103,7 +103,6 @@ public class MarketingLeadController {
             @NotBlank @Size(min = 2, max = 120) String tenantName,
             @NotBlank @Size(min = 2, max = 120) String adminName,
             @NotBlank @Email @Size(max = 255) String adminEmail,
-            @Size(max = 128) String password,
             @Size(max = 2000) String internalNotes
     ) {}
 
@@ -161,7 +160,6 @@ public class MarketingLeadController {
                         request.tenantName(),
                         request.adminName(),
                         request.adminEmail(),
-                        request.password(),
                         request.internalNotes(),
                         ClientIpResolver.resolve(servletRequest)
                 )

@@ -58,6 +58,8 @@ Completed in Phase 36 so far:
 - Phase 36A added `scripts/trial-account-audit.sh` and `scripts/live-backend-smoke.mjs`.
 - Phase 36B added `docs/deployment/environment-inventory.md` and `scripts/trial-env-check.sh`.
 - Phase 36C added `docs/deployment/backup-restore-rehearsal.md` and `scripts/trial-restore-rehearsal.sh`.
+- Phase 36D added merchant-facing filtered Orders CSV download with business fields only.
+- Phase 36E hardened demo request conversion so the backend always generates the hidden temporary password and account setup email is the only merchant password path.
 
 ## Architecture Direction Note
 
@@ -69,10 +71,8 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 
 1. Phase 36 controlled merchant trial preparation.
 2. Super-admin cleanup and UX review for staff/admin workflows as needed. See `docs/product/staff-admin-workspace.md`.
-3. Secure merchant account setup email after demo request conversion.
-4. Merchant-facing order export/download after platform backup and restore is proven.
-5. Hosted backend trial rehearsal with one intended merchant owner account.
-6. Intelligence calibration trial after enough realistic confirmation evidence is available.
+3. Hosted backend trial rehearsal with one intended merchant owner account.
+4. Intelligence calibration trial after enough realistic confirmation evidence is available.
 
 Landing-engine integration is already connected locally through the public product and order-intent contracts. Any landing-engine handoff work from here should be treated as production-readiness documentation, environment verification, and QA rehearsal, not a rebuild of the connection.
 

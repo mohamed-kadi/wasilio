@@ -156,6 +156,16 @@ test('merchant can understand order journey stage and next action', async ({ pag
     });
   });
 
+  let exportRequestedUrl = '';
+  await page.route('**/api/orders/export*', async (route) => {
+    exportRequestedUrl = route.request().url();
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/csv',
+      body: 'Order ID,Customer,Amount\n11111111-1111-1111-1111-111111111111,Sara Customer,349\n',
+    });
+  });
+
   await page.route('**/api/couriers?**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -221,6 +231,8 @@ test('merchant can understand order journey stage and next action', async ({ pag
   await expect(page.getByRole('table').getByText('Ready for assignment').first()).toBeVisible();
   await expect(page.getByRole('table').getByText('MAD 349.00')).toBeVisible();
   await expectNoHorizontalOverflow(page, 'orders-table-wrap');
+  await page.getByRole('button', { name: 'Download CSV' }).click();
+  await expect.poll(() => exportRequestedUrl).toContain('/api/orders/export');
 
   await page.goto('/app/orders/11111111-1111-1111-1111-111111111111');
   await expect(page).toHaveURL(/\/app\/orders\/11111111-1111-1111-1111-111111111111$/);
