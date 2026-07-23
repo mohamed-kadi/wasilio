@@ -23,6 +23,7 @@ This runbook is the operator-facing path for testing and deploying Wasilio safel
 | `scripts/trial-env-check.sh` | Checks controlled trial environment values without printing secrets. |
 | `scripts/trial-account-audit.sh` | Read-only database audit for workspace/user ownership before merchant handoff. |
 | `scripts/trial-restore-rehearsal.sh` | Restores a dump into an isolated temporary database and checks required tables. |
+| `scripts/hosted-trial-rehearsal.sh` | Runs the hosted backend trial rehearsal checks in the intended order. |
 | `scripts/live-backend-smoke.mjs` | Live backend smoke checks for controlled trial deployments. |
 | `docs/operations.md` | Technical operations details, backup and restore, projection recovery. |
 | `docs/product/landing-engine-integration-rehearsal.md` | Local Wasilio plus landing-engine rehearsal. |
@@ -200,6 +201,26 @@ Trial smoke checklist:
 11. The database dump restores into an isolated database through `scripts/trial-restore-rehearsal.sh`.
 12. Media volume backup or media host-migration procedure is documented.
 
+One-command rehearsal wrapper:
+
+```bash
+WASILIO_API_BASE_URL="https://<backend-origin>" \
+WASILIO_SUPER_ADMIN_EMAIL="<staff-email>" \
+WASILIO_SUPER_ADMIN_PASSWORD="<staff-password>" \
+WASILIO_MERCHANT_EMAIL="<merchant-owner-email>" \
+WASILIO_MERCHANT_PASSWORD="<merchant-owner-password>" \
+./scripts/hosted-trial-rehearsal.sh /etc/wasilio/trial.env
+```
+
+This wrapper runs the environment inventory check, production Compose config validation, and live backend smoke in order. It does not print secret values. Account audit and restore rehearsal remain opt-in because they require live database access and a fresh backup artifact:
+
+```bash
+RUN_ACCOUNT_AUDIT=true \
+POSTGRES_USER="<production-user>" \
+POSTGRES_DB="nexora" \
+./scripts/hosted-trial-rehearsal.sh /etc/wasilio/trial.env /var/backups/wasilio/wasilio-YYYYMMDDTHHMMSSZ.dump
+```
+
 Backup and restore rehearsal:
 
 ```bash
@@ -243,10 +264,11 @@ WASILIO_MERCHANT_EMAIL="<merchant-owner-email>" \
 WASILIO_MERCHANT_PASSWORD="<merchant-owner-password>" \
 WASILIO_SMOKE_CREATE_ORDER=true \
 WASILIO_SMOKE_RECORD_CONFIRMATION_ATTEMPT=true \
+WASILIO_SMOKE_UPLOAD_MEDIA=true \
 node scripts/live-backend-smoke.mjs
 ```
 
-Only use the mutating flags when the created lead/order can remain as an explicit smoke record or be cleaned through the normal product workflow.
+Only use the mutating flags when the created lead, order, or product/media record can remain as an explicit smoke record or be cleaned through the normal product workflow. Merchant Orders CSV export is checked automatically when merchant smoke credentials are supplied.
 
 ## Mode 5: Paid SaaS Production Gate
 

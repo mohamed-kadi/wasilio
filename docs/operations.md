@@ -168,7 +168,13 @@ WASILIO_SUPER_ADMIN_PASSWORD="<staff-password>" \
 node scripts/live-backend-smoke.mjs
 ```
 
-Lead capture, password reset, merchant order creation, and non-final confirmation attempts are opt-in through environment flags documented in `docs/deployment/testing-and-deployment-runbook.md`.
+Merchant Orders CSV export is checked automatically when merchant smoke credentials are supplied. Lead capture, password reset, merchant order creation, non-final confirmation attempts, and product media upload are opt-in through environment flags documented in `docs/deployment/testing-and-deployment-runbook.md`.
+
+For the full hosted backend trial sequence, use the wrapper:
+
+```bash
+./scripts/hosted-trial-rehearsal.sh /etc/wasilio/trial.env
+```
 
 ## Abuse Protection And Security Audit Logs
 

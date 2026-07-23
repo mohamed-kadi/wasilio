@@ -153,6 +153,7 @@ These variables are for `scripts/live-backend-smoke.mjs`. They are operator inpu
 | `WASILIO_SMOKE_PASSWORD_RESET_EMAIL` | Opt-in password reset email request. |
 | `WASILIO_SMOKE_CREATE_ORDER` | Opt-in smoke order creation. |
 | `WASILIO_SMOKE_RECORD_CONFIRMATION_ATTEMPT` | Opt-in confirmation attempt on the smoke order. |
+| `WASILIO_SMOKE_UPLOAD_MEDIA` | Opt-in smoke product creation, primary image upload, and public media URL check. |
 
 Use mutating smoke flags only when the test records can remain as explicit smoke records or be cleaned through the normal product workflow.
 

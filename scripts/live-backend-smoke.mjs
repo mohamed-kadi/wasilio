@@ -8,12 +8,13 @@ const merchantPassword = process.env.WASILIO_MERCHANT_PASSWORD || '';
 const captureLead = envFlag('WASILIO_SMOKE_CAPTURE_LEAD');
 const createOrder = envFlag('WASILIO_SMOKE_CREATE_ORDER');
 const recordConfirmationAttempt = envFlag('WASILIO_SMOKE_RECORD_CONFIRMATION_ATTEMPT');
+const uploadMedia = envFlag('WASILIO_SMOKE_UPLOAD_MEDIA');
 const requestPasswordResetFor = process.env.WASILIO_SMOKE_PASSWORD_RESET_EMAIL || '';
 
 let failures = 0;
 
 console.log(`Wasilio live backend smoke: ${baseUrl}`);
-console.log('Mutating checks are opt-in through WASILIO_SMOKE_CAPTURE_LEAD, WASILIO_SMOKE_CREATE_ORDER, and WASILIO_SMOKE_RECORD_CONFIRMATION_ATTEMPT.');
+console.log('Mutating checks are opt-in through WASILIO_SMOKE_CAPTURE_LEAD, WASILIO_SMOKE_CREATE_ORDER, WASILIO_SMOKE_RECORD_CONFIRMATION_ATTEMPT, and WASILIO_SMOKE_UPLOAD_MEDIA.');
 console.log('');
 
 await check('readiness health', async () => {
@@ -67,14 +68,14 @@ if (captureLead) {
     const response = await request('POST', '/api/marketing/leads', {
       expectedStatuses: [201],
       body: {
-        contactName: 'Pilot Smoke',
-        storeName: `Pilot Smoke Store ${stamp}`,
+        contactName: 'Trial Smoke',
+        storeName: `Trial Smoke Store ${stamp}`,
         phone: '0600000000',
-        email: `pilot-smoke-${stamp}@example.com`,
+        email: `trial-smoke-${stamp}@example.com`,
         city: 'Casablanca',
         monthlyOrderVolume: 'smoke-test',
-        message: 'Pilot readiness smoke check.',
-        campaignSource: 'pilot-smoke',
+        message: 'Trial readiness smoke check.',
+        campaignSource: 'trial-smoke',
       },
     });
     return `leadId=${response.data.leadId}`;
@@ -112,6 +113,15 @@ if (merchantEmail && merchantPassword) {
     return `${response.data.totalElements} orders`;
   });
 
+  await check('merchant orders csv export', async () => {
+    const response = await request('GET', '/api/orders/export', { token: merchantToken });
+    const csv = String(response.data || '');
+    if (!csv.includes('Order ID') || !csv.includes('Workflow Stage')) {
+      throw new Error('Expected business CSV headers in order export');
+    }
+    return `${csv.split('\n').filter(Boolean).length} row(s) including header`;
+  });
+
   if (createOrder) {
     let orderId = '';
     await check('merchant create smoke order', async () => {
@@ -120,9 +130,9 @@ if (merchantEmail && merchantPassword) {
         token: merchantToken,
         body: {
           customer: {
-            firstName: 'Pilot',
+            firstName: 'Trial',
             lastName: 'Smoke',
-            email: `pilot-smoke-${stamp}@example.com`,
+            email: `trial-smoke-${stamp}@example.com`,
             phone: '0600000000',
           },
           address: {
@@ -134,8 +144,8 @@ if (merchantEmail && merchantPassword) {
           },
           amount: 10,
           source: 'MANUAL',
-          externalOrderId: `pilot-smoke-${stamp}`,
-          idempotencyKey: `pilot-smoke-${stamp}`,
+          externalOrderId: `trial-smoke-${stamp}`,
+          idempotencyKey: `trial-smoke-${stamp}`,
         },
       });
       orderId = String(response.data || '').replaceAll('"', '');
@@ -157,7 +167,7 @@ if (merchantEmail && merchantPassword) {
           expectedStatuses: [201],
           body: {
             outcome: 'NO_ANSWER',
-            note: 'Pilot readiness smoke check.',
+            note: 'Trial readiness smoke check.',
           },
         });
         return `attemptId=${response.data.attemptId}`;
@@ -167,6 +177,47 @@ if (merchantEmail && merchantPassword) {
     }
   } else {
     skip('merchant create smoke order', 'set WASILIO_SMOKE_CREATE_ORDER=true');
+  }
+
+  if (uploadMedia) {
+    await check('merchant product media upload', async () => {
+      const stamp = Date.now();
+      const productResponse = await request('POST', '/api/products', {
+        token: merchantToken,
+        body: {
+          name: `Smoke Media Product ${stamp}`,
+          slug: `smoke-media-product-${stamp}`,
+          description: 'Hosted trial media upload smoke check.',
+          priceAmount: 10,
+          currency: 'MAD',
+          sku: `SMOKE-${stamp}`,
+          imageUrl: null,
+          status: 'DRAFT',
+        },
+      });
+      const productId = productResponse.data?.id;
+      if (!isUuid(productId)) {
+        throw new Error(`Expected product UUID, got ${JSON.stringify(productResponse.data)}`);
+      }
+
+      const formData = new FormData();
+      formData.append('purpose', 'PRODUCT_IMAGE');
+      formData.append('file', new Blob([tinyPngBytes()], { type: 'image/png' }), `wasilio-smoke-${stamp}.png`);
+
+      const uploadResponse = await request('POST', `/api/products/${productId}/media`, {
+        token: merchantToken,
+        body: formData,
+      });
+      const publicUrl = uploadResponse.data?.publicUrl;
+      if (!publicUrl || typeof publicUrl !== 'string') {
+        throw new Error(`Expected publicUrl in media upload response, got ${JSON.stringify(uploadResponse.data)}`);
+      }
+
+      await request('GET', publicUrl, { expectedStatuses: [200] });
+      return `productId=${productId}, mediaUrl=${publicUrl}`;
+    });
+  } else {
+    skip('merchant product media upload', 'set WASILIO_SMOKE_UPLOAD_MEDIA=true');
   }
 } else {
   skip('merchant protected checks', 'set WASILIO_MERCHANT_EMAIL and WASILIO_MERCHANT_PASSWORD');
@@ -194,9 +245,10 @@ function skip(name, reason) {
 }
 
 async function request(method, path, options = {}) {
-  const url = `${baseUrl}${path}`;
+  const url = urlFor(path);
   const headers = {};
-  if (options.body !== undefined) {
+  const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (options.body !== undefined && !isFormDataBody) {
     headers['Content-Type'] = 'application/json';
   }
   if (options.token) {
@@ -206,7 +258,7 @@ async function request(method, path, options = {}) {
   const response = await fetch(url, {
     method,
     headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: requestBody(options.body, isFormDataBody),
   });
 
   const text = await response.text();
@@ -243,6 +295,21 @@ function normalizeBaseUrl(value) {
   return value.replace(/\/+$/, '');
 }
 
+function urlFor(pathOrUrl) {
+  if (/^https?:\/\//i.test(pathOrUrl)) {
+    return pathOrUrl;
+  }
+  const normalizedPath = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
+  return `${baseUrl}${normalizedPath}`;
+}
+
+function requestBody(body, isFormDataBody) {
+  if (body === undefined) {
+    return undefined;
+  }
+  return isFormDataBody ? body : JSON.stringify(body);
+}
+
 function envFlag(name) {
   return ['1', 'true', 'yes', 'on'].includes(String(process.env[name] || '').toLowerCase());
 }
@@ -254,4 +321,15 @@ function looksLikeJson(text) {
 
 function snippet(text) {
   return text.length > 300 ? `${text.slice(0, 300)}...` : text;
+}
+
+function isUuid(value) {
+  return typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value);
+}
+
+function tinyPngBytes() {
+  return Uint8Array.from(Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+    'base64'
+  ));
 }

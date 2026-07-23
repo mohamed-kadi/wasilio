@@ -60,6 +60,7 @@ Completed in Phase 36 so far:
 - Phase 36C added `docs/deployment/backup-restore-rehearsal.md` and `scripts/trial-restore-rehearsal.sh`.
 - Phase 36D added merchant-facing filtered Orders CSV download with business fields only.
 - Phase 36E hardened demo request conversion so the backend always generates the hidden temporary password and account setup email is the only merchant password path.
+- Phase 36F added the hosted trial rehearsal wrapper and expanded live backend smoke coverage for merchant Orders CSV export and opt-in product media upload.
 
 ## Architecture Direction Note
 
@@ -71,7 +72,7 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 
 1. Phase 36 controlled merchant trial preparation.
 2. Super-admin cleanup and UX review for staff/admin workflows as needed. See `docs/product/staff-admin-workspace.md`.
-3. Hosted backend trial rehearsal with one intended merchant owner account.
+3. Run the hosted backend trial rehearsal against the real backend origin with one intended merchant owner account.
 4. Intelligence calibration trial after enough realistic confirmation evidence is available.
 
 Landing-engine integration is already connected locally through the public product and order-intent contracts. Any landing-engine handoff work from here should be treated as production-readiness documentation, environment verification, and QA rehearsal, not a rebuild of the connection.
@@ -174,8 +175,8 @@ Continue **Phase 36: Controlled Merchant Trial Preparation**.
 
 Suggested first tasks:
 
-1. Run `scripts/trial-restore-rehearsal.sh` against a fresh local backup.
-2. Document the media-volume backup artifact name beside each database dump.
-3. Run the read-only trial account audit against local/prod-like data.
-4. Run the live backend smoke helper against local Docker, then against the hosted backend when available.
-5. Keep merchant-facing order export/download as the next product safety feature after platform restore is proven.
+1. Run `scripts/hosted-trial-rehearsal.sh` against local/prod-like config first.
+2. Run the same wrapper against the hosted backend when the real backend origin is available.
+3. Document the database dump and media-volume backup artifact names beside each hosted rehearsal.
+4. Run the read-only trial account audit before merchant handoff.
+5. Start intelligence calibration only after enough realistic confirmation evidence exists.
