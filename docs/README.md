@@ -5,13 +5,15 @@ This is the main documentation entry point for Wasilio. Use it to decide which d
 ## Start Here
 
 1. `../README.md`: local setup, Docker Compose, seeded users, smoke tests, and API overview.
-2. `deployment/testing-and-deployment-runbook.md`: operator-safe testing and deployment modes.
-3. `deployment/environment-inventory.md`: where local, hosted backend, Cloudflare Pages, SMTP, media, and smoke-test variables belong.
-4. `deployment/backup-restore-rehearsal.md`: database restore rehearsal, media backup, off-host storage, and merchant export boundary.
-5. `architecture/system-overview.md`: system shape, backend layers, source of truth, and runtime split.
-6. `architecture/implementation-guardrails.md`: rules for changing workflows without breaking domain boundaries.
-7. `product/next-implementation-plan.md`: current tactical sequence and near-term product priorities.
-8. `product/master-roadmap.md`: full project history, completed phases, remaining phases, and audit gate.
+2. `deployment/testing-and-deployment-runbook.md`: the single operator path for local testing, landing-engine rehearsal, frontend-only public mode, hosted backend trial, and SaaS production gates.
+3. `product/next-implementation-plan.md`: current tactical sequence and near-term product priorities.
+4. `architecture/system-overview.md`: system shape, backend layers, source of truth, and runtime split.
+
+Supporting deployment references:
+
+- `deployment/environment-inventory.md`: where local, hosted backend, Cloudflare Pages, SMTP, media, and smoke-test variables belong.
+- `deployment/backup-restore-rehearsal.md`: database restore rehearsal, media backup, off-host storage, and merchant export boundary.
+- `deployment/trial-deployment-log.md`: optional checklist template used while executing the hosted backend trial.
 
 ## Current Work
 
@@ -70,19 +72,18 @@ For architecture changes:
 
 For launch, controlled merchant trials, and acquisition:
 
-- `deployment/testing-and-deployment-runbook.md`
-- `deployment/environment-inventory.md`
-- `deployment/backup-restore-rehearsal.md`
-- `../scripts/hosted-trial-rehearsal.sh`
-- `product/vision.md`
-- `product/launch-readiness-pivot.md`
-- `product/pilot-acquisition-workflow.md`
-- `product/staff-admin-workspace.md`
-- `product/brand-direction.md`
+- Start with `deployment/testing-and-deployment-runbook.md`, Mode 3 for frontend-only public site or Mode 4 for hosted backend trial.
+- Use `deployment/environment-inventory.md` only when setting environment values.
+- Use `deployment/backup-restore-rehearsal.md` only when proving backup and restore.
+- Use `deployment/trial-deployment-log.md` only as an optional execution checklist.
+- Use `product/launch-readiness-pivot.md`, `product/staff-admin-workspace.md`, and `product/brand-direction.md` for business/product context.
 
 ## Source-Of-Truth Rules
 
 - Use `../README.md` for commands and local environment setup.
+- Use `deployment/testing-and-deployment-runbook.md` as the only hosted deployment guide.
+- Use `deployment/environment-inventory.md` as a variable ownership reference, not as a second deployment guide.
+- Use `deployment/trial-deployment-log.md` as an optional checklist, not required reading.
 - Use `product/next-implementation-plan.md` for the active sequence.
 - Use `product/master-roadmap.md` for history and long-range sequencing.
 - Use ADRs for architectural decisions that should not be re-litigated in feature docs.

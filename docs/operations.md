@@ -76,7 +76,7 @@ Then run production Compose config validation with the same env file before depl
 docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml config
 ```
 
-For the recommended single-host trial topology, expose the frontend/Nginx service publicly and keep the backend container internal. Nginx forwards `/api` and `/media` to the backend. `BACKEND_PORT` is used by local development through `docker-compose.override.yml`, not by production compose.
+For the recommended single-host trial topology, expose the frontend/Nginx service publicly and keep the backend container internal. Nginx forwards `/api`, `/media`, and health-only Actuator routes to the backend. `BACKEND_PORT` is used by local development through `docker-compose.override.yml`, not by production compose.
 
 ## Tenant Onboarding
 

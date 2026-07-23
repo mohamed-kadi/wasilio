@@ -20,6 +20,7 @@ This runbook is the operator-facing path for testing and deploying Wasilio safel
 | `docker-compose.prod.yml` | Production overlay: required secrets, migrations only, no seed data. |
 | `docs/deployment/environment-inventory.md` | Controlled merchant trial environment ownership, variable placement, and pre-handoff checklist. |
 | `docs/deployment/backup-restore-rehearsal.md` | Database restore rehearsal, media backup, off-host storage, and merchant export boundary. |
+| `docs/deployment/trial-deployment-log.md` | Optional checklist template for recording deployment checks, artifacts, and handoff decisions. |
 | `scripts/trial-env-check.sh` | Checks controlled trial environment values without printing secrets. |
 | `scripts/trial-account-audit.sh` | Read-only database audit for workspace/user ownership before merchant handoff. |
 | `scripts/trial-restore-rehearsal.sh` | Restores a dump into an isolated temporary database and checks required tables. |
@@ -122,18 +123,23 @@ Safe checks:
 
 Use this for the first real backend deployment with selected merchants.
 
+This section is the single source of truth for the hosted-backend trial. If no host exists yet, stop after local checks and do not treat the backend as deployed.
+
 Recommended first hosted shape:
 
 - one VPS or equivalent host running Docker Compose
 - frontend/Nginx is the only public container port
 - backend stays internal on the Docker network
-- Nginx proxies `/api` and `/media` to the backend
+- Nginx proxies `/api`, `/media`, and health-only Actuator routes to the backend
 - `APP_MEDIA_PUBLIC_BASE_URL` uses the public origin that serves `/media`
+
+Use `docs/deployment/trial-deployment-log.md` only as an optional checklist while executing this mode.
 
 Required before deploy:
 
 - Backend host selected.
 - Managed PostgreSQL or production Docker PostgreSQL chosen.
+- HTTPS is configured in front of login, setup/reset links, `/api`, `/media`, and health checks.
 - SMTP credentials verified.
 - `APP_FRONTEND_BASE_URL` points to the real frontend.
 - `VITE_API_BASE_URL` points to the real backend `/api` URL.
@@ -159,7 +165,34 @@ Production Compose requires these values:
 | `VITE_LANDING_ENGINE_URL` | Landing-engine product preview origin. |
 | `VITE_PUBLIC_SITE_URL`, `VITE_PUBLIC_SUPPORT_EMAIL` | Public browser-safe values. |
 
-Use `docs/deployment/environment-inventory.md` for the full ownership table before setting these values. To validate a host-only env file without printing secrets:
+Use `docs/deployment/environment-inventory.md` for the full ownership table before setting these values.
+
+Execution sequence:
+
+1. Choose the host and point the trial domain or subdomain to it.
+2. Install Docker Engine with Docker Compose v2.
+3. Configure HTTPS in front of login, setup/reset links, `/api`, `/media`, and `/actuator/health`.
+4. Clone the repository and check out the exact commit intended for the trial.
+5. Create `/etc/wasilio/trial.env` on the host with restricted permissions.
+6. Populate `/etc/wasilio/trial.env` from `docs/deployment/environment-inventory.md`. Do not copy the local root `.env`.
+7. Validate the host env file and production Compose config.
+8. Deploy once with staff bootstrap enabled.
+9. Log in as staff, then disable bootstrap, remove the bootstrap password from host config, and redeploy.
+10. Convert one qualified demo request into one merchant owner through setup email.
+11. Run smoke checks, account audit, backup, restore rehearsal, media URL check, and Orders CSV check.
+12. Hand access to the merchant only after every check passes.
+
+Minimum host-only env policy for a closed trial:
+
+```text
+APP_EMAIL_MODE=smtp
+APP_ONBOARDING_ENABLED=false
+APP_MEDIA_PUBLIC_BASE_URL=https://<trial-domain>
+APP_FRONTEND_BASE_URL=https://<trial-domain>
+VITE_API_BASE_URL=/api
+```
+
+Validation commands:
 
 ```bash
 ./scripts/trial-env-check.sh /etc/wasilio/trial.env
@@ -171,9 +204,11 @@ First production bootstrap:
 1. Set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=true`.
 2. Set `APP_SUPER_ADMIN_EMAIL` and `APP_SUPER_ADMIN_PASSWORD`.
 3. Deploy with `docker-compose.yml` plus `docker-compose.prod.yml`.
-4. Log in as the super-admin once.
-5. Set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false`.
-6. Redeploy and confirm the same super-admin can still log in.
+4. Check health with `curl -fsS https://<trial-domain>/actuator/health/readiness`.
+5. Log in as the super-admin once.
+6. Set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false`.
+7. Remove `APP_SUPER_ADMIN_PASSWORD` from the host config.
+8. Redeploy and confirm the same super-admin can still log in.
 
 Trial account ownership audit:
 

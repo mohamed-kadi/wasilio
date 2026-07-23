@@ -4,6 +4,8 @@ This inventory defines where each environment value belongs for a controlled mer
 
 Use this document before changing deployment settings. The goal is to avoid the confusing pattern where developers edit the root `.env` for local testing and later forget which values were production-like.
 
+For the first single-server Docker Compose deployment, follow Mode 4 in `docs/deployment/testing-and-deployment-runbook.md`. Use `docs/deployment/trial-deployment-log.md` only as an optional checklist for the actual values, checks, and backup artifacts.
+
 ## Rules
 
 - Root `.env` is local-only. It is for Docker development on one workstation.
@@ -13,6 +15,7 @@ Use this document before changing deployment settings. The goal is to avoid the 
 - If the first controlled merchant trial uses Docker Compose on a VPS, keep the host env file outside the repository, for example `/etc/wasilio/trial.env`, with restricted file permissions.
 - Cloudflare Pages variables belong in the Cloudflare Pages project settings, not in the root `.env`.
 - Values prefixed with `VITE_` are browser build values. Never put database, SMTP password, or JWT secrets in them.
+- Real merchant credentials must travel over HTTPS. Do not hand access to a merchant while login, setup/reset links, `/api`, `/media`, or health checks are exposed over plain HTTP.
 
 ## Local Development
 
@@ -138,7 +141,7 @@ Deploy only after both commands pass:
 docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-The production Compose topology publishes the frontend/Nginx service. The backend container is not published directly; browser traffic reaches it through Nginx `/api` and `/media` proxy routes. If Wasilio intentionally chooses a separate public API origin later, document that ingress separately before changing this topology.
+The production Compose topology publishes the frontend/Nginx service. The backend container is not published directly; browser traffic reaches it through Nginx `/api`, `/media`, and health-only Actuator proxy routes. If Wasilio intentionally chooses a separate public API origin later, document that ingress separately before changing this topology.
 
 ## Smoke-Only Variables
 

@@ -57,7 +57,7 @@ The base `docker-compose.yml` defines the services and defaults to Flyway migrat
 
 The production overlay, `docker-compose.prod.yml`, requires explicit database credentials, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS`, email settings, media public URL, browser API URL, landing-engine URL, and `APP_ONBOARDING_ENABLED`. It excludes `db/seed`, keeping seeded development users out of production.
 
-In the recommended single-host trial topology, the frontend/Nginx container is the public entrypoint. The backend container stays internal to the Docker network, and Nginx proxies `/api` and `/media` to it.
+In the recommended single-host trial topology, the frontend/Nginx container is the public entrypoint. The backend container stays internal to the Docker network, and Nginx proxies `/api`, `/media`, and health-only Actuator routes to it.
 
 ## Current Capability Map
 

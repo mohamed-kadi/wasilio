@@ -61,7 +61,7 @@ For the current tactical sequence after the public frontend launch, use `docs/pr
 - Stabilize production-readiness documentation and deployment checks so local testing, landing-engine rehearsal, frontend-only public mode, and future controlled merchant trial mode are not confused.
 - Phase 35 completed the first public landing page and acquisition funnel cleanup, with fraud/intelligence positioning made clearer for merchants without exposing internal scoring rules.
 - Phase 36 completed the controlled merchant trial preparation track: account ownership audit, hosted rehearsal wrapper, live backend smoke checks, production environment inventory, backup rehearsal, SMTP/media/CORS validation, and super-admin bootstrap controls.
-- Phase 37 is the controlled hosted backend trial deployment track: single-host Compose topology, internal backend exposure, bootstrap discipline, hosted rehearsal, backup/restore proof, and one merchant owner handoff.
+- Phase 37 is the controlled hosted backend trial deployment track: single-host Compose topology, internal backend exposure, health-only readiness routing, bootstrap discipline, one main deployment runbook, optional deployment log, hosted rehearsal, backup/restore proof, and one merchant owner handoff.
 - Prioritize landing-page/acquisition UX, core workflow polish, lead-capture readiness, and focused frontend smoke coverage.
 
 ## Phase 3 Candidate: Business Layer

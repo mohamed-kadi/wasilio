@@ -69,11 +69,16 @@ Status: active deployment-readiness phase. This is the first hosted backend path
 Scope:
 
 - Use a single VPS or equivalent host with Docker Compose as the recommended first deployment.
-- Publish only the frontend/Nginx service; keep the backend internal behind `/api` and `/media`.
+- Publish only the frontend/Nginx service; keep the backend internal behind `/api`, `/media`, and health-only Actuator routes.
 - Keep public signup closed unless explicitly opened for a controlled window.
 - Bootstrap one staff/super-admin account, then disable bootstrap and remove the bootstrap password.
 - Convert one qualified demo request into one merchant owner account through setup email.
 - Run hosted rehearsal, account audit, backup, restore rehearsal, media URL check, and Orders CSV check before merchant handoff.
+
+Completed in Phase 37 so far:
+
+- Phase 37A hardened the Compose topology for a single-host trial: backend internal, frontend/Nginx public, health-only Actuator proxy, production restart policies, media upload size at Nginx, and safer forwarded IP handling.
+- Phase 37B folded the concrete hosted Compose trial steps into the main testing/deployment runbook and kept the deployment log as an optional checklist, so there is one operator path instead of multiple competing guides.
 
 ## Architecture Direction Note
 
@@ -85,7 +90,7 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 
 1. Phase 37 controlled hosted backend trial deployment.
 2. Super-admin cleanup and UX review for staff/admin workflows as needed. See `docs/product/staff-admin-workspace.md`.
-3. Run the hosted backend trial rehearsal against the real backend origin with one intended merchant owner account.
+3. Run the VPS Compose trial runbook against the real backend host with one intended merchant owner account.
 4. Intelligence calibration trial after enough realistic confirmation evidence is available.
 
 Landing-engine integration is already connected locally through the public product and order-intent contracts. Any landing-engine handoff work from here should be treated as production-readiness documentation, environment verification, and QA rehearsal, not a rebuild of the connection.
@@ -189,7 +194,9 @@ Continue **Phase 37: Controlled Hosted Backend Trial Deployment**.
 Suggested first tasks:
 
 1. Choose and prepare the VPS or equivalent backend host.
-2. Create the host-only `/etc/wasilio/trial.env` file from the environment inventory.
-3. Validate production Compose config and deploy with `docker-compose.yml` plus `docker-compose.prod.yml`.
-4. Bootstrap the staff account once, then disable bootstrap and redeploy.
-5. Run `scripts/hosted-trial-rehearsal.sh`, backup/restore rehearsal, account audit, and media checks before merchant handoff.
+2. Follow Mode 4 in `docs/deployment/testing-and-deployment-runbook.md`.
+3. Create the host-only `/etc/wasilio/trial.env` file from the environment inventory.
+4. Validate production Compose config and deploy with `docker-compose.yml` plus `docker-compose.prod.yml`.
+5. Bootstrap the staff account once, then disable bootstrap and redeploy.
+6. Run `scripts/hosted-trial-rehearsal.sh`, backup/restore rehearsal, account audit, and media checks before merchant handoff.
+7. Optionally record the outcome and artifact names with `docs/deployment/trial-deployment-log.md`.
