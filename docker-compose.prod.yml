@@ -1,11 +1,13 @@
 services:
   postgres:
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-nexora}
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be set for production compose}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set for production compose}
 
   backend:
+    restart: unless-stopped
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-nexora}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?POSTGRES_USER must be set for production compose}
@@ -43,6 +45,7 @@ services:
       APP_PASSWORD_RESET_THROTTLE_LOCKOUT: ${APP_PASSWORD_RESET_THROTTLE_LOCKOUT:-PT1H}
 
   frontend:
+    restart: unless-stopped
     build:
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:?VITE_API_BASE_URL must be set for production compose}

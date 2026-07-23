@@ -122,6 +122,14 @@ Safe checks:
 
 Use this for the first real backend deployment with selected merchants.
 
+Recommended first hosted shape:
+
+- one VPS or equivalent host running Docker Compose
+- frontend/Nginx is the only public container port
+- backend stays internal on the Docker network
+- Nginx proxies `/api` and `/media` to the backend
+- `APP_MEDIA_PUBLIC_BASE_URL` uses the public origin that serves `/media`
+
 Required before deploy:
 
 - Backend host selected.

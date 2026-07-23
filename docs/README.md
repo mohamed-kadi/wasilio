@@ -22,7 +22,7 @@ Current near-term direction:
 - Keep Wasilio Core stable while product UX cleanup continues.
 - Keep landing-engine connected through the public product and public order-intent contracts.
 - Use the landing-engine handoff docs as production-readiness checklists, not as a request to rebuild the integration.
-- Prepare the controlled merchant trial path with account ownership audit, hosted rehearsal checks, live backend smoke checks, production environment inventory, and backup rehearsal.
+- Prepare the controlled hosted merchant trial path with single-host Compose deployment, account ownership audit, hosted rehearsal checks, live backend smoke checks, production environment inventory, and backup rehearsal.
 - Keep demo request conversion on the secure account setup email path; do not let staff set merchant passwords directly.
 - Continue intelligence calibration after enough realistic confirmation evidence exists.
 

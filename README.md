@@ -285,6 +285,7 @@ Production compose:
 - requires database credentials, JWT secret, CORS origins, frontend URL, email settings, media public URL, API URL, landing-engine URL, and public Vite values
 - runs only `db/migration`
 - excludes `db/seed`, so `admin@example.com` and `superadmin@example.com` are not created
+- publishes the frontend/Nginx service only; the backend stays on the internal Docker network and is reached through `/api` and `/media`
 
 For the full non-programmer testing and deployment sequence, use [docs/deployment/testing-and-deployment-runbook.md](docs/deployment/testing-and-deployment-runbook.md).
 
@@ -297,6 +298,8 @@ If the trial uses Docker Compose on a VPS, keep a host-only env file outside the
 docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml config
 docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
+
+For the first VPS trial, point the public domain to the frontend/Nginx service. Nginx proxies `/api` and `/media` to the backend container, so do not expose the backend container directly unless you intentionally deploy a separate API origin and ingress.
 
 Create the initial Wasilio staff account with `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=true`, `APP_SUPER_ADMIN_EMAIL`, and `APP_SUPER_ADMIN_PASSWORD` only during the first deployment. After the first successful staff login, set `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false`, remove the bootstrap password from the host secret set, and redeploy.
 

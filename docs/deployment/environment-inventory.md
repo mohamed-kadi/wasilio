@@ -138,6 +138,8 @@ Deploy only after both commands pass:
 docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
+The production Compose topology publishes the frontend/Nginx service. The backend container is not published directly; browser traffic reaches it through Nginx `/api` and `/media` proxy routes. If Wasilio intentionally chooses a separate public API origin later, document that ingress separately before changing this topology.
+
 ## Smoke-Only Variables
 
 These variables are for `scripts/live-backend-smoke.mjs`. They are operator inputs, not application config:

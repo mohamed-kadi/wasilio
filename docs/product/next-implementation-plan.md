@@ -43,7 +43,7 @@ Scope:
 
 ### Phase 36: Controlled Merchant Trial Preparation
 
-Status: active preparation phase. This phase should make a controlled merchant trial auditable and repeatable before selected merchants receive access.
+Status: completed preparation track. This phase made a controlled merchant trial auditable and repeatable before selected merchants receive access.
 
 Scope:
 
@@ -62,6 +62,19 @@ Completed in Phase 36 so far:
 - Phase 36E hardened demo request conversion so the backend always generates the hidden temporary password and account setup email is the only merchant password path.
 - Phase 36F added the hosted trial rehearsal wrapper and expanded live backend smoke coverage for merchant Orders CSV export and opt-in product media upload.
 
+### Phase 37: Controlled Hosted Backend Trial Deployment
+
+Status: active deployment-readiness phase. This is the first hosted backend path for selected merchants, not full public SaaS.
+
+Scope:
+
+- Use a single VPS or equivalent host with Docker Compose as the recommended first deployment.
+- Publish only the frontend/Nginx service; keep the backend internal behind `/api` and `/media`.
+- Keep public signup closed unless explicitly opened for a controlled window.
+- Bootstrap one staff/super-admin account, then disable bootstrap and remove the bootstrap password.
+- Convert one qualified demo request into one merchant owner account through setup email.
+- Run hosted rehearsal, account audit, backup, restore rehearsal, media URL check, and Orders CSV check before merchant handoff.
+
 ## Architecture Direction Note
 
 Operational UX polish can continue inside Wasilio Core. Order creation now has a minimal Order Ingestion/source metadata foundation. Any work that captures orders from public storefronts, CSV, ecommerce platforms, WhatsApp, marketplace sources, or campaign flows should extend that boundary instead of calling order lifecycle directly.
@@ -70,7 +83,7 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 
 ## Near-Term Queue
 
-1. Phase 36 controlled merchant trial preparation.
+1. Phase 37 controlled hosted backend trial deployment.
 2. Super-admin cleanup and UX review for staff/admin workflows as needed. See `docs/product/staff-admin-workspace.md`.
 3. Run the hosted backend trial rehearsal against the real backend origin with one intended merchant owner account.
 4. Intelligence calibration trial after enough realistic confirmation evidence is available.
@@ -171,12 +184,12 @@ When ready, the backend deployment path is:
 
 ## Next Recommended Batch
 
-Continue **Phase 36: Controlled Merchant Trial Preparation**.
+Continue **Phase 37: Controlled Hosted Backend Trial Deployment**.
 
 Suggested first tasks:
 
-1. Run `scripts/hosted-trial-rehearsal.sh` against local/prod-like config first.
-2. Run the same wrapper against the hosted backend when the real backend origin is available.
-3. Document the database dump and media-volume backup artifact names beside each hosted rehearsal.
-4. Run the read-only trial account audit before merchant handoff.
-5. Start intelligence calibration only after enough realistic confirmation evidence exists.
+1. Choose and prepare the VPS or equivalent backend host.
+2. Create the host-only `/etc/wasilio/trial.env` file from the environment inventory.
+3. Validate production Compose config and deploy with `docker-compose.yml` plus `docker-compose.prod.yml`.
+4. Bootstrap the staff account once, then disable bootstrap and redeploy.
+5. Run `scripts/hosted-trial-rehearsal.sh`, backup/restore rehearsal, account audit, and media checks before merchant handoff.
