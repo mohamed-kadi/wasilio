@@ -1,14 +1,18 @@
 package com.nexora.backend.infrastructure.notification;
 
+import jakarta.mail.BodyPart;
+import jakarta.mail.Multipart;
+import jakarta.mail.Session;
+import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 
+import java.util.Properties;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,41 +48,45 @@ class PasswordResetEmailNotifierTest {
     }
 
     @Test
-    void smtpModeSendsPasswordResetEmailThroughJavaMail() {
+    void smtpModeSendsPasswordResetEmailThroughJavaMail() throws Exception {
         JavaMailSender mailSender = mock(JavaMailSender.class);
         EmailDeliveryProperties properties = properties(EmailDeliveryProperties.Mode.SMTP);
         PasswordResetEmailNotifier notifier = new PasswordResetEmailNotifier(mailSenderProvider(mailSender), properties);
 
         notifier.sendPasswordResetLink(EMAIL, RESET_URL, EXPIRES_AT);
 
-        SimpleMailMessage message = captureMessage(mailSender);
-        assertThat(message.getFrom()).isEqualTo("Wasilio <no-reply@wasilio.test>");
-        assertThat(message.getTo()).containsExactly(EMAIL);
+        MimeMessage message = captureMessage(mailSender);
+        assertThat(message.getFrom()[0].toString()).isEqualTo("Wasilio <no-reply@wasilio.test>");
+        assertThat(message.getAllRecipients()[0].toString()).isEqualTo(EMAIL);
         assertThat(message.getSubject()).isEqualTo("Reset your Wasilio password");
-        assertThat(message.getText())
+        assertThat(messageText(message))
                 .contains("We received a request to reset your Wasilio password.")
                 .contains(RESET_URL)
-                .contains(EXPIRES_AT.toString())
+                .contains("Jul 18, 2026 at 18:30 UTC")
+                .contains("https://app.wasilio.test/brand/wasilio-logo.svg")
+                .contains("Reset password")
                 .contains("support@wasilio.test");
     }
 
     @Test
-    void smtpModeSendsAccountSetupEmailThroughJavaMail() {
+    void smtpModeSendsAccountSetupEmailThroughJavaMail() throws Exception {
         JavaMailSender mailSender = mock(JavaMailSender.class);
         EmailDeliveryProperties properties = properties(EmailDeliveryProperties.Mode.SMTP);
         PasswordResetEmailNotifier notifier = new PasswordResetEmailNotifier(mailSenderProvider(mailSender), properties);
 
         notifier.sendAccountSetupLink(EMAIL, SETUP_URL, EXPIRES_AT);
 
-        SimpleMailMessage message = captureMessage(mailSender);
-        assertThat(message.getFrom()).isEqualTo("Wasilio <no-reply@wasilio.test>");
-        assertThat(message.getTo()).containsExactly(EMAIL);
+        MimeMessage message = captureMessage(mailSender);
+        assertThat(message.getFrom()[0].toString()).isEqualTo("Wasilio <no-reply@wasilio.test>");
+        assertThat(message.getAllRecipients()[0].toString()).isEqualTo(EMAIL);
         assertThat(message.getSubject()).isEqualTo("Set up your Wasilio account");
-        assertThat(message.getText())
+        assertThat(messageText(message))
                 .contains("Your Wasilio merchant workspace is ready.")
                 .contains("choose your password")
                 .contains(SETUP_URL)
-                .contains(EXPIRES_AT.toString())
+                .contains("Jul 18, 2026 at 18:30 UTC")
+                .contains("https://app.wasilio.test/brand/wasilio-logo.svg")
+                .contains("Set password")
                 .contains("support@wasilio.test");
     }
 
@@ -92,10 +100,29 @@ class PasswordResetEmailNotifierTest {
                 .hasMessageContaining("APP_EMAIL_MODE=smtp requires SMTP mail configuration");
     }
 
-    private SimpleMailMessage captureMessage(JavaMailSender mailSender) {
-        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+    private MimeMessage captureMessage(JavaMailSender mailSender) {
+        ArgumentCaptor<MimeMessage> captor = ArgumentCaptor.forClass(MimeMessage.class);
         verify(mailSender).send(captor.capture());
         return captor.getValue();
+    }
+
+    private String messageText(MimeMessage message) throws Exception {
+        return contentText(message.getContent());
+    }
+
+    private String contentText(Object content) throws Exception {
+        if (content instanceof String text) {
+            return text;
+        }
+        if (content instanceof Multipart multipart) {
+            StringBuilder builder = new StringBuilder();
+            for (int i = 0; i < multipart.getCount(); i++) {
+                BodyPart part = multipart.getBodyPart(i);
+                builder.append(contentText(part.getContent()));
+            }
+            return builder.toString();
+        }
+        return String.valueOf(content);
     }
 
     private EmailDeliveryProperties properties(EmailDeliveryProperties.Mode mode) {
@@ -110,6 +137,9 @@ class PasswordResetEmailNotifierTest {
     private ObjectProvider<JavaMailSender> mailSenderProvider(JavaMailSender mailSender) {
         ObjectProvider<JavaMailSender> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(mailSender);
+        if (mailSender != null) {
+            when(mailSender.createMimeMessage()).thenReturn(new MimeMessage(Session.getInstance(new Properties())));
+        }
         return provider;
     }
 }
