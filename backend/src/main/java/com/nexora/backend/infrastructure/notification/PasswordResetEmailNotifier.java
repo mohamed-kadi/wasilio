@@ -161,14 +161,14 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
                         <td align="center">
                           <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #dfe7e4;border-radius:12px;overflow:hidden;">
                             <tr>
-                              <td style="padding:28px 32px 16px 32px;">
+                              <td style="padding:24px 32px 12px 32px;">
                                 <table role="presentation" cellpadding="0" cellspacing="0">
                                   <tr>
-                                    <td style="vertical-align:middle;padding:0 12px 0 0;">
-                                      <img src="%s" width="44" height="44" alt="" style="display:block;border:0;width:44px;height:44px;border-radius:10px;">
+                                    <td style="vertical-align:middle;padding:0 10px 0 0;">
+                                      <img src="%s" width="36" height="36" alt="" style="display:block;border:0;width:36px;height:36px;border-radius:8px;">
                                     </td>
                                     <td style="vertical-align:middle;">
-                                      <span style="display:block;color:#0f5b4a;font-size:32px;line-height:1;font-weight:800;letter-spacing:0;">Wasilio</span>
+                                      <span style="display:block;color:#0f5b4a;font-size:26px;line-height:1;font-weight:800;letter-spacing:0;">Wasilio</span>
                                     </td>
                                   </tr>
                                 </table>
