@@ -68,6 +68,7 @@ Required backend values:
 | `APP_EMAIL_MODE` | backend host config | `smtp` for a hosted trial. |
 | `APP_EMAIL_FROM` | backend host config | Verified sender, for example `Wasilio <no-reply@wasilio.ma>`. |
 | `APP_SUPPORT_CONTACT` | backend host config | Support email shown in notifications. |
+| `APP_EMAIL_DISPLAY_ZONE` | backend host config | Time zone used in notification expiry text. Default: `Africa/Casablanca`. |
 | `SMTP_HOST` | backend host secret/config | SMTP provider host. |
 | `SMTP_PORT` | backend host secret/config | Usually `587` with STARTTLS. |
 | `SMTP_USERNAME` | backend host secret | SMTP username. |

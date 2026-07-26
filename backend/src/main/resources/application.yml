@@ -65,6 +65,7 @@ app:
     mode: ${APP_EMAIL_MODE:log}
     from: ${APP_EMAIL_FROM:Wasilio <no-reply@wasilio.local>}
     support-contact: ${APP_SUPPORT_CONTACT:support@wasilio.local}
+    display-zone: ${APP_EMAIL_DISPLAY_ZONE:Africa/Casablanca}
   frontend:
     base-url: ${APP_FRONTEND_BASE_URL:http://localhost}
   onboarding:

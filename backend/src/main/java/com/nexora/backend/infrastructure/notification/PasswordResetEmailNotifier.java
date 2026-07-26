@@ -10,8 +10,9 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
+import java.time.DateTimeException;
 import java.time.Instant;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
@@ -20,8 +21,8 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class PasswordResetEmailNotifier implements PasswordResetNotifier {
     private static final DateTimeFormatter EXPIRY_FORMATTER = DateTimeFormatter
-            .ofPattern("MMM d, yyyy 'at' HH:mm 'UTC'", Locale.ENGLISH)
-            .withZone(ZoneOffset.UTC);
+            .ofPattern("MMM d, yyyy 'at' HH:mm", Locale.ENGLISH);
+    private static final ZoneId DEFAULT_DISPLAY_ZONE = ZoneId.of("Africa/Casablanca");
 
     private final ObjectProvider<JavaMailSender> mailSenderProvider;
     private final EmailDeliveryProperties properties;
@@ -254,7 +255,25 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
     }
 
     private String formatExpiry(Instant expiresAt) {
-        return EXPIRY_FORMATTER.format(expiresAt);
+        ZoneId zone = displayZone();
+        return EXPIRY_FORMATTER.withZone(zone).format(expiresAt) + " " + displayZoneLabel(zone);
+    }
+
+    private ZoneId displayZone() {
+        String configuredZone = properties.getDisplayZone();
+        if (configuredZone == null || configuredZone.isBlank()) {
+            return DEFAULT_DISPLAY_ZONE;
+        }
+        try {
+            return ZoneId.of(configuredZone);
+        } catch (DateTimeException ex) {
+            log.warn("Invalid app.email.display-zone '{}'. Falling back to {}", configuredZone, DEFAULT_DISPLAY_ZONE);
+            return DEFAULT_DISPLAY_ZONE;
+        }
+    }
+
+    private String displayZoneLabel(ZoneId zone) {
+        return DEFAULT_DISPLAY_ZONE.equals(zone) ? "Morocco time" : zone.getId();
     }
 
     private String html(String value) {

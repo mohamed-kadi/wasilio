@@ -13,6 +13,7 @@ public class EmailDeliveryProperties {
     private Mode mode = Mode.LOG;
     private String from = "Wasilio <no-reply@wasilio.local>";
     private String supportContact = "support@wasilio.local";
+    private String displayZone = "Africa/Casablanca";
 
     public enum Mode {
         LOG,
