@@ -113,7 +113,7 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
                 If you did not request this, you can ignore this email.
                 For support, contact %s.
 
-                Wasilio
+                The Wasilio team
                 """.formatted(resetUrl, formatExpiry(expiresAt), properties.getSupportContact());
     }
 
@@ -130,7 +130,7 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
 
                 If you were not expecting this invitation, contact %s before opening the link.
 
-                Wasilio
+                The Wasilio team
                 """.formatted(setupUrl, formatExpiry(expiresAt), properties.getSupportContact());
     }
 
@@ -144,7 +144,7 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
     ) {
         String safeActionUrl = html(actionUrl);
         String safeSupportContact = html(properties.getSupportContact());
-        String logoUrl = html(logoUrlFor(actionUrl));
+        String markUrl = html(markUrlFor(actionUrl));
         String supportHref = "mailto:" + attribute(properties.getSupportContact());
 
         return """
@@ -162,12 +162,26 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
                           <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border:1px solid #dfe7e4;border-radius:12px;overflow:hidden;">
                             <tr>
                               <td style="padding:28px 32px 16px 32px;">
-                                <img src="%s" width="150" alt="Wasilio" style="display:block;border:0;max-width:150px;height:auto;">
+                                <table role="presentation" cellpadding="0" cellspacing="0">
+                                  <tr>
+                                    <td style="vertical-align:middle;padding:0 12px 0 0;">
+                                      <img src="%s" width="44" height="44" alt="" style="display:block;border:0;width:44px;height:44px;border-radius:10px;">
+                                    </td>
+                                    <td style="vertical-align:middle;">
+                                      <span style="display:block;color:#0f5b4a;font-size:32px;line-height:1;font-weight:800;letter-spacing:0;">Wasilio</span>
+                                    </td>
+                                  </tr>
+                                </table>
                               </td>
                             </tr>
                             <tr>
                               <td style="padding:4px 32px 8px 32px;">
                                 <h1 style="margin:0;font-size:26px;line-height:1.25;color:#0f172a;font-weight:700;">%s</h1>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:8px 32px 0 32px;">
+                                <p style="margin:0;font-size:16px;line-height:1.65;color:#465364;">Hello,</p>
                               </td>
                             </tr>
                             <tr>
@@ -192,7 +206,7 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
                               </td>
                             </tr>
                             <tr>
-                              <td style="padding:22px 32px 30px 32px;">
+                              <td style="padding:22px 32px 18px 32px;">
                                 <table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;">
                                   <tr>
                                     <td style="padding:14px 16px;">
@@ -200,6 +214,11 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
                                     </td>
                                   </tr>
                                 </table>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td style="padding:0 32px 30px 32px;">
+                                <p style="margin:0;font-size:15px;line-height:1.55;color:#334155;">The Wasilio team</p>
                               </td>
                             </tr>
                           </table>
@@ -210,7 +229,7 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
                 </html>
                 """.formatted(
                 html(headline),
-                logoUrl,
+                markUrl,
                 html(headline),
                 html(intro),
                 safeActionUrl,
@@ -224,14 +243,14 @@ public class PasswordResetEmailNotifier implements PasswordResetNotifier {
         );
     }
 
-    private String logoUrlFor(String actionUrl) {
+    private String markUrlFor(String actionUrl) {
         int schemeSeparator = actionUrl.indexOf("://");
         if (schemeSeparator < 0) {
             return "";
         }
         int pathStart = actionUrl.indexOf('/', schemeSeparator + 3);
         String origin = pathStart < 0 ? actionUrl : actionUrl.substring(0, pathStart);
-        return origin + "/brand/wasilio-logo.svg";
+        return origin + "/brand/wasilio-mark.svg";
     }
 
     private String formatExpiry(Instant expiresAt) {

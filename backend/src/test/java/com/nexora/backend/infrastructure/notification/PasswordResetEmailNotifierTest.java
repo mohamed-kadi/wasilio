@@ -60,11 +60,14 @@ class PasswordResetEmailNotifierTest {
         assertThat(message.getAllRecipients()[0].toString()).isEqualTo(EMAIL);
         assertThat(message.getSubject()).isEqualTo("Reset your Wasilio password");
         assertThat(messageText(message))
+                .contains("Hello,")
                 .contains("We received a request to reset your Wasilio password.")
                 .contains(RESET_URL)
                 .contains("Jul 18, 2026 at 18:30 UTC")
-                .contains("https://app.wasilio.test/brand/wasilio-logo.svg")
+                .contains("https://app.wasilio.test/brand/wasilio-mark.svg")
+                .contains("font-weight:800")
                 .contains("Reset password")
+                .contains("The Wasilio team")
                 .contains("support@wasilio.test");
     }
 
@@ -81,12 +84,15 @@ class PasswordResetEmailNotifierTest {
         assertThat(message.getAllRecipients()[0].toString()).isEqualTo(EMAIL);
         assertThat(message.getSubject()).isEqualTo("Set up your Wasilio account");
         assertThat(messageText(message))
+                .contains("Hello,")
                 .contains("Your Wasilio merchant workspace is ready.")
                 .contains("choose your password")
                 .contains(SETUP_URL)
                 .contains("Jul 18, 2026 at 18:30 UTC")
-                .contains("https://app.wasilio.test/brand/wasilio-logo.svg")
+                .contains("https://app.wasilio.test/brand/wasilio-mark.svg")
+                .contains("font-weight:800")
                 .contains("Set password")
+                .contains("The Wasilio team")
                 .contains("support@wasilio.test");
     }
 
