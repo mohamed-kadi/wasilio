@@ -2,7 +2,7 @@
 
 Wasilio is a multi-tenant COD operations platform for Moroccan e-commerce merchants. It helps teams manage order confirmation, callbacks, courier workflows, delivery outcomes, manual payments, receipts, and demo request follow-up.
 
-Current public deployment status: the frontend is live on Cloudflare Pages at `wasilio.ma`. The hosted backend is intentionally deferred while product UX, acquisition readiness, and local demo workflows are polished. See [docs/product/next-implementation-plan.md](docs/product/next-implementation-plan.md).
+Current public deployment status: the marketing site is live at `wasilio.ma`, and the hosted trial app is live at `app.wasilio.ma`. The hosted app is for controlled trial validation before wider SaaS release. See [docs/deployment/testing-and-deployment-runbook.md](docs/deployment/testing-and-deployment-runbook.md) and [docs/deployment/trial-deployment-log.md](docs/deployment/trial-deployment-log.md).
 
 Documentation starts at [docs/README.md](docs/README.md). Use it as the reading guide for architecture, product workflows, landing-engine handoff, intelligence scoring, and phase history.
 
@@ -325,7 +325,7 @@ Before publishing a trial-client campaign:
 - Run `mvn test`, `npm run build`, `npm run lint`, and `npm run smoke`.
 - Capture a database backup.
 
-For the current frontend-only deployment, the backend-dependent items in this checklist are deferred until a hosted backend API is connected.
+For the current hosted trial deployment, keep this checklist active until backup/restore, Orders CSV, account audit, and merchant handoff checks are complete.
 
 ## Backups
 

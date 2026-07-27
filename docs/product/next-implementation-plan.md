@@ -78,7 +78,7 @@ Scope:
 Completed in Phase 37 so far:
 
 - Phase 37A hardened the Compose topology for a single-host trial: backend internal, frontend/Nginx public, health-only Actuator proxy, production restart policies, media upload size at Nginx, and safer forwarded IP handling.
-- Phase 37B folded the concrete hosted Compose trial steps into the main testing/deployment runbook and kept the deployment log as an optional checklist, so there is one operator path instead of multiple competing guides.
+- Phase 37B folded the concrete hosted Compose trial steps into the main testing/deployment runbook, then converted the deployment log into the hosted trial status record and open handoff checklist.
 
 ## Architecture Direction Note
 

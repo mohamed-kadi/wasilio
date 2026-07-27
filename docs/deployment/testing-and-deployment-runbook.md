@@ -133,7 +133,18 @@ Recommended first hosted shape:
 - Nginx proxies `/api`, `/media`, and health-only Actuator routes to the backend
 - `APP_MEDIA_PUBLIC_BASE_URL` uses the public origin that serves `/media`
 
-Use `docs/deployment/trial-deployment-log.md` only as an optional checklist while executing this mode.
+Use `docs/deployment/trial-deployment-log.md` as the current hosted trial status record and open handoff checklist.
+
+Current hosted trial shape verified in July 2026:
+
+- Hostinger VPS runs Docker Compose from `/opt/wasilio`.
+- The host-only env file is `/etc/wasilio/trial.env`.
+- Docker frontend/Nginx is bound to `127.0.0.1:8080` with `FRONTEND_PORT=127.0.0.1:8080`.
+- Caddy is the public HTTPS entrypoint for `app.wasilio.ma`.
+- Caddy reverse-proxies to the local frontend/Nginx service at `127.0.0.1:8080`.
+- Backend and PostgreSQL containers stay internal to Docker.
+- Cloudflare DNS manages the domain. For this Caddy-origin setup, the `app` DNS record is DNS-only, not proxied.
+- `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false` after the first staff login, and the bootstrap password is removed from the host env file.
 
 Required before deploy:
 
@@ -181,6 +192,247 @@ Execution sequence:
 10. Convert one qualified demo request into one merchant owner through setup email.
 11. Run smoke checks, account audit, backup, restore rehearsal, media URL check, and Orders CSV check.
 12. Hand access to the merchant only after every check passes.
+
+Hostinger VPS command walkthrough:
+
+Run the Mac commands in your Mac terminal. Run the VPS commands after connecting with SSH. Replace placeholders like `<vps-ip>`, `<commit-sha>`, `<trial-domain>`, and emails with the real values. Do not paste secrets into documentation or Git.
+
+### 1. Create and register the SSH key from the Mac
+
+```bash
+ssh-keygen -t ed25519 -C "wasilio-vps" -f ~/.ssh/id_ed25519_wasilio_vps
+```
+
+Creates a new SSH key pair on the Mac. The private key stays on the Mac at `~/.ssh/id_ed25519_wasilio_vps`; the public key is written to `~/.ssh/id_ed25519_wasilio_vps.pub`.
+
+```bash
+cat ~/.ssh/id_ed25519_wasilio_vps.pub
+```
+
+Prints the public key. Paste the whole line that starts with `ssh-ed25519` into Hostinger's SSH key field. Use a name such as `wasilio-vps`.
+
+### 2. Connect to the VPS and verify the host
+
+```bash
+ssh -i ~/.ssh/id_ed25519_wasilio_vps root@<vps-ip>
+```
+
+Connects from the Mac to the Hostinger VPS as `root` using the private key. After this command, the shell prompt belongs to the VPS, not the Mac.
+
+```bash
+whoami
+hostnamectl
+```
+
+Checks that the current user is `root` and prints the VPS operating system and hostname details.
+
+### 3. Check Docker and firewall state
+
+```bash
+docker --version
+docker compose version
+```
+
+Confirms Docker Engine and Docker Compose are available on the VPS.
+
+```bash
+ufw status
+```
+
+Shows the firewall rules. For this setup, SSH, HTTP `80/tcp`, and HTTPS `443/tcp` must be allowed.
+
+```bash
+ufw allow OpenSSH
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw enable
+```
+
+Allows SSH, HTTP, and HTTPS traffic, then enables the firewall if it is not already active.
+
+### 4. Point DNS and check reachability
+
+In Cloudflare DNS, add an `A` record:
+
+- Name: `app`
+- Content: `<vps-ip>`
+- Proxy status for this Caddy setup: DNS-only
+- TTL: auto
+
+```bash
+dig +short app.wasilio.ma
+```
+
+Checks which IP addresses DNS returns. If Cloudflare proxy is enabled, this shows Cloudflare IPs. If DNS-only is enabled, this should resolve to the VPS IP after propagation.
+
+```bash
+curl -I http://<vps-ip>
+```
+
+Checks whether the VPS responds directly on HTTP before troubleshooting the domain.
+
+### 5. Clone the Wasilio repository on the VPS
+
+```bash
+mkdir -p /opt
+cd /opt
+git clone https://github.com/mohamed-kadi/wasilio.git wasilio
+cd /opt/wasilio
+git checkout <commit-sha>
+git status --short
+```
+
+Creates `/opt`, clones Wasilio into `/opt/wasilio`, checks out the exact commit intended for the hosted trial, and confirms the working tree is clean.
+
+### 6. Create the host-only environment file
+
+```bash
+mkdir -p /etc/wasilio
+nano /etc/wasilio/trial.env
+```
+
+Creates the config directory and opens the private host env file. This file is not part of Git. Put deployment values here, including database credentials, JWT secret, SMTP values, public URLs, CORS origins, and first-run staff bootstrap values.
+
+Generate high-entropy secrets on the VPS when needed:
+
+```bash
+openssl rand -base64 48
+```
+
+Prints a random secret suitable for values such as `JWT_SECRET`. Save the generated value only in the host env file or secret manager.
+
+Recommended hosted trial values after first staff login:
+
+```text
+APP_EMAIL_MODE=smtp
+APP_ONBOARDING_ENABLED=false
+APP_MEDIA_PUBLIC_BASE_URL=https://app.wasilio.ma
+APP_FRONTEND_BASE_URL=https://app.wasilio.ma
+VITE_API_BASE_URL=/api
+FRONTEND_PORT=127.0.0.1:8080
+APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=false
+APP_SUPER_ADMIN_PASSWORD=
+```
+
+The first deploy temporarily needs `APP_SUPER_ADMIN_BOOTSTRAP_ENABLED=true`, `APP_SUPER_ADMIN_EMAIL`, and `APP_SUPER_ADMIN_PASSWORD`. Disable bootstrap and remove the bootstrap password after the first successful staff login.
+
+### 7. Validate and start Docker Compose
+
+```bash
+./scripts/trial-env-check.sh /etc/wasilio/trial.env
+```
+
+Checks that required hosted trial values exist without printing secrets. Policy warnings must be reviewed before merchant handoff.
+
+```bash
+docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml config
+```
+
+Renders the final production Compose configuration and catches missing variables before starting containers.
+
+```bash
+docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Builds and starts PostgreSQL, backend, and frontend/Nginx containers in detached mode.
+
+```bash
+docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml ps
+```
+
+Shows container status. Expected services are `postgres`, `backend`, and `frontend`.
+
+```bash
+docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml logs --tail=100 backend
+```
+
+Shows the last backend log lines for startup, migration, SMTP, or runtime errors.
+
+### 8. Verify the local container entrypoint
+
+```bash
+curl -I http://127.0.0.1:8080
+curl -fsS http://127.0.0.1:8080/actuator/health/readiness
+```
+
+Checks that frontend/Nginx responds locally on the VPS and that Nginx can proxy the readiness health check to the backend.
+
+### 9. Configure Caddy HTTPS
+
+```bash
+caddy version
+systemctl status caddy --no-pager
+```
+
+Confirms Caddy is installed and shows whether the service is running.
+
+```bash
+nano /etc/caddy/Caddyfile
+```
+
+Open the Caddy config. For the hosted trial, the relevant site block is:
+
+```text
+app.wasilio.ma {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+This makes Caddy terminate HTTPS publicly and forward requests to Docker's local frontend/Nginx port.
+
+```bash
+systemctl restart caddy
+systemctl status caddy --no-pager
+```
+
+Restarts Caddy and confirms it is active. If Caddy fails with `address already in use` on port 80, Docker is still bound publicly on `80`. Set `FRONTEND_PORT=127.0.0.1:8080` in `/etc/wasilio/trial.env`, redeploy Compose, then restart Caddy.
+
+### 10. Verify public HTTPS
+
+```bash
+curl -I http://app.wasilio.ma
+curl -I https://app.wasilio.ma
+curl -fsS https://app.wasilio.ma/actuator/health/readiness
+```
+
+Confirms HTTP redirects to HTTPS, HTTPS returns the Wasilio frontend, and the public health route reaches the backend through Caddy and Nginx.
+
+### 11. Deploy a newer commit later
+
+```bash
+cd /opt/wasilio
+git fetch origin
+git checkout <new-commit-sha>
+git status --short
+docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+Pulls the latest repository state, checks out the specific pushed commit, confirms the working tree, and rebuilds/restarts the stack.
+
+For backend-only changes, this shorter command is acceptable:
+
+```bash
+docker compose --env-file /etc/wasilio/trial.env -f docker-compose.yml -f docker-compose.prod.yml up -d --build backend
+```
+
+Use full rebuild when frontend code, Vite build values, Docker config, Nginx config, or shared assets changed.
+
+### 12. Practical hosted smoke checks
+
+Use the browser for account and workflow checks:
+
+- staff login at `https://app.wasilio.ma/login`
+- password reset email from `https://app.wasilio.ma/forgot-password`
+- public demo request from `https://wasilio.ma`
+- demo request conversion in staff billing/demo requests
+- merchant password setup and merchant login
+- product creation, media upload, store settings, and publishing readiness
+- public product API on `https://app.wasilio.ma/api/public/storefront/<store-slug>/products/<product-slug>`
+- public order intake by POST to `https://app.wasilio.ma/api/public/storefront/<store-slug>/orders`
+- inbound order to confirmation
+- confirmation to assignment queue
+
+For public order intake, a browser `GET` returns `405 Method Not Allowed`; that is expected because the endpoint accepts `POST` only.
 
 Minimum host-only env policy for a closed trial:
 

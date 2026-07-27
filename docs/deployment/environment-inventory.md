@@ -4,7 +4,7 @@ This inventory defines where each environment value belongs for a controlled mer
 
 Use this document before changing deployment settings. The goal is to avoid the confusing pattern where developers edit the root `.env` for local testing and later forget which values were production-like.
 
-For the first single-server Docker Compose deployment, follow Mode 4 in `docs/deployment/testing-and-deployment-runbook.md`. Use `docs/deployment/trial-deployment-log.md` only as an optional checklist for the actual values, checks, and backup artifacts.
+For the first single-server Docker Compose deployment, follow Mode 4 in `docs/deployment/testing-and-deployment-runbook.md`. Use `docs/deployment/trial-deployment-log.md` to review the current hosted trial status, open handoff checks, and backup artifacts.
 
 ## Rules
 

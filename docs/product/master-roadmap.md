@@ -210,7 +210,7 @@ Approximate maturity:
 - Completed production OMS foundation: 75-80%.
 - Remaining work for real operational use: about 15%.
 - Later SaaS commercialization and enterprise hardening: about 5% of product surface, but meaningful architecture effort.
-- Current public deployment maturity: frontend-only public presence; hosted backend is intentionally deferred until pilot demand or a card-verified hosting account is acceptable.
+- Current public deployment maturity: public marketing site plus controlled hosted trial app. Wider merchant handoff still depends on backup/restore, account audit, Orders CSV verification, landing-engine deployment decision, and public intake hardening.
 
 ## Architecture Checkpoint
 
@@ -446,8 +446,8 @@ Summary:
 
 - L1: Internal admin console for tenant management.
 - L2: Plans, manual cash/bank-transfer payments, and receipts.
-- L3: Public landing site and lead capture first slice implemented; frontend is live on Cloudflare Pages. UX, campaign validation, and tracking setup remain.
-- L4: Production trust hardening; hosted backend, production backups, monitoring, and full smoke checks remain deferred until hosting is funded or card-verified.
+- L3: Public landing site and lead capture first slice implemented; marketing site is live. UX, campaign validation, and tracking setup remain.
+- L4: Controlled hosted trial app is live; production backups, restore rehearsal, monitoring, account audit, and full smoke checks remain before wider handoff.
 - L5: Controlled public beta.
 
 Return to the original roadmap after L1-L4, then continue customer notes, exports, E2E coverage, user management, architecture audit, and deterministic risk scoring.

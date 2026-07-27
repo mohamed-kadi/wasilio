@@ -111,7 +111,7 @@ Review every row under `Trial review flags` before merchant handoff. The expecte
 
 The public landing page is served at `/`. Authenticated merchant workflows live under `/app`, while Wasilio staff operations live under `/admin/billing`.
 
-Current public deployment mode: the frontend is live on Cloudflare Pages at `wasilio.ma`, but a hosted backend API is intentionally deferred. Demo request capture and authenticated workflows require a running backend; for now, validate those flows locally unless a backend host has been connected.
+Current public deployment mode: the marketing site is live at `wasilio.ma`, and the controlled hosted trial app is live at `app.wasilio.ma`. Demo request capture, account setup email, authenticated merchant workflows, public product API, and public order intake are validated against the hosted trial app before real merchant handoff.
 
 Production frontend builds require public build-time values:
 
