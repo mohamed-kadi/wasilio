@@ -5,10 +5,49 @@ const DEFAULT_LANDING_ENGINE_URL = 'http://localhost:3000';
 
 export function publicApiBaseUrlForDisplay(): string {
   const configured = API_BASE_URL.trim();
+  const browserOrigin = currentBrowserOriginForDisplay();
   if (!configured || configured === '/api') {
-    return DEFAULT_PUBLIC_API_BASE_URL;
+    return browserOrigin ?? DEFAULT_PUBLIC_API_BASE_URL;
+  }
+  if (configured.startsWith('/')) {
+    const apiPath = configured.replace(/\/api\/?$/, '').replace(/\/$/, '');
+    return `${browserOrigin ?? DEFAULT_PUBLIC_API_BASE_URL}${apiPath}`;
+  }
+  if (!configured.startsWith('http')) {
+    return browserOrigin ?? DEFAULT_PUBLIC_API_BASE_URL;
   }
   return configured.replace(/\/api\/?$/, '').replace(/\/$/, '');
+}
+
+export function currentBrowserOriginForDisplay(): string | null {
+  if (typeof window === 'undefined' || !window.location?.origin || window.location.origin === 'null') {
+    return null;
+  }
+  return window.location.origin.replace(/\/$/, '');
+}
+
+export function customerPageHostConfigured(): boolean {
+  const configured = import.meta.env.VITE_LANDING_ENGINE_URL?.trim();
+  if (!configured) {
+    return false;
+  }
+  const normalized = configured.replace(/\/$/, '');
+  const browserOrigin = currentBrowserOriginForDisplay();
+  if (!browserOrigin) {
+    return normalized !== DEFAULT_LANDING_ENGINE_URL;
+  }
+  try {
+    return new URL(normalized).origin !== browserOrigin;
+  } catch {
+    return false;
+  }
+}
+
+export function customerPageHostUrlForDisplay(): string {
+  if (!customerPageHostConfigured()) {
+    return DEFAULT_LANDING_ENGINE_URL;
+  }
+  return landingEngineUrlForDisplay();
 }
 
 export function landingEngineUrlForDisplay(): string {

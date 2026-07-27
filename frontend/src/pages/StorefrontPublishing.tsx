@@ -35,6 +35,7 @@ import {
 import ProductImageFrame from '../components/ProductImageFrame';
 import StorefrontProfileEditor from '../components/StorefrontProfileEditor';
 import {
+  customerPageHostConfigured,
   landingEngineProductUrl,
   publicProductApiPattern,
   publicProductApiUrl,
@@ -86,8 +87,8 @@ export default function StorefrontPublishing() {
           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Storefront</p>
           <h2 className="mt-1 text-2xl font-bold text-gray-900">Product Publishing</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-500">
-            Prepare catalog products for landing-engine by checking catalog status, landing content, media readiness,
-            and the public preview/API links in one place.
+            Prepare catalog products for customer pages by checking catalog status, public content, media readiness,
+            and storefront links in one place.
             {productsFetching && !productsLoading ? ' Refreshing' : ''}
           </p>
         </div>
@@ -108,7 +109,7 @@ export default function StorefrontPublishing() {
 
       {!settingsLoading && !settings && (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Configure storefront settings before previewing public product URLs. Products can still have draft landing
+          Configure storefront settings before previewing public product URLs. Products can still have draft customer page
           content prepared here.
         </div>
       )}
@@ -148,8 +149,8 @@ export default function StorefrontPublishing() {
         />
         <WorkflowStep
           icon={<FileText size={18} />}
-          title="Landing Profile"
-          detail="Landing copy, gallery, SEO, FAQ, and trust content live in the storefront profile."
+          title="Customer Page"
+          detail="Customer page copy, gallery, SEO, FAQ, and trust content live in the storefront profile."
         />
         <WorkflowStep
           icon={<ToggleLeft size={18} />}
@@ -158,8 +159,8 @@ export default function StorefrontPublishing() {
         />
         <WorkflowStep
           icon={<Globe2 size={18} />}
-          title="Public URL"
-          detail="Preview page is customer-facing. API payload is the landing-engine data contract."
+          title="Public Links"
+          detail="Use the product data link for integration checks and the customer page link when the page host is connected."
         />
       </section>
 
@@ -167,7 +168,7 @@ export default function StorefrontPublishing() {
         <div className="border-b border-gray-200 px-4 py-3">
           <h3 className="text-sm font-semibold uppercase text-gray-500">Publishing table</h3>
           <p className="mt-1 text-sm text-gray-600">
-            Each row shows what blocks publishing, whether media is ready, and the two public links used by landing-engine.
+            Each row shows what blocks publishing, whether media is ready, and the public links used to serve the product.
           </p>
         </div>
         <div className="overflow-hidden" data-testid="publishing-table-scroll">
@@ -183,7 +184,7 @@ export default function StorefrontPublishing() {
               <tr className="border-b border-gray-200 bg-gray-50 text-xs uppercase text-gray-500">
                 <th className="px-3 py-3 font-medium">Product</th>
                 <th className="px-3 py-3 font-medium">Publishing status</th>
-                <th className="px-3 py-3 font-medium">Media & API</th>
+                <th className="px-3 py-3 font-medium">Media & data</th>
                 <th className="px-3 py-3 font-medium">Public links</th>
                 <th className="px-3 py-3 font-medium">Actions</th>
               </tr>
@@ -230,7 +231,7 @@ export default function StorefrontPublishing() {
 
       {!selectedProductId && (
         <section className="rounded-lg border border-dashed border-gray-300 bg-white p-5 text-sm text-gray-500">
-          Select Edit Landing Content from the publishing table to open the storefront profile editor.
+          Select Edit Public Content from the publishing table to open the storefront profile editor.
         </section>
       )}
     </div>
@@ -252,7 +253,7 @@ function StorefrontEditorPanel({ product, onClose }: { product: Product; onClose
             type="button"
             onClick={onClose}
             className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
-            aria-label="Close landing content editor"
+            aria-label="Close customer page content editor"
             title="Close"
           >
             <X size={18} />
@@ -299,7 +300,7 @@ function PublishingProductRow({
   const profileToggleMutation = useMutation({
     mutationFn: (status: StorefrontProductProfileStatus) => {
       if (!profile) {
-        throw new Error('Create landing content before publishing this profile.');
+        throw new Error('Create customer page content before publishing this profile.');
       }
       return upsertProductStorefrontProfile(product.id, profilePayloadWithStatus(profile, status));
     },
@@ -318,7 +319,8 @@ function PublishingProductRow({
   const apiUrl = settings?.storeSlug
     ? publicProductApiUrl(settings.storeSlug, product.slug)
     : publicProductApiPattern();
-  const previewUrl = settings?.storeSlug ? landingEngineProductUrl(product.slug) : null;
+  const customerPageConnected = customerPageHostConfigured();
+  const previewUrl = settings?.storeSlug && customerPageConnected ? landingEngineProductUrl(product.slug) : null;
   const mediaReadiness = evaluateMediaReadiness({
     product,
     profile: profile ?? null,
@@ -368,16 +370,20 @@ function PublishingProductRow({
         <div className="space-y-2">
           {previewUrl ? (
             <PublicLinkCard
-              label="Preview page"
+              label="Customer page"
               description="Customer-facing landing page"
               value={previewUrl}
             />
           ) : (
-            <SmallMuted>Configure a store slug to preview landing-engine URLs.</SmallMuted>
+            <SmallMuted>
+              {settings?.storeSlug
+                ? 'Connect the customer page host before using Preview.'
+                : 'Configure a store slug before using customer page links.'}
+            </SmallMuted>
           )}
           <PublicLinkCard
-            label="API payload"
-            description="Data sent to landing-engine"
+            label="Product data"
+            description="Public product payload"
             value={apiUrl}
           />
         </div>
@@ -387,7 +393,7 @@ function PublishingProductRow({
           <button
             type="button"
             onClick={onSelect}
-            aria-label="Edit landing content"
+            aria-label="Edit customer page content"
             className="inline-flex items-center justify-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2 py-2 text-xs font-medium text-blue-700 hover:bg-blue-100"
           >
             <Edit3 size={16} />
@@ -431,7 +437,7 @@ function PublishingProductRow({
             onClick={toggleProfileStatus}
             disabled={!canToggleProfile || profileToggleMutation.isPending}
             className="inline-flex items-center justify-center gap-1.5 rounded-md border border-gray-300 px-2 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:text-gray-400 disabled:opacity-70"
-            title={canToggleProfile ? `${toggleLabel} profile` : 'Create landing content before publishing'}
+            title={canToggleProfile ? `${toggleLabel} profile` : 'Create customer page content before publishing'}
           >
             <Send size={16} />
             {profileToggleMutation.isPending ? 'Saving' : toggleLabel}
@@ -560,7 +566,7 @@ function PublicReadinessSummary({
   }
 
   if (isLoading) {
-    return <p className="mt-2 text-xs text-gray-500">Checking public API readiness</p>;
+    return <p className="mt-2 text-xs text-gray-500">Checking public product data</p>;
   }
 
   if (readiness) {
@@ -568,7 +574,7 @@ function PublicReadinessSummary({
     const complete = requiredMissing === 0 && readiness.orderable;
     return (
       <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-        <p className="text-[11px] font-semibold uppercase text-gray-500">Public API check</p>
+        <p className="text-[11px] font-semibold uppercase text-gray-500">Public data check</p>
         <p className={`mt-1 text-xs font-medium ${complete ? 'text-emerald-700' : 'text-amber-800'}`}>
           {readiness.requiredComplete}/{readiness.requiredTotal} required complete
         </p>
@@ -577,7 +583,7 @@ function PublicReadinessSummary({
   }
 
   if (error) {
-    return <p className="mt-2 text-xs text-amber-700">Public API readiness unavailable</p>;
+    return <p className="mt-2 text-xs text-amber-700">Public product data unavailable</p>;
   }
 
   return null;
@@ -628,7 +634,7 @@ function MediaReadinessPanel({ readiness }: { readiness: MediaReadiness }) {
       <p className="line-clamp-2 text-xs text-gray-500">
         {attentionItem
           ? `Needs media: ${attentionItem.label} - ${attentionItem.detail}`
-          : 'Primary, gallery, SEO, public API, and preview media checks passed.'}
+          : 'Primary, gallery, SEO, public data, and preview media checks passed.'}
       </p>
     </div>
   );
@@ -830,7 +836,7 @@ function evaluateReadiness(
       complete: profile?.status === 'PUBLISHED',
     },
     {
-      label: 'Add a landing headline',
+      label: 'Add a customer page headline',
       complete: hasText(profile?.headline),
     },
     {
@@ -914,7 +920,7 @@ function evaluateMediaReadiness({
     {
       label: 'Primary image',
       status: hasPrimaryImage ? 'ready' : 'missing',
-      detail: hasPrimaryImage ? 'Catalog and landing hero.' : 'Upload product image.',
+      detail: hasPrimaryImage ? 'Catalog and customer page hero.' : 'Upload product image.',
     },
     {
       label: 'Gallery media',
@@ -931,14 +937,14 @@ function evaluateMediaReadiness({
           : 'Add an SEO image or primary image.',
     },
     {
-      label: 'Public API media',
+      label: 'Public media',
       status: publicMediaStatus(publicReadinessEnabled, publicReadinessLoading, publicReadinessError, publicPrimaryImageReady),
       detail: publicMediaDetail(publicReadinessEnabled, publicReadinessLoading, publicReadinessError, publicPrimaryImageReady),
     },
     {
       label: 'Fresh preview',
       status: previewUrl?.includes('wasilioPreview=1') ? 'ready' : 'missing',
-      detail: previewUrl ? 'Preview bypasses cache.' : 'Configure storefront settings.',
+      detail: previewUrl ? 'Customer page link is configured.' : 'Connect the customer page host.',
     },
   ];
 
@@ -978,7 +984,7 @@ function publicMediaDetail(
   primaryImageReady: boolean,
 ): string {
   if (!enabled) {
-    return 'Public product API is not active yet.';
+    return 'Public product data is not active yet.';
   }
   if (loading) {
     return 'Checking public product payload.';
@@ -986,7 +992,7 @@ function publicMediaDetail(
   if (error) {
     return 'Public media check unavailable.';
   }
-  return primaryImageReady ? 'Image present in public payload.' : 'Public API is missing image.';
+  return primaryImageReady ? 'Image present in public payload.' : 'Public product data is missing image.';
 }
 
 function publicAvailability(product: Product, settings: PublicStorefrontSettings | null) {
@@ -1013,7 +1019,7 @@ function publicAvailability(product: Product, settings: PublicStorefrontSettings
   }
   return {
     label: 'Public product live',
-    detail: 'Public API resolves this slug.',
+    detail: 'Public product data resolves this slug.',
     tone: 'green' as const,
   };
 }

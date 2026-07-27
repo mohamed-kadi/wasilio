@@ -434,6 +434,35 @@ Use the browser for account and workflow checks:
 
 For public order intake, a browser `GET` returns `405 Method Not Allowed`; that is expected because the endpoint accepts `POST` only.
 
+### 13. Controlled traffic rehearsal
+
+Do not run load tests against `app.wasilio.ma` casually. Use a defined test window, test accounts, and a cleanup plan so the trial data and provider limits stay understandable.
+
+Traffic rehearsal stages:
+
+1. Local baseline: run API and frontend checks locally with seeded data to catch obvious regressions.
+2. Hosted low-rate smoke: run a small scripted flow against the VPS after deployment, using dedicated test merchant records.
+3. Hosted concurrency rehearsal: simulate concurrent logins, product reads, public product API reads, public order intake posts, inbound review, and confirmation actions.
+4. Public campaign readiness: only after rate limits, backups, monitoring, and intake abuse controls are reviewed.
+
+What to measure:
+
+- HTTP error rate for login, password reset, product API, order intake, and confirmation actions.
+- p95 response time for public product reads and public order intake.
+- backend CPU and memory usage.
+- PostgreSQL CPU, disk usage, and active connections.
+- Nginx/Caddy access and error logs.
+- application logs for throttling, validation errors, and failed order normalization.
+
+Robustness controls before wider traffic:
+
+- keep login, password reset, onboarding, and public order intake throttling enabled
+- add WAF or gateway rules for obvious bot traffic before paid ads
+- keep daily backups and restore rehearsal current
+- keep media backup or media migration procedure current
+- define a rollback commit and redeploy command before each campaign
+- add monitoring/alerts for backend health, disk usage, and database failures
+
 Minimum host-only env policy for a closed trial:
 
 ```text

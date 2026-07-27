@@ -30,7 +30,7 @@ import {
   type StorefrontProductProfile,
 } from '../api/client';
 import ProductImageFrame from '../components/ProductImageFrame';
-import { landingEngineProductUrl } from '../lib/storefrontUrls';
+import { customerPageHostConfigured, landingEngineProductUrl } from '../lib/storefrontUrls';
 
 const STATUS_OPTIONS: Array<{ value: ProductStatus; label: string }> = [
   { value: 'DRAFT', label: 'Draft' },
@@ -81,6 +81,7 @@ export default function Products() {
   const [form, setForm] = useState<ProductFormState>(EMPTY_FORM);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [currencyOverrideEnabled, setCurrencyOverrideEnabled] = useState(false);
+  const [editorNotice, setEditorNotice] = useState<string | null>(null);
 
   const {
     data: productsPage,
@@ -133,8 +134,13 @@ export default function Products() {
 
   const createMutation = useMutation({
     mutationFn: (payload: ProductPayload) => createProduct(payload),
-    onSuccess: async () => {
-      closeEditor();
+    onSuccess: async (product) => {
+      setEditingProduct(product);
+      setForm(formFromProduct(product));
+      setSlugManuallyEdited(true);
+      setCurrencyOverrideEnabled(Boolean(storefrontSettings?.defaultCurrency && product.currency !== storefrontSettings.defaultCurrency));
+      setEditorOpen(true);
+      setEditorNotice('Product created. Upload the primary image now, then save any remaining edits.');
       await queryClient.invalidateQueries({ queryKey: ['products'] });
     },
   });
@@ -159,6 +165,7 @@ export default function Products() {
   const mediaUploadMutation = useMutation({
     mutationFn: ({ productId, file }: { productId: string; file: File }) => uploadProductMedia(productId, file),
     onSuccess: async (media) => {
+      setEditorNotice('Image uploaded and saved to this product.');
       setForm((current) => ({ ...current, imageUrl: media.publicUrl }));
       setEditingProduct((current) => (
         current?.id === media.productId
@@ -183,6 +190,7 @@ export default function Products() {
 
   function openNewProduct() {
     mediaUploadMutation.reset();
+    setEditorNotice(null);
     setEditingProduct(null);
     setForm({ ...EMPTY_FORM, currency: defaultCurrency });
     setSlugManuallyEdited(false);
@@ -192,6 +200,7 @@ export default function Products() {
 
   function openEditProduct(product: Product) {
     mediaUploadMutation.reset();
+    setEditorNotice(null);
     setEditingProduct(product);
     setForm(formFromProduct(product));
     setSlugManuallyEdited(true);
@@ -201,6 +210,7 @@ export default function Products() {
 
   function closeEditor() {
     mediaUploadMutation.reset();
+    setEditorNotice(null);
     setEditingProduct(null);
     setForm({ ...EMPTY_FORM, currency: defaultCurrency });
     setSlugManuallyEdited(false);
@@ -253,7 +263,7 @@ export default function Products() {
         <ProductMetric title="Active" value={activeCount} detail="Catalog products available for selling" tone="green" />
         <ProductMetric title="Draft" value={draftCount} detail="Products still being prepared" tone="amber" />
         <ProductMetric title="Archived" value={archivedCount} detail="Hidden from selling workflows" tone="gray" />
-        <ProductMetric title="Storefront Ready" value={storefrontReadyCount} detail="Current page with catalog and landing content ready" tone="blue" />
+        <ProductMetric title="Storefront Ready" value={storefrontReadyCount} detail="Current page with catalog and public content ready" tone="blue" />
       </section>
 
       {(error || createMutation.error || updateMutation.error || archiveMutation.error) && (
@@ -405,6 +415,7 @@ export default function Products() {
           imageUploadError={mediaUploadMutation.error}
           onClose={closeEditor}
           onSubmit={handleSubmit}
+          notice={editorNotice}
           onNameChange={updateName}
           onSlugChange={updateSlug}
           onFormChange={setForm}
@@ -437,7 +448,8 @@ function ProductRow({
   archivePending: boolean;
 }) {
   const readiness = evaluateProductReadiness(product, profile);
-  const previewUrl = storefrontConfigured ? landingEngineProductUrl(product.slug) : null;
+  const customerPageConnected = customerPageHostConfigured();
+  const previewUrl = storefrontConfigured && customerPageConnected ? landingEngineProductUrl(product.slug) : null;
 
   return (
     <tr className="hover:bg-gray-50">
@@ -492,7 +504,7 @@ function ProductRow({
             className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100"
           >
             <Globe2 size={16} />
-            Edit Storefront Page
+            Edit Public Content
           </Link>
           {previewUrl ? (
             <a
@@ -509,7 +521,7 @@ function ProductRow({
               type="button"
               disabled
               className="inline-flex items-center gap-2 rounded-md border border-gray-200 px-3 py-2 text-sm font-medium text-gray-400"
-              title="Configure storefront settings before previewing public pages"
+              title={storefrontConfigured ? 'Connect the customer page host before previewing' : 'Configure storefront settings before previewing'}
             >
               <ExternalLink size={16} />
               Preview
@@ -540,6 +552,7 @@ function ProductEditorPanel({
   archivePending,
   imageUploadPending,
   imageUploadError,
+  notice,
   onClose,
   onSubmit,
   onNameChange,
@@ -558,6 +571,7 @@ function ProductEditorPanel({
   archivePending: boolean;
   imageUploadPending: boolean;
   imageUploadError: unknown;
+  notice: string | null;
   onClose: () => void;
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
   onNameChange: (name: string) => void;
@@ -600,6 +614,11 @@ function ProductEditorPanel({
             {Boolean(imageUploadError) && (
               <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {getErrorMessage(imageUploadError)}
+              </div>
+            )}
+            {notice && (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                {notice}
               </div>
             )}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -728,7 +747,9 @@ function ProductEditorPanel({
                         />
                       </label>
                       {!canUploadImage && (
-                        <span className="self-center text-xs text-gray-500">Save the product before uploading media.</span>
+                        <span className="self-center text-xs text-gray-500">
+                          Product record required before media upload. This panel will stay open.
+                        </span>
                       )}
                     </div>
                     <input
@@ -807,7 +828,7 @@ function EmptyProductsState({ hasProducts, onNewProduct }: { hasProducts: boolea
       <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
         {hasProducts
           ? 'Adjust search or status filters to find catalog items.'
-          : 'Create the first catalog product, then publish its storefront page when landing content is ready.'}
+          : 'Create the first catalog product, then publish its customer page when public content is ready.'}
       </p>
       {!hasProducts && (
         <button

@@ -380,7 +380,7 @@ function formatCompactDate(value: string) {
 
 function sourceLabel(source?: string) {
   if (source === 'WASILIO_STOREFRONT') {
-    return 'Storefront / landing-engine';
+    return 'Online storefront';
   }
   if (!source || source === 'MANUAL') {
     return 'Manual order';

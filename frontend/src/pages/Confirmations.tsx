@@ -344,7 +344,7 @@ export default function Confirmations() {
         <PriorityGuideCard
           title="Storefront orders"
           value={visibleStorefrontOrders}
-          detail="Orders created from landing-engine intake. Product and media context should already be available."
+          detail="Orders created from online storefront intake. Product and media context should already be available."
           tone="info"
         />
       </section>
@@ -1191,7 +1191,7 @@ function confirmationPriority(order: Order) {
 
 function sourceLabel(source?: string) {
   if (source === 'WASILIO_STOREFRONT') {
-    return 'Storefront / landing-engine';
+    return 'Online storefront';
   }
   if (!source || source === 'MANUAL') {
     return 'Manual order';

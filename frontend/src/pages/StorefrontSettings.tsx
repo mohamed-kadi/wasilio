@@ -380,7 +380,7 @@ function StorefrontSettingsEditor({
           Developer setup
         </summary>
         <p className="mt-3 text-sm text-gray-600">
-          Technical URLs and landing-engine local configuration for development and integration testing.
+          Technical URLs and customer page configuration for development and integration testing.
         </p>
         <section className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <div>
@@ -394,7 +394,7 @@ function StorefrontSettingsEditor({
               </p>
               <UrlRow label="Public product GET" value={publicProductUrl} />
               <UrlRow label="Public order POST" value={publicOrderUrl} />
-              <UrlRow label="Landing-engine pattern" value={landingEnginePattern} />
+              <UrlRow label="Customer page pattern" value={landingEnginePattern} />
             </div>
           </div>
 
@@ -402,8 +402,8 @@ function StorefrontSettingsEditor({
             <div className="flex items-center gap-2">
               <Store size={18} className="text-blue-700" />
               <div>
-                <h3 className="text-sm font-semibold uppercase text-gray-500">landing-engine .env.local</h3>
-                <p className="mt-1 text-sm text-gray-600">Values for local landing-engine integration work.</p>
+                <h3 className="text-sm font-semibold uppercase text-gray-500">Customer page .env.local</h3>
+                <p className="mt-1 text-sm text-gray-600">Values for local customer page integration work.</p>
               </div>
             </div>
             <pre className="mt-4 overflow-auto rounded-md bg-gray-950 p-4 text-xs leading-6 text-gray-100">

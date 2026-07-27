@@ -112,10 +112,112 @@ test('merchant uploads primary product media from product editor', async ({ page
   await expect(thumbnail.locator('img')).toHaveCSS('object-fit', 'contain');
   await expect(thumbnail).toHaveCSS('width', '56px');
   await expect(thumbnail).toHaveCSS('height', '56px');
-  await expect(page.getByRole('link', { name: /^preview$/i })).toHaveAttribute(
-    'href',
-    'http://localhost:3000/products/argan-oil?wasilioPreview=1',
-  );
+  await expect(page.getByRole('button', { name: /^preview$/i })).toBeDisabled();
+});
+
+test('merchant creates a product then uploads media without reopening the editor', async ({ page }) => {
+  await installMockApi(page);
+  const createdProduct = {
+    ...product,
+    id: '99999999-9999-9999-9999-999999999999',
+    name: 'New Serum',
+    slug: 'new-serum',
+    priceAmount: 129,
+    imageUrl: '',
+  };
+  const uploadedImageUrl = 'https://media.example.test/media/tenant/products/new-serum/product-image.webp';
+  let products: Array<typeof product> = [];
+
+  await page.route('**/api/storefront-settings', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        storeSlug: 'demo-store',
+        publicName: 'Demo Store',
+        status: 'ACTIVE',
+        defaultCountryCode: 'MA',
+        defaultCurrency: 'MAD',
+        phonePattern: '^\\\\+?212[0-9]{9}$',
+      }),
+    });
+  });
+
+  await page.route('**/api/products', async (route) => {
+    expect(route.request().method()).toBe('POST');
+    products = [createdProduct];
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(createdProduct),
+    });
+  });
+
+  await page.route('**/api/products?**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        content: products,
+        page: 0,
+        size: 20,
+        totalElements: products.length,
+        totalPages: products.length > 0 ? 1 : 0,
+      }),
+    });
+  });
+
+  await page.route(`**/api/products/${createdProduct.id}/storefront-profile`, async (route) => {
+    await route.fulfill({ status: 204 });
+  });
+
+  await page.route(`**/api/products/${createdProduct.id}/media`, async (route) => {
+    expect(route.request().method()).toBe('POST');
+    products = [{ ...createdProduct, imageUrl: uploadedImageUrl }];
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        mediaId: '88888888-8888-8888-8888-888888888888',
+        productId: createdProduct.id,
+        purpose: 'PRODUCT_IMAGE',
+        originalFilename: 'serum.webp',
+        contentType: 'image/webp',
+        sizeBytes: 16,
+        publicUrl: uploadedImageUrl,
+        createdAt: '2026-07-13T10:00:00Z',
+      }),
+    });
+  });
+
+  await page.route('**/media/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: tinyPng,
+    });
+  });
+
+  await loginAs(page, 'merchant@example.com');
+  await page.goto('/app/products');
+  await page.getByRole('button', { name: /new product/i }).first().click();
+
+  await page.getByLabel('Name', { exact: true }).fill('New Serum');
+  await page.getByLabel('Price').fill('129');
+  await page.getByLabel('Description').fill('Hydrating serum');
+  await expect(page.getByText('Product record required before media upload. This panel will stay open.')).toBeVisible();
+  await page.getByRole('button', { name: /create product/i }).click();
+
+  await expect(page.getByRole('heading', { name: 'Edit Product' })).toBeVisible();
+  await expect(page.getByText('Product created. Upload the primary image now, then save any remaining edits.')).toBeVisible();
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'serum.webp',
+    mimeType: 'image/webp',
+    buffer: Buffer.from('RIFF____WEBPVP8 '),
+  });
+
+  await expect(page.getByText('Image uploaded and saved to this product.')).toBeVisible();
+  await expect(page.getByPlaceholder('Image URL')).toHaveValue(uploadedImageUrl);
 });
 
 test('merchant uploads storefront gallery and SEO media into profile fields', async ({ page }) => {
@@ -255,32 +357,27 @@ test('merchant uploads storefront gallery and SEO media into profile fields', as
   await expect(page.getByText('Active catalog', { exact: true })).toBeVisible();
   await expect(page.getByText('Primary images', { exact: true })).toBeVisible();
   await expect(publishingTable.getByText('Publishing status')).toBeVisible();
-  await expect(publishingTable.getByText('Media & API')).toBeVisible();
-  await expect(publishingTable.getByText('Public API check')).toBeVisible();
+  await expect(publishingTable.getByText('Media & data')).toBeVisible();
+  await expect(publishingTable.getByText('Public data check')).toBeVisible();
   await expect(publishingTable.getByText('3/7 required complete')).toBeVisible();
   await expect(publishingTable.getByText('Media readiness').first()).toBeVisible();
-  await expect(publishingTable.getByText('4/5 ready')).toBeVisible();
+  await expect(publishingTable.getByText('3/5 ready')).toBeVisible();
   await expect(publishingTable.getByText('5 checks')).toBeVisible();
   await expect(publishingTable.getByText('Primary image', { exact: true })).toBeVisible();
   await expect(publishingTable.getByText('Gallery media', { exact: true })).toBeVisible();
   await expect(publishingTable.getByText('SEO image', { exact: true })).toBeVisible();
   await expect(publishingTable.getByText(/Needs media: Gallery media/)).toBeVisible();
-  await expect(publishingTable.getByText('Preview page')).toBeVisible();
-  await expect(publishingTable.getByText('Customer-facing landing page')).toBeVisible();
-  await expect(publishingTable.getByText('API payload')).toBeVisible();
-  await expect(publishingTable.getByText('Data sent to landing-engine')).toBeVisible();
-  await expect(page.getByRole('button', { name: /copy preview page url/i })).toBeVisible();
-  await expect(page.getByRole('button', { name: /copy api payload url/i })).toBeVisible();
-  await expect(page.getByText('localhost:8080 /argan-oil')).toBeVisible();
+  await expect(publishingTable.getByText('Connect the customer page host before using Preview.')).toBeVisible();
+  await expect(publishingTable.getByText('Product data', { exact: true })).toBeVisible();
+  await expect(publishingTable.getByText('Public product payload')).toBeVisible();
+  await expect(page.getByRole('button', { name: /copy product data url/i })).toBeVisible();
+  await expect(page.getByText(`${new URL(page.url()).host} /argan-oil`)).toBeVisible();
   await expectPublishingPageToStayWithinViewport(page);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Product Publishing' })).toBeVisible();
   await expectPublishingPageToStayWithinViewport(page);
-  await expect(page.getByRole('link', { name: /incomplete preview/i })).toHaveAttribute(
-    'href',
-    'http://localhost:3000/products/argan-oil?wasilioPreview=1',
-  );
-  await page.getByRole('button', { name: /edit landing content/i }).click();
+  await expect(page.getByRole('button', { name: /preview public page/i })).toBeDisabled();
+  await page.getByRole('button', { name: /edit customer page content/i }).click();
   await expect(page.getByRole('heading', { name: product.name })).toBeVisible();
 
   const fileInputs = page.locator('input[type="file"]');

@@ -16,7 +16,7 @@ const STOREFRONT_SOURCE: OrderSource = 'WASILIO_STOREFRONT';
 
 const SOURCE_OPTIONS: Array<{ value: OrderSource; label: string }> = [
   { value: 'MANUAL', label: 'Manual' },
-  { value: 'WASILIO_STOREFRONT', label: 'Storefront / landing-engine' },
+  { value: 'WASILIO_STOREFRONT', label: 'Online storefront' },
   { value: 'CUSTOM_API', label: 'Custom API' },
   { value: 'CSV_IMPORT', label: 'CSV import' },
   { value: 'YOUCAN', label: 'YouCan' },

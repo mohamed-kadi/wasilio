@@ -212,7 +212,7 @@ function formatFollowUpDate(value?: string) {
 
 function formatOrderSource(source?: string) {
   if (source === 'WASILIO_STOREFRONT') {
-    return 'Storefront / landing-engine';
+    return 'Online storefront';
   }
   if (!source) {
     return 'Manual order';

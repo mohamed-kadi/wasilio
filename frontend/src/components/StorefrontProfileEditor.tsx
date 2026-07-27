@@ -88,10 +88,10 @@ function StorefrontProfileEditorForm({
     <form onSubmit={handleSubmit} className="rounded-lg border border-gray-200 bg-white p-4">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-semibold uppercase text-gray-500">Landing content</h3>
+          <h3 className="text-sm font-semibold uppercase text-gray-500">Customer page content</h3>
           <p className="mt-1 text-sm text-gray-600">
-            Public landing content for <span className="font-medium text-gray-900">{product.name}</span>. Draft profiles
-            stay hidden from public product endpoints.
+            Public product page content for <span className="font-medium text-gray-900">{product.name}</span>. Draft profiles
+            stay hidden from public product data.
             {isFetching && !isLoading ? ' Refreshing' : ''}
           </p>
         </div>

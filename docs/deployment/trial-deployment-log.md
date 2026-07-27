@@ -92,9 +92,9 @@ For the command-by-command Hostinger/VPS setup record, use Mode 4 in `docs/deplo
 
 These are not blockers for the hosted infrastructure, but they should be considered in the next cleanup phase:
 
-- Product media upload is confusing because upload becomes available only after the product exists. The flow should make this clearer or keep the merchant in the editor after create.
-- Product preview currently depends on the separate landing-engine product site. Until that site is deployed and `VITE_LANDING_ENGINE_URL` points to it, preview URLs from Wasilio are not a complete public product page.
-- Public API display/config in the dashboard should avoid localhost-looking links in hosted environments.
+- Product media upload was confusing because upload became available only after the product existed. Follow-up UX cleanup keeps the editor open after create and enables upload as the next step.
+- Product preview depends on the separate customer page host. Follow-up UX cleanup disables Preview when that host is not connected instead of sending merchants to the Wasilio app fallback.
+- Public product data links should display the hosted origin in same-origin deployments. Follow-up UX cleanup uses the current browser origin when `VITE_API_BASE_URL=/api`.
 - Inbound Orders and Confirmation both expose paths into the confirmation workflow. This is useful for experienced merchants but may need clearer labels and grouping.
 - Public order intake worked, but it needs abuse protection before ads or wider public traffic.
 - Staff workspace creation is currently driven by demo request conversion. The super-admin UX should make that path easier to discover.
@@ -105,5 +105,5 @@ These are not blockers for the hosted infrastructure, but they should be conside
 | --- | --- |
 | Merchant access approved? | Not yet |
 | Approved by | Pending |
-| Open issues | Backup/restore rehearsal, account audit, Orders CSV check, landing-engine deployment decision, product media UX cleanup, public intake hardening before paid traffic |
+| Open issues | Backup/restore rehearsal, account audit, Orders CSV check, customer page deployment decision, public intake hardening before paid traffic |
 | Next review date | Before first real merchant handoff |
