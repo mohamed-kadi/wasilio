@@ -5,13 +5,15 @@ This is the main documentation entry point for Wasilio. Use it to decide which d
 ## Start Here
 
 1. `../README.md`: local setup, Docker Compose, seeded users, smoke tests, and API overview.
-2. `deployment/testing-and-deployment-runbook.md`: the single operator path for local testing, landing-engine rehearsal, frontend-only public mode, hosted backend trial, and SaaS production gates.
-3. `product/next-implementation-plan.md`: current tactical sequence and near-term product priorities.
-4. `architecture/system-overview.md`: system shape, backend layers, source of truth, and runtime split.
+2. `deployment/testing-and-deployment-runbook.md`: choose the right testing/deployment mode before running commands.
+3. `deployment/hosted-trial-operator-guide.md`: step-by-step VPS hosted trial guide with command explanations, backup, and restore.
+4. `product/next-implementation-plan.md`: current tactical sequence and near-term product priorities.
+5. `architecture/system-overview.md`: system shape, backend layers, source of truth, and runtime split.
 
 Supporting deployment references:
 
 - `deployment/environment-inventory.md`: where local, hosted backend, Cloudflare Pages, SMTP, media, and smoke-test variables belong.
+- `deployment/hosted-trial-operator-guide.md`: practical Hostinger/VPS deployment, Caddy, Docker Compose, backup, and restore guide.
 - `deployment/backup-restore-rehearsal.md`: database restore rehearsal, media backup, off-host storage, and merchant export boundary.
 - `deployment/trial-deployment-log.md`: hosted trial status record, open handoff checks, and walkthrough notes.
 
@@ -24,7 +26,8 @@ Current near-term direction:
 - Keep Wasilio Core stable while product UX cleanup continues.
 - Keep landing-engine connected through the public product and public order-intent contracts.
 - Use the landing-engine handoff docs as production-readiness checklists, not as a request to rebuild the integration.
-- Keep the hosted trial app stable at `app.wasilio.ma`, then finish the remaining pre-handoff checks: account ownership audit, Orders CSV check, backup, restore rehearsal, and media archive.
+- Keep the hosted trial app stable at `app.wasilio.ma`; account audit, Orders CSV, database backup, restore rehearsal, media archive, and controlled traffic checks have passed.
+- Finish the remaining pre-handoff checks: customer page deployment decision, product-create media UX cleanup, public intake abuse protection before ads or wider traffic, and quieter production logging.
 - Keep demo request conversion on the secure account setup email path; do not let staff set merchant passwords directly.
 - Continue intelligence calibration after enough realistic confirmation evidence exists.
 
@@ -73,6 +76,7 @@ For architecture changes:
 For launch, controlled merchant trials, and acquisition:
 
 - Start with `deployment/testing-and-deployment-runbook.md`, Mode 3 for frontend-only public site or Mode 4 for hosted backend trial.
+- Use `deployment/hosted-trial-operator-guide.md` when actually setting up or restoring the Hostinger/VPS hosted trial.
 - Use `deployment/environment-inventory.md` only when setting environment values.
 - Use `deployment/backup-restore-rehearsal.md` only when proving backup and restore.
 - Use `deployment/trial-deployment-log.md` to review what passed in the hosted walkthrough and what remains before real merchant handoff.
@@ -81,7 +85,8 @@ For launch, controlled merchant trials, and acquisition:
 ## Source-Of-Truth Rules
 
 - Use `../README.md` for commands and local environment setup.
-- Use `deployment/testing-and-deployment-runbook.md` as the only hosted deployment guide.
+- Use `deployment/testing-and-deployment-runbook.md` to choose the correct run mode.
+- Use `deployment/hosted-trial-operator-guide.md` as the practical hosted VPS command guide.
 - Use `deployment/environment-inventory.md` as a variable ownership reference, not as a second deployment guide.
 - Use `deployment/trial-deployment-log.md` to see hosted trial status and remaining handoff checks.
 - Use `product/next-implementation-plan.md` for the active sequence.

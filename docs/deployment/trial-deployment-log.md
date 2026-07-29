@@ -2,15 +2,15 @@
 
 This file records the July 2026 hosted Wasilio trial deployment and walkthrough. Do not store passwords, SMTP secrets, JWT secrets, database passwords, VPS IP addresses, or private keys in this log.
 
-For the command-by-command Hostinger/VPS setup record, use Mode 4 in `docs/deployment/testing-and-deployment-runbook.md`.
+For the command-by-command Hostinger/VPS setup and restore guide, use `docs/deployment/hosted-trial-operator-guide.md`.
 
 ## Deployment Identity
 
 | Field | Value |
 | --- | --- |
 | Deployment date | Initial VPS deploy: July 23, 2026. Hosted walkthrough updated through July 27, 2026. |
-| Operator | Mohamed Najib Kadi, guided by Codex |
-| Repo commit SHA | `30f081f` for the latest deployed password reset email update |
+| Operator | Mohamed Najib Kadi |
+| Repo commit SHA | `83cb886` for the latest deployed hosted product publishing UX update |
 | Trial domain | `https://app.wasilio.ma` |
 | Backend/API origin | Same origin through `/api` on `https://app.wasilio.ma` |
 | Frontend origin | `https://app.wasilio.ma` |
@@ -64,7 +64,7 @@ For the command-by-command Hostinger/VPS setup record, use Mode 4 in `docs/deplo
 | Inbound order opened confirmation workflow | Passed | Inbound order inspection could open Confirmation Ops. |
 | Confirmation attempt recorded | Passed | Confirmation workflow action moved the order forward. |
 | Confirmation moved order to assignment queue | Passed | Confirmation-to-assignment queue path was tested successfully. |
-| Orders CSV downloaded from Orders workspace | Not confirmed in this walkthrough | Keep as a pre-handoff check before real merchant operations. |
+| Orders CSV downloaded from Orders workspace | Passed | Merchant Orders CSV export worked from the Orders workspace. |
 
 ## Rehearsal Results
 
@@ -73,20 +73,21 @@ For the command-by-command Hostinger/VPS setup record, use Mode 4 in `docs/deplo
 | Manual hosted walkthrough | Passed | Login, email, merchant setup, product, media, public API, order intake, inbound, confirmation, and assignment path passed. |
 | `scripts/hosted-trial-rehearsal.sh` | Not run | Manual browser walkthrough was used first. Keep wrapper for repeatable future checks. |
 | `scripts/live-backend-smoke.mjs` | Not run | Keep as executable regression check once stable hosted test accounts are defined. |
-| `scripts/trial-account-audit.sh` | Not run | Recommended before handing a real merchant account to a trial client. |
-| Account audit review flags resolved | Pending | Depends on running `scripts/trial-account-audit.sh`. |
-| Database backup created | Pending | Required before real merchant handoff. |
-| Restore rehearsal passed | Pending | Required before real merchant handoff. |
-| Media archive created | Pending | Required before real merchant handoff if product media is used. |
-| Backup artifacts copied off-host | Pending | Required before real merchant handoff. |
+| `scripts/controlled-traffic-check.mjs` | Passed | Low-rate GET-only check completed against the hosted app and public product API; filtered backend logs showed no errors; containers remained up. |
+| `scripts/trial-account-audit.sh` | Passed | Live account audit showed two workspaces, two users, three orders, and zero trial review flags. |
+| Account audit review flags resolved | Passed | No rows were returned under trial review flags. |
+| Database backup created | Passed | `/var/backups/wasilio/wasilio-20260727T153050Z.dump` was created and catalog-verified. |
+| Restore rehearsal passed | Passed | Backup restored into isolated database `wasilio_restore_rehearsal_20260727154014`; required table counts passed; temporary database was dropped. |
+| Media archive created | Passed | Docker volume `wasilio_backend_media` was archived to `/var/backups/wasilio/wasilio-media-20260727T153050Z.tgz`. |
+| Backup artifacts copied off-host | Passed | Database dump and media archive were copied from the VPS to the operator's Mac for off-host retention. |
 
 ## Backup Artifacts
 
 | Artifact | Location | Created At | Restore/List Check |
 | --- | --- | --- | --- |
-| Database dump | Pending | Pending | Pending |
-| Media archive | Pending | Pending | Pending |
-| Off-host copy | Pending | Pending | Pending |
+| Database dump | VPS: `/var/backups/wasilio/wasilio-20260727T153050Z.dump`; off-host: `~/Desktop/wasilio-20260727T153050Z.dump` | 2026-07-27 15:30 UTC | `pg_restore --list` passed through `scripts/backup-postgres.sh`; isolated restore rehearsal passed. |
+| Media archive | VPS: `/var/backups/wasilio/wasilio-media-20260727T153050Z.tgz`; off-host: `~/Desktop/wasilio-media-20260727T153050Z.tgz` | 2026-07-27 15:50 UTC | Archive created from Docker volume `wasilio_backend_media`; off-host copy confirmed. |
+| Off-host copy | Operator Mac Desktop | 2026-07-27 | Database and media backup artifacts are no longer only on the VPS. |
 
 ## UX Notes From Hosted Walkthrough
 
@@ -98,6 +99,7 @@ These are not blockers for the hosted infrastructure, but they should be conside
 - Inbound Orders and Confirmation both expose paths into the confirmation workflow. This is useful for experienced merchants but may need clearer labels and grouping.
 - Public order intake worked, but it needs abuse protection before ads or wider public traffic.
 - Staff workspace creation is currently driven by demo request conversion. The super-admin UX should make that path easier to discover.
+- Backend Hibernate SQL logging is noisy during public product reads. This is not a trial blocker, but production logs should be reduced before wider traffic.
 
 ## Go/No-Go
 
@@ -105,5 +107,5 @@ These are not blockers for the hosted infrastructure, but they should be conside
 | --- | --- |
 | Merchant access approved? | Not yet |
 | Approved by | Pending |
-| Open issues | Backup/restore rehearsal, account audit, Orders CSV check, customer page deployment decision, public intake hardening before paid traffic |
+| Open issues | Customer page deployment decision, product-create media UX follow-up, public intake abuse protection before ads or wider public traffic, noisy SQL logging before wider traffic |
 | Next review date | Before first real merchant handoff |

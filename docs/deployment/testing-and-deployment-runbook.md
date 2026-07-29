@@ -19,6 +19,7 @@ This runbook is the operator-facing path for testing and deploying Wasilio safel
 | `docker-compose.override.yml` | Local Docker defaults: seeds, local CORS, local email logging, local media URL. |
 | `docker-compose.prod.yml` | Production overlay: required secrets, migrations only, no seed data. |
 | `docs/deployment/environment-inventory.md` | Controlled merchant trial environment ownership, variable placement, and pre-handoff checklist. |
+| `docs/deployment/hosted-trial-operator-guide.md` | Step-by-step Hostinger/VPS hosted trial guide with command explanations, backup, and restore. |
 | `docs/deployment/backup-restore-rehearsal.md` | Database restore rehearsal, media backup, off-host storage, and merchant export boundary. |
 | `docs/deployment/trial-deployment-log.md` | Optional checklist template for recording deployment checks, artifacts, and handoff decisions. |
 | `scripts/trial-env-check.sh` | Checks controlled trial environment values without printing secrets. |
@@ -26,6 +27,7 @@ This runbook is the operator-facing path for testing and deploying Wasilio safel
 | `scripts/trial-restore-rehearsal.sh` | Restores a dump into an isolated temporary database and checks required tables. |
 | `scripts/hosted-trial-rehearsal.sh` | Runs the hosted backend trial rehearsal checks in the intended order. |
 | `scripts/live-backend-smoke.mjs` | Live backend smoke checks for controlled trial deployments. |
+| `scripts/controlled-traffic-check.mjs` | GET-only low-rate hosted traffic check for readiness, frontend, and public product reads. |
 | `docs/operations.md` | Technical operations details, backup and restore, projection recovery. |
 | `docs/product/landing-engine-integration-rehearsal.md` | Local Wasilio plus landing-engine rehearsal. |
 | `docs/technical-debt.md` | Hardening debt that blocks wider SaaS production. |
@@ -134,6 +136,8 @@ Recommended first hosted shape:
 - `APP_MEDIA_PUBLIC_BASE_URL` uses the public origin that serves `/media`
 
 Use `docs/deployment/trial-deployment-log.md` as the current hosted trial status record and open handoff checklist.
+
+For the command-by-command Hostinger/VPS walkthrough, use `docs/deployment/hosted-trial-operator-guide.md`. Keep this Mode 4 section as the decision checklist and production-readiness gate.
 
 Current hosted trial shape verified in July 2026:
 
