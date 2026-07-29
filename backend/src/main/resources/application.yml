@@ -8,9 +8,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+    open-in-view: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: ${SPRING_JPA_FORMAT_SQL:false}
     show-sql: ${SPRING_JPA_SHOW_SQL:false}
   flyway:
@@ -105,5 +105,7 @@ app:
     cache-max-age: ${APP_MEDIA_CACHE_MAX_AGE:PT720H}
 
 logging:
+  level:
+    org.springframework.security.web.DefaultSecurityFilterChain: WARN
   pattern:
     console: "%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} level=%-5level logger=%logger{36} correlationId=%X{correlationId} tenantId=%X{tenantId} message=%msg%n%ex"

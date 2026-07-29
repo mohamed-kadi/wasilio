@@ -8,9 +8,9 @@ For the command-by-command Hostinger/VPS setup and restore guide, use `docs/depl
 
 | Field | Value |
 | --- | --- |
-| Deployment date | Initial VPS deploy: July 23, 2026. Hosted walkthrough updated through July 27, 2026. |
+| Deployment date | Initial VPS deploy: July 23, 2026. Hosted walkthrough updated through July 29, 2026. |
 | Operator | Mohamed Najib Kadi |
-| Repo commit SHA | `83cb886` for the latest deployed hosted product publishing UX update |
+| Repo commit SHA | `fef9cd2` for the latest deployed hosted SQL logging cleanup |
 | Trial domain | `https://app.wasilio.ma` |
 | Backend/API origin | Same origin through `/api` on `https://app.wasilio.ma` |
 | Frontend origin | `https://app.wasilio.ma` |
@@ -74,6 +74,7 @@ For the command-by-command Hostinger/VPS setup and restore guide, use `docs/depl
 | `scripts/hosted-trial-rehearsal.sh` | Not run | Manual browser walkthrough was used first. Keep wrapper for repeatable future checks. |
 | `scripts/live-backend-smoke.mjs` | Not run | Keep as executable regression check once stable hosted test accounts are defined. |
 | `scripts/controlled-traffic-check.mjs` | Passed | Low-rate GET-only check completed against the hosted app and public product API; filtered backend logs showed no errors; containers remained up. |
+| Backend SQL query logging | Passed | Hosted backend no longer prints Hibernate SQL statements during public product reads. Follow-up app config removes the explicit Hibernate dialect warning, disables open-in-view, and quiets the Spring Security filter-chain startup line. |
 | `scripts/trial-account-audit.sh` | Passed | Live account audit showed two workspaces, two users, three orders, and zero trial review flags. |
 | Account audit review flags resolved | Passed | No rows were returned under trial review flags. |
 | Database backup created | Passed | `/var/backups/wasilio/wasilio-20260727T153050Z.dump` was created and catalog-verified. |
@@ -99,7 +100,6 @@ These are not blockers for the hosted infrastructure, but they should be conside
 - Inbound Orders and Confirmation both expose paths into the confirmation workflow. This is useful for experienced merchants but may need clearer labels and grouping.
 - Public order intake worked, but it needs abuse protection before ads or wider public traffic.
 - Staff workspace creation is currently driven by demo request conversion. The super-admin UX should make that path easier to discover.
-- Backend Hibernate SQL logging is noisy during public product reads. This is not a trial blocker, but production logs should be reduced before wider traffic.
 
 ## Go/No-Go
 
@@ -107,5 +107,5 @@ These are not blockers for the hosted infrastructure, but they should be conside
 | --- | --- |
 | Merchant access approved? | Not yet |
 | Approved by | Pending |
-| Open issues | Customer page deployment decision, product-create media UX follow-up, public intake abuse protection before ads or wider public traffic, noisy SQL logging before wider traffic |
+| Open issues | Customer page deployment decision, product-create media UX follow-up, public intake abuse protection before ads or wider public traffic |
 | Next review date | Before first real merchant handoff |
