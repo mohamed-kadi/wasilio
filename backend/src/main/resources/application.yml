@@ -11,8 +11,8 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
-    show-sql: true
+        format_sql: ${SPRING_JPA_FORMAT_SQL:false}
+    show-sql: ${SPRING_JPA_SHOW_SQL:false}
   flyway:
     enabled: true
   mail:
