@@ -111,7 +111,7 @@ function StorefrontSettingsEditor({
   const slugForDisplay = settings?.storeSlug ?? slugPreview(form.storeSlug);
   const publicProductUrl = publicProductApiPattern(slugForDisplay);
   const publicOrderUrl = publicOrderApiPattern(slugForDisplay);
-  const landingEnginePattern = landingEngineProductPattern();
+  const landingEnginePattern = landingEngineProductPattern(slugForDisplay);
   const envSnippet = useMemo(() => landingEngineEnvSnippet(slugForDisplay), [slugForDisplay]);
 
   function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {

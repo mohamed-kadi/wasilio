@@ -14,6 +14,15 @@ NEXT_PUBLIC_WASILIO_PUBLIC_API_BASE_URL=http://localhost:8080
 NEXT_PUBLIC_WASILIO_STORE_SLUG=<storeSlug>
 ```
 
+Wasilio's dashboard Preview links are built from Wasilio frontend configuration:
+
+```bash
+VITE_LANDING_ENGINE_URL=http://localhost:3000
+VITE_LANDING_ENGINE_PRODUCT_PATH_PATTERN=/products/:productSlug
+```
+
+Keep `/products/:productSlug` for the current one-configured-store landing-engine deployment. If landing-engine later serves many merchant stores from one shared host, switch Wasilio to a store-aware pattern such as `/stores/:storeSlug/products/:productSlug` after that route is supported by the customer-page host.
+
 Current local landing-engine `.env.local` was observed with:
 
 ```bash

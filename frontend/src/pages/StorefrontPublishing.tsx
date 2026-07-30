@@ -320,7 +320,9 @@ function PublishingProductRow({
     ? publicProductApiUrl(settings.storeSlug, product.slug)
     : publicProductApiPattern();
   const customerPageConnected = customerPageHostConfigured();
-  const previewUrl = settings?.storeSlug && customerPageConnected ? landingEngineProductUrl(product.slug) : null;
+  const previewUrl = settings?.storeSlug && customerPageConnected
+    ? landingEngineProductUrl(settings.storeSlug, product.slug)
+    : null;
   const mediaReadiness = evaluateMediaReadiness({
     product,
     profile: profile ?? null,

@@ -359,7 +359,7 @@ export default function Products() {
                       profile={(profileQuery?.data as StorefrontProductProfile | null | undefined) ?? null}
                       profileLoading={Boolean(profileQuery?.isLoading)}
                       profileError={profileQuery?.error}
-                      storefrontConfigured={Boolean(storefrontSettings?.storeSlug)}
+                      storeSlug={storefrontSettings?.storeSlug}
                       onEdit={() => openEditProduct(product)}
                       onArchive={() => archiveMutation.mutate(product.id)}
                       archivePending={archiveMutation.isPending}
@@ -455,7 +455,7 @@ function ProductRow({
   profile,
   profileLoading,
   profileError,
-  storefrontConfigured,
+  storeSlug,
   onEdit,
   onArchive,
   archivePending,
@@ -464,14 +464,15 @@ function ProductRow({
   profile: StorefrontProductProfile | null;
   profileLoading: boolean;
   profileError: unknown;
-  storefrontConfigured: boolean;
+  storeSlug?: string;
   onEdit: () => void;
   onArchive: () => void;
   archivePending: boolean;
 }) {
   const readiness = evaluateProductReadiness(product, profile);
   const customerPageConnected = customerPageHostConfigured();
-  const previewUrl = storefrontConfigured && customerPageConnected ? landingEngineProductUrl(product.slug) : null;
+  const storefrontConfigured = Boolean(storeSlug);
+  const previewUrl = storeSlug && customerPageConnected ? landingEngineProductUrl(storeSlug, product.slug) : null;
 
   return (
     <tr className="hover:bg-gray-50">

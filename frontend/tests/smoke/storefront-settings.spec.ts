@@ -37,12 +37,15 @@ test('storefront settings exposes landing-engine integration values', async ({ p
   await expectNoHorizontalOverflow(page);
   await page.getByText('Developer setup').click();
 
+  const appOrigin = new URL(page.url()).origin;
   await expect(page.getByText('Public product GET')).toBeVisible();
-  await expect(page.getByText('http://localhost:8080/api/public/storefront/first-store/products/<productSlug>')).toBeVisible();
+  await expect(page.getByText(`${appOrigin}/api/public/storefront/first-store/products/<productSlug>`)).toBeVisible();
   await expect(page.getByText('Public order POST')).toBeVisible();
-  await expect(page.getByText('http://localhost:8080/api/public/storefront/first-store/orders')).toBeVisible();
+  await expect(page.getByText(`${appOrigin}/api/public/storefront/first-store/orders`)).toBeVisible();
+  await expect(page.getByText('Customer page pattern')).toBeVisible();
+  await expect(page.getByText('http://localhost:3000/products/<productSlug>')).toBeVisible();
   await expect(page.getByText('NEXT_PUBLIC_PRODUCT_PROVIDER=wasilio')).toBeVisible();
-  await expect(page.getByText('NEXT_PUBLIC_WASILIO_PUBLIC_API_BASE_URL=http://localhost:8080')).toBeVisible();
+  await expect(page.getByText(`NEXT_PUBLIC_WASILIO_PUBLIC_API_BASE_URL=${appOrigin}`)).toBeVisible();
   await expect(page.getByText('NEXT_PUBLIC_WASILIO_STORE_SLUG=first-store')).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });

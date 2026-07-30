@@ -2,6 +2,7 @@ import { API_BASE_URL } from '../api/client';
 
 const DEFAULT_PUBLIC_API_BASE_URL = 'http://localhost:8080';
 const DEFAULT_LANDING_ENGINE_URL = 'http://localhost:3000';
+const DEFAULT_LANDING_ENGINE_PRODUCT_PATH_PATTERN = '/products/:productSlug';
 
 export function publicApiBaseUrlForDisplay(): string {
   const configured = API_BASE_URL.trim();
@@ -69,12 +70,18 @@ export function publicOrderApiPattern(storeSlug?: string): string {
   return `${publicApiBaseUrlForDisplay()}/api/public/storefront/${safeStoreSlug}/orders`;
 }
 
-export function landingEngineProductUrl(productSlug: string): string {
-  return `${landingEngineUrlForDisplay()}/products/${productSlug}?wasilioPreview=1`;
+export function landingEngineProductUrl(storeSlug: string, productSlug: string): string {
+  const url = new URL(renderLandingEngineProductPath(storeSlug, productSlug), `${landingEngineUrlForDisplay()}/`);
+  url.searchParams.set('wasilioPreview', '1');
+  return url.toString();
 }
 
-export function landingEngineProductPattern(): string {
-  return `${landingEngineUrlForDisplay()}/products/<productSlug>`;
+export function landingEngineProductPattern(storeSlug?: string): string {
+  return `${landingEngineUrlForDisplay()}${renderLandingEngineProductPath(
+    storeSlug || '<storeSlug>',
+    '<productSlug>',
+    false,
+  )}`;
 }
 
 export function landingEngineEnvSnippet(storeSlug?: string): string {
@@ -83,4 +90,28 @@ export function landingEngineEnvSnippet(storeSlug?: string): string {
     `NEXT_PUBLIC_WASILIO_PUBLIC_API_BASE_URL=${publicApiBaseUrlForDisplay()}`,
     `NEXT_PUBLIC_WASILIO_STORE_SLUG=${storeSlug || '<storeSlug>'}`,
   ].join('\n');
+}
+
+function landingEngineProductPathPattern(): string {
+  const configured = import.meta.env.VITE_LANDING_ENGINE_PRODUCT_PATH_PATTERN?.trim();
+  return normalizeProductPathPattern(configured || DEFAULT_LANDING_ENGINE_PRODUCT_PATH_PATTERN);
+}
+
+function normalizeProductPathPattern(pattern: string): string {
+  const trimmed = pattern.trim() || DEFAULT_LANDING_ENGINE_PRODUCT_PATH_PATTERN;
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+}
+
+function renderLandingEngineProductPath(storeSlug: string, productSlug: string, encode = true): string {
+  const safeStoreSlug = encode ? encodeURIComponent(storeSlug) : storeSlug;
+  const safeProductSlug = encode ? encodeURIComponent(productSlug) : productSlug;
+
+  return landingEngineProductPathPattern()
+    .replaceAll(':storeSlug', safeStoreSlug)
+    .replaceAll('{storeSlug}', safeStoreSlug)
+    .replaceAll('<storeSlug>', safeStoreSlug)
+    .replaceAll(':productSlug', safeProductSlug)
+    .replaceAll('{productSlug}', safeProductSlug)
+    .replaceAll('<productSlug>', safeProductSlug)
+    .replaceAll(':slug', safeProductSlug);
 }

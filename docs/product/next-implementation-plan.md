@@ -80,6 +80,7 @@ Completed in Phase 37 so far:
 - Phase 37A hardened the Compose topology for a single-host trial: backend internal, frontend/Nginx public, health-only Actuator proxy, production restart policies, media upload size at Nginx, and safer forwarded IP handling.
 - Phase 37B folded the concrete hosted Compose trial steps into the main testing/deployment runbook, then converted the deployment log into the hosted trial status record and open handoff checklist.
 - Phase 37C started Product Publishing and Customer Page Readiness by smoothing product creation media UX: merchants can choose a primary image during new-product creation, then Wasilio creates the product and uploads the selected image in the same editor session.
+- Phase 37D made Wasilio Preview links customer-page route aware: the current one-store landing-engine path remains `/products/:productSlug`, while the dashboard can switch to a store-aware path such as `/stores/:storeSlug/products/:productSlug` after the customer-page host supports it.
 
 ## Architecture Direction Note
 
