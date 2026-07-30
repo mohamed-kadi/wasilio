@@ -1,4 +1,4 @@
-import { type SyntheticEvent, useState } from 'react';
+import { type SyntheticEvent, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -82,6 +82,7 @@ export default function Products() {
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [currencyOverrideEnabled, setCurrencyOverrideEnabled] = useState(false);
   const [editorNotice, setEditorNotice] = useState<string | null>(null);
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
 
   const {
     data: productsPage,
@@ -132,16 +133,38 @@ export default function Products() {
   )).length;
   const defaultCurrency = storefrontSettings?.defaultCurrency ?? 'MAD';
 
+  const mediaUploadMutation = useMutation({
+    mutationFn: ({ productId, file }: { productId: string; file: File }) => uploadProductMedia(productId, file),
+    onSuccess: async (media) => {
+      setPendingImageFile(null);
+      setEditorNotice('Image uploaded and saved to this product.');
+      setForm((current) => ({ ...current, imageUrl: media.publicUrl }));
+      setEditingProduct((current) => (
+        current?.id === media.productId
+          ? { ...current, imageUrl: media.publicUrl, updatedAt: media.createdAt }
+          : current
+      ));
+      updateProductImageInProductCaches(queryClient, media.productId, media.publicUrl, media.createdAt);
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: (payload: ProductPayload) => createProduct(payload),
     onSuccess: async (product) => {
+      const imageToUpload = pendingImageFile;
       setEditingProduct(product);
       setForm(formFromProduct(product));
       setSlugManuallyEdited(true);
       setCurrencyOverrideEnabled(Boolean(storefrontSettings?.defaultCurrency && product.currency !== storefrontSettings.defaultCurrency));
       setEditorOpen(true);
-      setEditorNotice('Product created. Upload the primary image now, then save any remaining edits.');
       await queryClient.invalidateQueries({ queryKey: ['products'] });
+      if (imageToUpload) {
+        setEditorNotice('Product created. Uploading selected image.');
+        mediaUploadMutation.mutate({ productId: product.id, file: imageToUpload });
+      } else {
+        setEditorNotice('Product created. Choose the primary image now, then save any remaining edits.');
+      }
     },
   });
 
@@ -162,21 +185,7 @@ export default function Products() {
       await queryClient.invalidateQueries({ queryKey: ['products'] });
     },
   });
-  const mediaUploadMutation = useMutation({
-    mutationFn: ({ productId, file }: { productId: string; file: File }) => uploadProductMedia(productId, file),
-    onSuccess: async (media) => {
-      setEditorNotice('Image uploaded and saved to this product.');
-      setForm((current) => ({ ...current, imageUrl: media.publicUrl }));
-      setEditingProduct((current) => (
-        current?.id === media.productId
-          ? { ...current, imageUrl: media.publicUrl, updatedAt: media.createdAt }
-          : current
-      ));
-      updateProductImageInProductCaches(queryClient, media.productId, media.publicUrl, media.createdAt);
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
-    },
-  });
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  const isSubmitting = createMutation.isPending || updateMutation.isPending || mediaUploadMutation.isPending;
 
   function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -191,6 +200,7 @@ export default function Products() {
   function openNewProduct() {
     mediaUploadMutation.reset();
     setEditorNotice(null);
+    setPendingImageFile(null);
     setEditingProduct(null);
     setForm({ ...EMPTY_FORM, currency: defaultCurrency });
     setSlugManuallyEdited(false);
@@ -201,6 +211,7 @@ export default function Products() {
   function openEditProduct(product: Product) {
     mediaUploadMutation.reset();
     setEditorNotice(null);
+    setPendingImageFile(null);
     setEditingProduct(product);
     setForm(formFromProduct(product));
     setSlugManuallyEdited(true);
@@ -211,6 +222,7 @@ export default function Products() {
   function closeEditor() {
     mediaUploadMutation.reset();
     setEditorNotice(null);
+    setPendingImageFile(null);
     setEditingProduct(null);
     setForm({ ...EMPTY_FORM, currency: defaultCurrency });
     setSlugManuallyEdited(false);
@@ -413,6 +425,7 @@ export default function Products() {
           archivePending={archiveMutation.isPending}
           imageUploadPending={mediaUploadMutation.isPending}
           imageUploadError={mediaUploadMutation.error}
+          pendingImageFile={pendingImageFile}
           onClose={closeEditor}
           onSubmit={handleSubmit}
           notice={editorNotice}
@@ -421,6 +434,15 @@ export default function Products() {
           onFormChange={setForm}
           onCurrencyOverrideChange={toggleCurrencyOverride}
           onArchive={() => editingProduct && archiveMutation.mutate(editingProduct.id)}
+          onPendingImageSelect={(file) => {
+            mediaUploadMutation.reset();
+            setPendingImageFile(file);
+            setEditorNotice('Image selected. It will upload when the product is created.');
+          }}
+          onPendingImageClear={() => {
+            setPendingImageFile(null);
+            setEditorNotice(null);
+          }}
           onImageUpload={(file) => editingProduct && mediaUploadMutation.mutate({ productId: editingProduct.id, file })}
         />
       )}
@@ -552,6 +574,7 @@ function ProductEditorPanel({
   archivePending,
   imageUploadPending,
   imageUploadError,
+  pendingImageFile,
   notice,
   onClose,
   onSubmit,
@@ -560,6 +583,8 @@ function ProductEditorPanel({
   onFormChange,
   onCurrencyOverrideChange,
   onArchive,
+  onPendingImageSelect,
+  onPendingImageClear,
   onImageUpload,
 }: {
   editingProduct: Product | null;
@@ -571,6 +596,7 @@ function ProductEditorPanel({
   archivePending: boolean;
   imageUploadPending: boolean;
   imageUploadError: unknown;
+  pendingImageFile: File | null;
   notice: string | null;
   onClose: () => void;
   onSubmit: (event: SyntheticEvent<HTMLFormElement>) => void;
@@ -579,10 +605,24 @@ function ProductEditorPanel({
   onFormChange: (nextForm: ProductFormState | ((current: ProductFormState) => ProductFormState)) => void;
   onCurrencyOverrideChange: (enabled: boolean) => void;
   onArchive: () => void;
+  onPendingImageSelect: (file: File) => void;
+  onPendingImageClear: () => void;
   onImageUpload: (file: File) => void;
 }) {
   const currencyLocked = hasStorefrontCurrency && !currencyOverrideEnabled;
-  const canUploadImage = Boolean(editingProduct);
+  const pendingImagePreviewUrl = useMemo(
+    () => (pendingImageFile ? URL.createObjectURL(pendingImageFile) : undefined),
+    [pendingImageFile],
+  );
+  const previewImageUrl = pendingImagePreviewUrl ?? form.imageUrl;
+
+  useEffect(() => {
+    if (!pendingImagePreviewUrl) {
+      return;
+    }
+
+    return () => URL.revokeObjectURL(pendingImagePreviewUrl);
+  }, [pendingImagePreviewUrl]);
 
   return (
     <div className="fixed inset-0 z-40">
@@ -716,7 +756,7 @@ function ProductEditorPanel({
                 <span className="mb-1 block text-sm font-medium text-gray-700">Primary Product Image</span>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-[112px_1fr]">
                   <ProductImageFrame
-                    imageUrl={form.imageUrl}
+                    imageUrl={previewImageUrl}
                     alt={form.name || 'Product image'}
                     size="lg"
                     testId="product-editor-image-preview"
@@ -725,31 +765,48 @@ function ProductEditorPanel({
                     <div className="flex flex-wrap gap-2">
                       <label
                         className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium ${
-                          canUploadImage && !imageUploadPending
+                          !imageUploadPending
                             ? 'cursor-pointer border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
                             : 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400'
                         }`}
                       >
                         <Upload size={16} />
-                        {imageUploadPending ? 'Uploading' : 'Upload image'}
+                        {imageUploadPending
+                          ? 'Uploading'
+                          : editingProduct
+                            ? form.imageUrl
+                              ? 'Replace image'
+                              : 'Upload image'
+                            : pendingImageFile
+                              ? 'Change selected image'
+                              : 'Choose image'}
                         <input
                           type="file"
                           accept="image/png,image/jpeg,image/webp"
                           className="sr-only"
-                          disabled={!canUploadImage || imageUploadPending}
+                          disabled={imageUploadPending}
                           onChange={(event) => {
                             const file = event.target.files?.[0];
                             event.target.value = '';
                             if (file) {
-                              onImageUpload(file);
+                              if (editingProduct) {
+                                onImageUpload(file);
+                              } else {
+                                onPendingImageSelect(file);
+                              }
                             }
                           }}
                         />
                       </label>
-                      {!canUploadImage && (
-                        <span className="self-center text-xs text-gray-500">
-                          Product record required before media upload. This panel will stay open.
-                        </span>
+                      {pendingImageFile && !editingProduct && (
+                        <button
+                          type="button"
+                          onClick={onPendingImageClear}
+                          className="inline-flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                          <X size={16} />
+                          Remove selected
+                        </button>
                       )}
                     </div>
                     <input
@@ -759,7 +816,13 @@ function ProductEditorPanel({
                       maxLength={1000}
                       placeholder="Image URL"
                     />
-                    <span className="block text-xs text-gray-500">JPEG, PNG, or WebP up to 5 MB.</span>
+                    <span className="block text-xs text-gray-500">
+                      {editingProduct
+                        ? 'Upload a JPEG, PNG, or WebP up to 5 MB.'
+                        : pendingImageFile
+                          ? `${pendingImageFile.name} will upload automatically after product creation.`
+                          : 'Choose a JPEG, PNG, or WebP up to 5 MB. It uploads automatically after product creation.'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -806,7 +869,15 @@ function ProductEditorPanel({
                 className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
               >
                 <PackagePlus size={18} />
-                {isSubmitting ? 'Saving' : editingProduct ? 'Save Product' : 'Create Product'}
+                {isSubmitting
+                  ? imageUploadPending
+                    ? 'Uploading Image'
+                    : 'Saving'
+                  : editingProduct
+                    ? 'Save Product'
+                    : pendingImageFile
+                      ? 'Create and Upload Image'
+                      : 'Create Product'}
               </button>
             </div>
           </div>

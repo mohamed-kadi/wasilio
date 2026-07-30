@@ -79,6 +79,7 @@ Completed in Phase 37 so far:
 
 - Phase 37A hardened the Compose topology for a single-host trial: backend internal, frontend/Nginx public, health-only Actuator proxy, production restart policies, media upload size at Nginx, and safer forwarded IP handling.
 - Phase 37B folded the concrete hosted Compose trial steps into the main testing/deployment runbook, then converted the deployment log into the hosted trial status record and open handoff checklist.
+- Phase 37C started Product Publishing and Customer Page Readiness by smoothing product creation media UX: merchants can choose a primary image during new-product creation, then Wasilio creates the product and uploads the selected image in the same editor session.
 
 ## Architecture Direction Note
 
@@ -94,6 +95,8 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 4. Intelligence calibration trial after enough realistic confirmation evidence is available.
 
 Landing-engine integration is already connected locally through the public product and order-intent contracts. Any landing-engine handoff work from here should be treated as production-readiness documentation, environment verification, and QA rehearsal, not a rebuild of the connection.
+
+For the first controlled merchant trial, support many products by giving each product its own landing page under the configured merchant storefront. A full browseable multi-product catalog and many-store routing on one shared landing-engine host are separate later features. The immediate production path is product landing pages that read Wasilio public product data and submit COD order intent back to Wasilio.
 
 ## Immediate Priorities
 

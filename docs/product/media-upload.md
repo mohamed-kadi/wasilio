@@ -8,6 +8,7 @@ Phase 24 tightens merchant-facing media UX so uploaded product images render in 
 Phase 24B makes Wasilio merchant Preview links request fresh landing-engine product data so recently uploaded images are visible immediately without changing public customer caching.
 Phase 24C makes Storefront Publishing media readiness explicit so merchants can review primary image, gallery media, SEO image, public API media, and fresh preview status before publishing.
 Phase 24D turns that media path into a repeatable QA rehearsal: Wasilio upload/display, public product media payload, fresh landing-engine preview, and dashboard layout stability should be checked together before moving on.
+Phase 37C removes the create-first/edit-again merchant confusion: the Products editor can accept a primary image before the product exists, then creates the product and uploads the selected image automatically after the backend returns the product ID.
 
 ## Scope
 
@@ -83,6 +84,7 @@ Landing-engine should treat these values as display URLs owned by Wasilio. It sh
 - Product table thumbnails and product editor previews must use fixed-size frames with `object-contain` so large uploaded images remain visible and do not distort dashboard density.
 - Image frames must keep the same dimensions when the source is missing, loading, or unavailable; the fallback state should not expand rows or editor panels.
 - Product image uploads should update the open editor and product table cache immediately, then refresh from the backend in the background.
+- New product creation should let merchants choose the primary image in the same editor session. The frontend may hold the selected file locally, create the product first, then call `POST /api/products/{productId}/media` automatically once a product ID exists.
 - Wasilio UI previews may normalize backend-relative `/media/...` paths for display. This is a frontend rendering convenience only; stored product/profile payload values remain unchanged.
 - Wasilio merchant Preview links include `wasilioPreview=1`; landing-engine treats that flag as an operator preview and bypasses its short product cache for that request.
 - Storefront Publishing should show media readiness separately from general landing content readiness. Primary image, gallery media, SEO image/fallback, public API media, and fresh preview status should be visible at row level.
@@ -126,6 +128,7 @@ Storefront Publishing should stay useful as a readiness workspace without becomi
 For every media contract change, verify:
 
 - `PRODUCT_IMAGE` upload returns a `publicUrl` and updates the authenticated product `imageUrl`.
+- A merchant can choose a primary image before creating a new product, save once, and see the uploaded image without closing and reopening the editor.
 - Product dashboard/editor previews shrink the image into stable frames.
 - Broken or temporarily unreachable product media falls back inside the same thumbnail frame.
 - Product and publishing Preview links include `wasilioPreview=1` so landing-engine refreshes Wasilio product data after media changes.

@@ -104,7 +104,7 @@ test('merchant uploads primary product media from product editor', async ({ page
   await expect(editorPreview).toHaveCSS('width', '112px');
   await expect(editorPreview).toHaveCSS('height', '112px');
   await expect(editorPreview.locator('img')).toHaveCSS('object-fit', 'contain');
-  await expect(page.getByText('JPEG, PNG, or WebP up to 5 MB.')).toBeVisible();
+  await expect(page.getByText('Upload a JPEG, PNG, or WebP up to 5 MB.')).toBeVisible();
 
   await page.getByRole('button', { name: /close product editor/i }).click();
   const thumbnail = page.getByTestId('product-thumbnail').first();
@@ -205,17 +205,16 @@ test('merchant creates a product then uploads media without reopening the editor
   await page.getByLabel('Name', { exact: true }).fill('New Serum');
   await page.getByLabel('Price').fill('129');
   await page.getByLabel('Description').fill('Hydrating serum');
-  await expect(page.getByText('Product record required before media upload. This panel will stay open.')).toBeVisible();
-  await page.getByRole('button', { name: /create product/i }).click();
-
-  await expect(page.getByRole('heading', { name: 'Edit Product' })).toBeVisible();
-  await expect(page.getByText('Product created. Upload the primary image now, then save any remaining edits.')).toBeVisible();
   await page.locator('input[type="file"]').setInputFiles({
     name: 'serum.webp',
     mimeType: 'image/webp',
     buffer: Buffer.from('RIFF____WEBPVP8 '),
   });
+  await expect(page.getByText('Image selected. It will upload when the product is created.')).toBeVisible();
+  await expect(page.getByText('serum.webp will upload automatically after product creation.')).toBeVisible();
+  await page.getByRole('button', { name: /create and upload image/i }).click();
 
+  await expect(page.getByRole('heading', { name: 'Edit Product' })).toBeVisible();
   await expect(page.getByText('Image uploaded and saved to this product.')).toBeVisible();
   await expect(page.getByPlaceholder('Image URL')).toHaveValue(uploadedImageUrl);
 });
