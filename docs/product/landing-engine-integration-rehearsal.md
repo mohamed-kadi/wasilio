@@ -12,6 +12,7 @@ The sibling landing-engine project uses these environment variables for Wasilio 
 NEXT_PUBLIC_PRODUCT_PROVIDER=wasilio
 NEXT_PUBLIC_WASILIO_PUBLIC_API_BASE_URL=http://localhost:8080
 NEXT_PUBLIC_WASILIO_STORE_SLUG=<storeSlug>
+NEXT_PUBLIC_WASILIO_STOREFRONT_ROOT_DOMAIN=
 ```
 
 Wasilio's dashboard Preview links are built from Wasilio frontend configuration:
@@ -19,9 +20,23 @@ Wasilio's dashboard Preview links are built from Wasilio frontend configuration:
 ```bash
 VITE_LANDING_ENGINE_URL=http://localhost:3000
 VITE_LANDING_ENGINE_PRODUCT_PATH_PATTERN=/products/:productSlug
+VITE_LANDING_ENGINE_PRODUCT_URL_PATTERN=
 ```
 
-Keep `/products/:productSlug` for the current one-configured-store landing-engine deployment. If landing-engine later serves many merchant stores from one shared host, switch Wasilio to a store-aware pattern such as `/stores/:storeSlug/products/:productSlug` after that route is supported by the customer-page host.
+Use the local/default path pair for laptop rehearsal. For the shared hosted landing-engine, use the full product URL pattern:
+
+```bash
+VITE_LANDING_ENGINE_PRODUCT_URL_PATTERN=https://:storeSlug.wasilio.ma/products/:productSlug
+```
+
+That pattern supports one Wasilio-hosted storefront subdomain per merchant workspace, such as:
+
+```text
+https://trusila.wasilio.ma/products/shilajit
+https://trusila.wasilio.ma/products/portable-usb-fan
+```
+
+For landing-engine itself, set `NEXT_PUBLIC_WASILIO_STOREFRONT_ROOT_DOMAIN=wasilio.ma` so requests to `trusila.wasilio.ma` resolve the `trusila` store slug. Keep `NEXT_PUBLIC_WASILIO_STORE_SLUG=<storeSlug>` as the local fallback when running on `localhost`.
 
 Current local landing-engine `.env.local` was observed with:
 
@@ -29,6 +44,7 @@ Current local landing-engine `.env.local` was observed with:
 NEXT_PUBLIC_PRODUCT_PROVIDER=wasilio
 NEXT_PUBLIC_WASILIO_PUBLIC_API_BASE_URL=http://localhost:8080
 NEXT_PUBLIC_WASILIO_STORE_SLUG=first-store
+NEXT_PUBLIC_WASILIO_STOREFRONT_ROOT_DOMAIN=
 ```
 
 Wasilio shows these values in Storefront Settings under Developer setup after a merchant configures the public storefront.
@@ -115,11 +131,18 @@ For merchant QA immediately after changing product media in Wasilio, use the pre
 http://localhost:3000/products/coolair-mini?wasilioPreview=1
 ```
 
+When using the shared subdomain host, the equivalent preview URL is:
+
+```text
+https://first-store.wasilio.ma/products/coolair-mini?wasilioPreview=1
+```
+
 The preview flag tells landing-engine to fetch the Wasilio product payload fresh for the operator request. Normal public product pages keep the short landing-engine cache.
 
 As of Phase 24D, the expected landing-engine code path is:
 
 - `/products/{slug}?wasilioPreview=1` passes `fresh: true` to the product provider.
+- On shared hosts, landing-engine resolves `{storeSlug}` from `{storeSlug}.wasilio.ma`.
 - `wasilioProductProvider` uses `cache: 'no-store'` for that preview fetch.
 - Regular public product pages keep the existing short revalidation cache.
 - Wasilio Storefront Publishing shows the same preview URL as a compact copy/open action, not as a long wrapped table value.
@@ -143,16 +166,17 @@ For real media upload/display validation before order submission, use `docs/prod
 2. Merchant creates an ACTIVE catalog product.
 3. Merchant uploads primary product media.
 4. Merchant creates and publishes storefront profile content.
-5. Landing-engine reads:
+5. Landing-engine resolves the store slug from either local configuration or the shared subdomain.
+6. Landing-engine reads:
 
    `GET /api/public/storefront/{storeSlug}/products/{productSlug}`
 
-6. Landing-engine renders product name, offer, primary image, gallery media, SEO image, support channel, and published landing profile content.
-7. Landing-engine submits:
+7. Landing-engine renders product name, offer, primary image, gallery media, SEO image, support channel, and published landing profile content.
+8. Landing-engine submits:
 
    `POST /api/public/storefront/{storeSlug}/orders`
 
-8. Wasilio returns only the public receipt shape:
+9. Wasilio returns only the public receipt shape:
 
 ```json
 {
@@ -162,7 +186,7 @@ For real media upload/display validation before order submission, use `docs/prod
 }
 ```
 
-9. Wasilio internally creates the inbound order, normalized operational order, order line snapshot, initial intelligence snapshot, score signals, and audit event.
+10. Wasilio internally creates the inbound order, normalized operational order, order line snapshot, initial intelligence snapshot, score signals, and audit event.
 
 ## Contract Boundaries
 
@@ -197,6 +221,7 @@ Wasilio Phase 21 and Phase 22 lock this path with:
 - Public response shape checks so product and order responses do not expose internal fields.
 - Internal intelligence checks proving accepted public orders are scored by Wasilio, not by landing-engine.
 - Storefront Settings smoke coverage for landing-engine `.env.local`, product GET URL, and order POST URL.
+- Shared storefront routing tests in landing-engine verify merchant subdomains map to the correct Wasilio store slug while reserved platform hosts such as `app.wasilio.ma` are ignored.
 
 External landing-engine browser QA should verify:
 

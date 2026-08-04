@@ -39,4 +39,9 @@ NEXT_PUBLIC_WASILIO_PUBLIC_API_BASE_URL=http://localhost:8080
 NEXT_PUBLIC_WASILIO_STORE_SLUG=<storeSlug>
 ```
 
-Wasilio dashboard Preview links use `VITE_LANDING_ENGINE_URL` plus `VITE_LANDING_ENGINE_PRODUCT_PATH_PATTERN`. Keep the default `/products/:productSlug` until the customer-page host supports a store-aware route such as `/stores/:storeSlug/products/:productSlug`.
+Wasilio dashboard Preview links support two shapes:
+
+- Local/default: `VITE_LANDING_ENGINE_URL=http://localhost:3000` with `VITE_LANDING_ENGINE_PRODUCT_PATH_PATTERN=/products/:productSlug`.
+- Shared merchant subdomains: `VITE_LANDING_ENGINE_PRODUCT_URL_PATTERN=https://:storeSlug.wasilio.ma/products/:productSlug`.
+
+When the full URL pattern is set, it takes priority over the local origin/path pair.

@@ -49,6 +49,7 @@ Use these values when deploying the public frontend:
 | `VITE_API_BASE_URL` | hosted backend `/api` URL only after a backend is connected |
 | `VITE_LANDING_ENGINE_URL` | public product-preview origin when merchant previews are used |
 | `VITE_LANDING_ENGINE_PRODUCT_PATH_PATTERN` | customer-page product route pattern; default `/products/:productSlug` |
+| `VITE_LANDING_ENGINE_PRODUCT_URL_PATTERN` | optional full customer-page URL pattern for shared merchant subdomains, for example `https://:storeSlug.wasilio.ma/products/:productSlug` |
 
 For the current frontend-only public site, keep backend-dependent actions treated as not fully production-ready unless `VITE_API_BASE_URL` points to a live backend that has passed smoke checks.
 

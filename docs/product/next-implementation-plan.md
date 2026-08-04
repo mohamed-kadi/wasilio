@@ -81,6 +81,7 @@ Completed in Phase 37 so far:
 - Phase 37B folded the concrete hosted Compose trial steps into the main testing/deployment runbook, then converted the deployment log into the hosted trial status record and open handoff checklist.
 - Phase 37C started Product Publishing and Customer Page Readiness by smoothing product creation media UX: merchants can choose a primary image during new-product creation, then Wasilio creates the product and uploads the selected image in the same editor session.
 - Phase 37D made Wasilio Preview links customer-page route aware: the current one-store landing-engine path remains `/products/:productSlug`, while the dashboard can switch to a store-aware path such as `/stores/:storeSlug/products/:productSlug` after the customer-page host supports it.
+- Phase 37E starts shared storefront routing for the Wasilio-hosted landing page: product pages can be addressed as `https://{storeSlug}.wasilio.ma/products/{productSlug}`, while local rehearsal keeps the `localhost` fallback.
 
 ## Architecture Direction Note
 
@@ -97,7 +98,7 @@ Do not build a Wasilio storefront as a standalone business-rule layer. Storefron
 
 Landing-engine integration is already connected locally through the public product and order-intent contracts. Any landing-engine handoff work from here should be treated as production-readiness documentation, environment verification, and QA rehearsal, not a rebuild of the connection.
 
-For the first controlled merchant trial, support many products by giving each product its own landing page under the configured merchant storefront. A full browseable multi-product catalog and many-store routing on one shared landing-engine host are separate later features. The immediate production path is product landing pages that read Wasilio public product data and submit COD order intent back to Wasilio.
+For the first controlled merchant trial, support many products by giving each product its own landing page under the configured merchant storefront. The immediate production path is product landing pages that read Wasilio public product data and submit COD order intent back to Wasilio. A full browseable multi-product catalog, custom merchant domains, and multiple storefront brands per tenant remain later features.
 
 ## Immediate Priorities
 

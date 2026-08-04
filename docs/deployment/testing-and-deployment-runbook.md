@@ -159,8 +159,9 @@ Required before deploy:
 - `APP_FRONTEND_BASE_URL` points to the real frontend.
 - `VITE_API_BASE_URL` points to the real backend `/api` URL.
 - `APP_MEDIA_PUBLIC_BASE_URL` points to the public backend or same-origin app URL that serves `/media`.
-- `VITE_LANDING_ENGINE_URL` points to the landing-engine product site if merchant previews are used.
-- `VITE_LANDING_ENGINE_PRODUCT_PATH_PATTERN` matches the customer-page route shape. Keep `/products/:productSlug` for one configured merchant storefront, or use a store-aware pattern such as `/stores/:storeSlug/products/:productSlug` only after the customer-page host supports it.
+- `VITE_LANDING_ENGINE_URL` points to the landing-engine product site for local/default merchant previews.
+- `VITE_LANDING_ENGINE_PRODUCT_PATH_PATTERN` stays `/products/:productSlug` for local/default previews.
+- `VITE_LANDING_ENGINE_PRODUCT_URL_PATTERN` is set only when landing-engine is deployed as a shared storefront host, for example `https://:storeSlug.wasilio.ma/products/:productSlug`.
 - Production CORS contains only approved frontend origins.
 - Public onboarding decision is explicit.
 - Backup location is encrypted and off-host.
@@ -180,6 +181,7 @@ Production Compose requires these values:
 | `VITE_API_BASE_URL` | Browser API URL, usually `https://<host>/api`. |
 | `VITE_LANDING_ENGINE_URL` | Landing-engine product preview origin. |
 | `VITE_LANDING_ENGINE_PRODUCT_PATH_PATTERN` | Customer-page product route pattern used by dashboard Preview links. |
+| `VITE_LANDING_ENGINE_PRODUCT_URL_PATTERN` | Optional full customer-page URL pattern for shared merchant subdomains. |
 | `VITE_PUBLIC_SITE_URL`, `VITE_PUBLIC_SUPPORT_EMAIL` | Public browser-safe values. |
 
 Use `docs/deployment/environment-inventory.md` for the full ownership table before setting these values.
